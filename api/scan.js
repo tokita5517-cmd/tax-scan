@@ -28,7 +28,8 @@ export default async function handler(req, res) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-3-5-sonnet-latest",
+        // ✅ ここがポイント：安定モデルに変更
+        model: "claude-3-haiku-20240307",
         max_tokens: 200,
         temperature: 0,
         messages: [
@@ -56,8 +57,13 @@ export default async function handler(req, res) {
 
     const j = await r.json();
 
+    // ❌ エラー時：理由がわかるようにそのまま返す（Vercel logsで見れる）
     if (!r.ok) {
-      return res.status(500).json({ error: "anthropic error", detail: j });
+      return res.status(500).json({
+        error: "anthropic error",
+        status: r.status,
+        detail: j,
+      });
     }
 
     // Claudeの返答テキストを結合
@@ -80,11 +86,9 @@ export default async function handler(req, res) {
 // --- helpers ---
 function extractFirstJson(s) {
   try {
-    // そのままJSONならOK
     return JSON.parse(s);
   } catch (_) {}
 
-  // 最初の { ... } を抜く
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
   if (first === -1 || last === -1 || last <= first) return null;
