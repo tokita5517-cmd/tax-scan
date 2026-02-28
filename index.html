@@ -3,335 +3,693 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>注文書（控）専用：税抜→税(10%四捨五入)→合計</title>
+  <title>請求書スキャン（合計→税抜/税/税込）</title>
   <style>
-    :root{ --accent:#f0c040; --border:rgba(255,255,255,.14); --bg:rgba(0,0,0,.75); }
-    body{margin:0;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif;overflow:hidden}
-    #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover}
-    #overlay{position:fixed;inset:0;pointer-events:none}
+    :root{
+      --accent:#f0c040;
+      --red:#ff5f5f;
+      --border:rgba(255,255,255,.14);
+      --surface:rgba(10,10,10,.82);
+      --glass:rgba(0,0,0,.65);
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;overflow:hidden}
+    #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
     #roiBox{
-      position:absolute;
-      /* ROI可視化（調整用） */
-      left:78%; top:55%;
-      width:20%; height:25%;
-      border:2px solid var(--accent);
-      border-radius:10px;
-      box-shadow:0 0 0 9999px rgba(0,0,0,.25);
+      position:fixed;
+      left:50%; top:50%;
+      transform:translate(-50%,-50%);
+      width:min(78vw,420px);
+      height:min(22vw,140px);
+      border:2px solid rgba(240,192,64,.55);
+      border-radius:14px;
+      z-index:2;
+      pointer-events:none;
+      box-shadow:0 0 0 9999px rgba(0,0,0,.22);
     }
-    #status{
-      position:fixed;top:14px;left:50%;transform:translateX(-50%);
-      background:var(--bg);border:1px solid var(--border);
-      border-radius:999px;padding:8px 12px;font-size:12px;z-index:20;
-      backdrop-filter:blur(10px);white-space:nowrap
+    #roiLabel{
+      position:absolute; top:-28px; left:0;
+      font-size:12px; letter-spacing:.08em;
+      color:rgba(255,255,255,.78);
+      background:rgba(0,0,0,.55);
+      border:1px solid var(--border);
+      padding:5px 10px;
+      border-radius:999px;
+      backdrop-filter:blur(10px);
     }
-    #panel{
-      position:fixed;left:0;right:0;bottom:0;z-index:30;
-      background:linear-gradient(to top, rgba(0,0,0,.92) 70%, transparent);
-      padding:14px 14px 22px;
-    }
-    #card{
-      background:rgba(20,20,20,.85);border:1px solid var(--border);
-      border-radius:16px;overflow:hidden;backdrop-filter:blur(14px);
-    }
-    .row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-top:1px solid rgba(255,255,255,.10)}
-    .row:first-child{border-top:0}
-    .lab{opacity:.65;font-size:12px;letter-spacing:.5px}
-    .val{font-weight:900;font-variant-numeric:tabular-nums;font-size:20px}
-    .big .val{font-size:28px;color:var(--accent)}
-    #btnRow{display:flex;gap:10px;margin-top:10px}
-    button{
-      flex:1;border:0;border-radius:14px;padding:14px 12px;
-      font-weight:900;cursor:pointer
-    }
-    #startBtn{background:var(--accent);color:#000}
-    #toggleRoi{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
-    #hint{opacity:.7;font-size:12px;margin:10px 2px 0;line-height:1.6}
-    canvas{display:none}
-  </style>
+    .c{position:absolute;width:20px;height:20px;border:0 solid var(--accent)}
+    .tl{top:-2px;left:-2px;border-top-width:3px;border-left-width:3px;border-radius:12px 0 0 0}
+    .tr{top:-2px;right:-2px;border-top-width:3px;border-right-width:3px;border-radius:0 12px 0 0}
+    .bl{bottom:-2px;left:-2px;border-bottom-width:3px;border-left-width:3px;border-radius:0 0 0 12px}
+    .br{bottom:-2px;right:-2px;border-bottom-width:3px;border-right-width:3px;border-radius:0 0 12px 0}
 
-  <!-- 端末内OCR（重いので「ホールド時だけ」使う） -->
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    #topBar{
+      position:fixed; top:12px; left:12px; right:12px;
+      z-index:5;
+      display:flex; gap:8px; align-items:center; justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      background:var(--glass);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:8px 12px;
+      font-size:12px;
+      backdrop-filter:blur(10px);
+      white-space:nowrap;
+    }
+    .pill b{font-size:13px;color:var(--accent)}
+    #status{color:rgba(255,255,255,.85)}
+    #status.err{color:var(--red); border-color:rgba(255,95,95,.5)}
+    #status.ok{color:rgba(79,212,138,.95); border-color:rgba(79,212,138,.45)}
+    #status.scan{color:var(--accent); border-color:rgba(240,192,64,.6)}
+
+    #panel{
+      position:fixed; left:0; right:0; bottom:0;
+      z-index:6;
+      padding:12px 12px 18px;
+      background:linear-gradient(to top, rgba(0,0,0,.96) 65%, rgba(0,0,0,.25));
+    }
+    .card{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:16px;
+      overflow:hidden;
+      backdrop-filter:blur(16px);
+    }
+    .row{
+      display:flex; justify-content:space-between; align-items:baseline;
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+    }
+    .row:last-child{border-bottom:none}
+    .label{font-size:11px;color:rgba(255,255,255,.55);letter-spacing:.08em}
+    .val{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:800;font-size:18px}
+    .val.red{color:var(--red)}
+    .row.total{background:rgba(240,192,64,.08)}
+    .row.total .label{color:var(--accent);font-weight:800}
+    .row.total .val{color:var(--accent);font-size:26px}
+    @keyframes goldFlash{
+      0%{transform:scale(1);filter:brightness(1)}
+      40%{transform:scale(1.05);filter:brightness(1.5)}
+      100%{transform:scale(1);filter:brightness(1)}
+    }
+    .flash-gold{animation:goldFlash 260ms ease-out}
+
+    .controls{
+      margin-top:10px;
+      display:flex; gap:10px;
+    }
+    button{
+      border:none;
+      border-radius:14px;
+      padding:14px 12px;
+      font-weight:900;
+      font-size:15px;
+      cursor:pointer;
+    }
+    #btnAuto{flex:1;background:var(--accent);color:#000}
+    #btnAuto.off{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
+    #btnResetToday{background:#333;color:#fff}
+    #btnUndo{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
+
+    .section{
+      margin-top:10px;
+      background:rgba(0,0,0,.45);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:16px;
+      padding:10px 10px 6px;
+      backdrop-filter:blur(10px);
+    }
+    .section h3{
+      margin:0 0 6px;
+      font-size:12px;
+      letter-spacing:.08em;
+      color:rgba(255,255,255,.75);
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    #dateRow{
+      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+      margin-bottom:8px;
+    }
+    input[type="date"], input[type="month"]{
+      background:rgba(255,255,255,.10);
+      border:1px solid var(--border);
+      color:#fff;
+      border-radius:12px;
+      padding:10px 10px;
+      font-weight:800;
+    }
+    .miniBtn{
+      padding:10px 12px;
+      font-size:13px;
+      border-radius:12px;
+      background:rgba(255,255,255,.10);
+      border:1px solid var(--border);
+      color:#fff;
+      font-weight:900;
+    }
+
+    #logList{max-height:160px;overflow:auto}
+    .logItem{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:8px 6px;
+      border-top:1px solid rgba(255,255,255,.08);
+      font-size:14px;
+    }
+    .logItem:first-child{border-top:none}
+    .logLeft{display:flex; align-items:center; gap:8px}
+    .logRight{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:900}
+    .logRight b{color:var(--accent)}
+    #btnDeleteSelected{
+      width:100%;
+      margin-top:8px;
+      background:rgba(255,255,255,.10);
+      border:1px solid var(--border);
+      color:#fff;
+    }
+
+    #chartWrap{margin-top:8px}
+    canvas{width:100%;height:180px;background:rgba(0,0,0,.25);border-radius:12px;border:1px solid rgba(255,255,255,.10)}
+    .muted{color:rgba(255,255,255,.6);font-size:12px;margin:6px 0 0}
+  </style>
 </head>
 <body>
   <video id="video" autoplay muted playsinline></video>
-  <canvas id="canvas"></canvas>
+  <canvas id="cap" hidden></canvas>
 
-  <div id="overlay">
-    <div id="roiBox"></div>
+  <div id="roiBox">
+    <div id="roiLabel">合計 ⇒ 金額をここに</div>
+    <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
   </div>
 
-  <div id="status">📷 準備中…（HTTPSで開いてね）</div>
+  <div id="topBar">
+    <div id="status" class="pill">📷 準備中…</div>
+    <div class="pill">請求書: <b id="invoiceCount">0</b>枚</div>
+    <div class="pill">総合計: <b id="grandTotal">¥0</b></div>
+  </div>
 
   <div id="panel">
-    <div id="card">
+    <div class="card">
       <div class="row">
-        <div class="lab">税抜（印字の金額）</div>
+        <div class="label">税抜（逆算）</div>
         <div class="val" id="baseVal">—</div>
       </div>
       <div class="row">
-        <div class="lab">消費税（10% 四捨五入）</div>
-        <div class="val" id="taxVal">—</div>
+        <div class="label">消費税（10%・四捨五入）</div>
+        <div class="val red" id="taxVal">—</div>
       </div>
-      <div class="row big">
-        <div class="lab">合計（税込）</div>
+      <div class="row total">
+        <div class="label">合計（税込）</div>
         <div class="val" id="totalVal">—</div>
       </div>
     </div>
 
-    <div id="btnRow">
-      <button id="startBtn">カメラ開始</button>
-      <button id="toggleRoi">ROI枠 表示/非表示</button>
+    <div class="controls">
+      <button id="btnAuto" title="自動スキャン ON/OFF">AUTO: ON</button>
+      <button id="btnUndo" title="直近1件取り消し">↩︎ 直近</button>
+      <button id="btnResetToday" title="今日分をリセット">⟲ 今日</button>
     </div>
-    <div id="hint">
-      ・この書類専用：右端「金額」列の印字（例：1,080）だけ読みます。<br>
-      ・紙を止める → 自動ホールドして計算 → 紙を動かすと次を待ちます。
+
+    <div class="section">
+      <h3>日付別（履歴・削除） <span class="muted" id="dayInfo"></span></h3>
+      <div id="dateRow">
+        <button class="miniBtn" id="btnPrevDay">←</button>
+        <input type="date" id="datePick">
+        <button class="miniBtn" id="btnNextDay">→</button>
+        <button class="miniBtn" id="btnSelectAll">全選択</button>
+        <button class="miniBtn" id="btnClearSel">解除</button>
+      </div>
+      <div id="logList"></div>
+      <button id="btnDeleteSelected">☑ 選んで削除（重複・誤読）</button>
+    </div>
+
+    <div class="section">
+      <h3>月グラフ（合計＋枚数）</h3>
+      <div id="dateRow">
+        <input type="month" id="monthPick">
+        <button class="miniBtn" id="btnThisMonth">今月</button>
+      </div>
+      <div id="chartWrap">
+        <canvas id="monthChart" width="900" height="220"></canvas>
+        <div class="muted">棒＝金額（税込） / 上の数字＝枚数</div>
+      </div>
     </div>
   </div>
 
 <script>
-  // ========= 設定（必要ならここだけ微調整） =========
-  const RATE = 10;                 // 10%固定
-  const TICK_MS = 200;             // 動き検知間隔
-  const HOLD_STABLE_MS = 850;      // 0.85秒止まったらホールド
-  const MOTION_TH = 12;            // 動き閾値（大きいほど鈍感）
+(() => {
+  // ====== 基本設定 ======
+  const RATE = 0.10;         // 10%固定
+  const CONFIRM_N = 2;       // 2回一致で確定
+  const UNLOCK_N  = 2;       // 違う値が2回出たら解除（書類が変わった扱い）
+  const TICK_MS   = 220;     // 認識周期（速すぎるとiPhoneが重い）
 
-  // ROI（この書類用：右端金額列の下側）
-  // 画面に対する比率：x,y,w,h
-  const ROI = { x: 0.78, y: 0.55, w: 0.20, h: 0.25 };
+  // ROI（動画に対する比率）中央寄せ
+  // x,y は左上（0-1）、w,h は幅高さ（0-1）
+  const ROI = { x: 0.30, y: 0.56, w: 0.40, h: 0.24 };
 
-  // OCRの軽量化：文字種を絞る（数字/カンマ/円 だけ）
-  const OCR_LANG = 'jpn';
-  const OCR_WHITELIST = '0123456789,円￥';
-
-  // ========= DOM =========
+  // ====== DOM ======
   const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const cap = document.getElementById('cap');
+  const ctx = cap.getContext('2d');
 
   const statusEl = document.getElementById('status');
   const baseVal = document.getElementById('baseVal');
   const taxVal = document.getElementById('taxVal');
   const totalVal = document.getElementById('totalVal');
 
-  const startBtn = document.getElementById('startBtn');
-  const toggleRoiBtn = document.getElementById('toggleRoi');
-  const roiBox = document.getElementById('roiBox');
+  const invoiceCountEl = document.getElementById('invoiceCount');
+  const grandTotalEl = document.getElementById('grandTotal');
 
-  // ========= 状態 =========
+  const btnAuto = document.getElementById('btnAuto');
+  const btnUndo = document.getElementById('btnUndo');
+  const btnResetToday = document.getElementById('btnResetToday');
+
+  const datePick = document.getElementById('datePick');
+  const btnPrevDay = document.getElementById('btnPrevDay');
+  const btnNextDay = document.getElementById('btnNextDay');
+  const logList = document.getElementById('logList');
+  const btnDeleteSelected = document.getElementById('btnDeleteSelected');
+  const btnSelectAll = document.getElementById('btnSelectAll');
+  const btnClearSel = document.getElementById('btnClearSel');
+  const dayInfo = document.getElementById('dayInfo');
+
+  const monthPick = document.getElementById('monthPick');
+  const btnThisMonth = document.getElementById('btnThisMonth');
+  const monthChart = document.getElementById('monthChart');
+
+  // ====== 状態 ======
   let stream = null;
+  let autoOn = true;
+
+  let locked = false;
+  let lockedTotal = null;
+
+  let lastSeen = null;
+  let stableCount = 0;
+  let unlockCount = 0;
+
+  let scanning = false;
   let timer = null;
-  let holding = false;
-  let stableMs = 0;
-  let lastSmall = null;
-  let busy = false;
 
-  function setStatus(msg){ statusEl.textContent = msg; }
+  // ====== ユーティリティ ======
+  const yen = (n) => `¥${Number(n||0).toLocaleString('ja-JP')}`;
 
-  function yen(n){
-    return '¥' + Number(n).toLocaleString('ja-JP');
+  const pad2 = (n) => String(n).padStart(2,'0');
+  const todayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  };
+  const monthStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
+  };
+
+  function setStatus(kind, text){
+    statusEl.classList.remove('err','ok','scan');
+    if(kind) statusEl.classList.add(kind);
+    statusEl.textContent = text;
   }
 
-  // 10% 四捨五入（整数で安全に）
-  function calc10Round(base){
-    const tax = Math.floor((base * 10 + 50) / 100);
-    return { base, tax, total: base + tax };
+  function flashGold(){
+    totalVal.classList.remove('flash-gold');
+    void totalVal.offsetWidth;
+    totalVal.classList.add('flash-gold');
   }
 
-  function showResult(base){
-    const r = calc10Round(base);
-    baseVal.textContent = yen(r.base);
-    taxVal.textContent = yen(r.tax);
-    totalVal.textContent = yen(r.total);
+  // 合計（税込）→ 税抜・税 を逆算（10%四捨五入に一致するものを探索）
+  function splitFromTotal(total){
+    const approx = Math.round(total / (1 + RATE));
+    for(let d=-5; d<=5; d++){
+      const base = approx + d;
+      const tax = Math.round(base * RATE);
+      if(base + tax === total) return { base, tax, total };
+    }
+    const base = approx;
+    const tax = total - base;
+    return { base, tax, total };
   }
 
-  // OCR結果から「税抜金額」を拾う（この書類専用）
-  function pickBase(text){
-    // 1) カンマ付き最優先（1,080）
-    const c = text.match(/([0-9]{1,3}(?:,[0-9]{3})+)/);
-    if (c) return parseInt(c[1].replace(/,/g,''), 10);
+  // ====== 永続データ（1日単位ログ） ======
+  function logKey(dateStr){ return `taxscan_log_${dateStr}`; }
 
-    // 2) 3桁以上の数字候補の最大
-    const nums = [...text.matchAll(/\b([0-9]{3,})\b/g)]
-      .map(m => parseInt(m[1], 10))
-      .filter(n => Number.isFinite(n) && n >= 100);
-
-    if (!nums.length) return 0;
-    return Math.max(...nums);
+  function loadLog(dateStr){
+    try { return JSON.parse(localStorage.getItem(logKey(dateStr)) || "[]"); }
+    catch(e){ return []; }
+  }
+  function saveLog(dateStr, arr){
+    localStorage.setItem(logKey(dateStr), JSON.stringify(arr));
   }
 
-  function stopStream(){
-    if (stream){
-      try { stream.getTracks().forEach(t => t.stop()); } catch {}
-      stream = null;
+  // 集計（ログから都度算出：壊れにくい）
+  function calcStats(dateStr){
+    const log = loadLog(dateStr);
+    const count = log.length;
+    const sumTotal = log.reduce((a,x)=>a + (Number(x.total)||0), 0);
+    return { count, sumTotal, log };
+  }
+
+  function setTopStatsForDate(dateStr){
+    const {count, sumTotal} = calcStats(dateStr);
+    invoiceCountEl.textContent = String(count);
+    grandTotalEl.textContent = yen(sumTotal);
+    dayInfo.textContent = `（${count}枚 / ${yen(sumTotal)}）`;
+  }
+
+  // ====== 履歴UI ======
+  function renderLog(dateStr){
+    const { log } = calcStats(dateStr);
+    if(!log.length){
+      logList.innerHTML = `<div class="muted">履歴なし</div>`;
+      return;
+    }
+    // newest on top
+    const rows = [...log].reverse().map((x, idxFromTop) => {
+      const realIndex = log.length - 1 - idxFromTop; // 元配列のindex
+      const t = Number(x.total)||0;
+      return `
+        <div class="logItem">
+          <div class="logLeft">
+            <input type="checkbox" class="logChk" data-idx="${realIndex}">
+            <div>${realIndex+1}枚目</div>
+          </div>
+          <div class="logRight"><b>${yen(t)}</b></div>
+        </div>`;
+    }).join('');
+    logList.innerHTML = rows;
+  }
+
+  function getSelectedIdx(){
+    const chks = [...document.querySelectorAll('.logChk')];
+    return chks.filter(c=>c.checked).map(c=>Number(c.dataset.idx)).filter(n=>Number.isFinite(n));
+  }
+
+  function selectAll(checked){
+    [...document.querySelectorAll('.logChk')].forEach(c=>c.checked = checked);
+  }
+
+  // ====== 月グラフ ======
+  function daysInMonth(y,m){ // m:1-12
+    return new Date(y, m, 0).getDate();
+  }
+
+  function monthDailySummary(ym){ // "YYYY-MM"
+    const [Y,M] = ym.split('-').map(Number);
+    const dim = daysInMonth(Y,M);
+    const out = [];
+    for(let d=1; d<=dim; d++){
+      const ds = `${Y}-${pad2(M)}-${pad2(d)}`;
+      const {count, sumTotal} = calcStats(ds);
+      out.push({ day:d, count, total:sumTotal });
+    }
+    return out;
+  }
+
+  function drawMonthChart(){
+    const ym = monthPick.value || monthStr();
+    const data = monthDailySummary(ym);
+    const c = monthChart;
+    const g = c.getContext('2d');
+    g.clearRect(0,0,c.width,c.height);
+
+    const padL=40, padR=12, padT=18, padB=26;
+    const W = c.width - padL - padR;
+    const H = c.height - padT - padB;
+
+    const maxVal = Math.max(1, ...data.map(x=>x.total));
+    const barW = W / data.length;
+
+    // axis
+    g.globalAlpha = 0.6;
+    g.fillText(`${ym} 合計（税込）`, 10, 12);
+    g.globalAlpha = 1;
+
+    // baseline
+    g.globalAlpha = 0.25;
+    g.fillRect(padL, padT+H, W, 1);
+    g.globalAlpha = 1;
+
+    // bars + count labels
+    data.forEach((x, i) => {
+      const val = x.total;
+      const h = Math.round((val/maxVal)*H);
+      const bx = padL + Math.floor(i*barW) + Math.floor(barW*0.15);
+      const bw = Math.max(2, Math.floor(barW*0.7));
+      const by = padT + (H - h);
+
+      g.fillRect(bx, by, bw, h);
+
+      // day ticks (sparse)
+      if (x.day === 1 || x.day % 5 === 0 || x.day === data.length){
+        g.globalAlpha = 0.75;
+        g.fillText(String(x.day), bx, padT+H+18);
+        g.globalAlpha = 1;
+      }
+
+      // count label above bar
+      if (x.count > 0){
+        g.globalAlpha = 0.9;
+        g.fillText(`${x.count}`, bx, Math.max(14, by-4));
+        g.globalAlpha = 1;
+      }
+    });
+  }
+
+  // ====== カメラ ======
+  async function startCamera(){
+    try{
+      setStatus('scan','📷 カメラ起動中…');
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal:'environment' }, width: { ideal: 1920 } },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      setStatus('ok','✅ 準備OK（合計⇒金額を枠へ）');
+    }catch(e){
+      console.error(e);
+      setStatus('err','❌ カメラ許可が必要（Safariのサイト設定）');
     }
   }
 
-  async function startCamera(){
-    // HTTPSチェック（localhostはOK）
-    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-    if (location.protocol !== 'https:' && !isLocal){
-      setStatus('❌ HTTPSで開いてください（file:// は不可）');
+  function captureROI(){
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+
+    const x = Math.max(0, Math.floor(ROI.x * vw));
+    const y = Math.max(0, Math.floor(ROI.y * vh));
+    const w = Math.max(1, Math.floor(ROI.w * vw));
+    const h = Math.max(1, Math.floor(ROI.h * vh));
+
+    cap.width = w;
+    cap.height = h;
+    ctx.drawImage(video, x, y, w, h, 0, 0, w, h);
+    return cap.toDataURL('image/jpeg', 0.88).split(',')[1];
+  }
+
+  // ====== 認識（サーバー /api/scan を想定：{"total":35640,"found":true}） ======
+  async function recognizeTotal(){
+    const img = captureROI();
+    const res = await fetch('/api/scan', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ image_base64: img })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data?.error || 'scan failed');
+    const total = Number(data?.total || 0);
+    return total > 0 ? total : 0;
+  }
+
+  // ====== 確定ロジック ======
+  function onDetected(total){
+    if(!total){
+      if(!locked) setStatus('err','⚠️ 金額が見つかりません（少し近づけて）');
+      stableCount = 0;
+      lastSeen = null;
       return;
     }
 
-    setStatus('📷 カメラ起動中…');
-    stopStream();
-
-    try{
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio:false,
-        video:{
-          facingMode:{ ideal:'environment' },
-          width:{ ideal:1280 },
-          height:{ ideal:720 }
+    // LOCK中：違う値が続いたら解除（次の請求書）
+    if(locked){
+      if(total !== lockedTotal){
+        unlockCount++;
+        if(unlockCount >= UNLOCK_N){
+          locked = false;
+          lockedTotal = null;
+          unlockCount = 0;
+          stableCount = 1;
+          lastSeen = total;
+          setStatus('scan','📄 次の請求書を検出…');
         }
-      });
-      video.srcObject = stream;
+      }else{
+        unlockCount = 0; // 同じなら解除カウント戻す
+      }
+      return; // LOCK中は表示更新しない
+    }
 
-      // iOS: metadata待ち
-      await new Promise(res => {
-        if (video.readyState >= 1) return res();
-        video.onloadedmetadata = () => res();
-      });
+    // LOCKしてない：2回一致で確定
+    if(total === lastSeen) stableCount++;
+    else { lastSeen = total; stableCount = 1; }
+    setStatus('scan',`🔍 認識中…（${stableCount}/${CONFIRM_N}）`);
 
-      await video.play();
-      setStatus('✅ かざして止めてください');
-      startAutoHold();
+    if(stableCount >= CONFIRM_N){
+      locked = true;
+      lockedTotal = total;
+      unlockCount = 0;
+
+      const r = splitFromTotal(total);
+      showResult(r);
+
+      // 保存（今日）
+      const ds = datePick.value;
+      const log = loadLog(ds);
+      log.push({ total: r.total, base: r.base, tax: r.tax });
+      saveLog(ds, log);
+
+      // UI更新
+      setTopStatsForDate(ds);
+      renderLog(ds);
+      drawMonthChart();
+
+      setStatus('ok',`✅ 確定：${yen(total)}（次の請求書で自動解除）`);
+      flashGold();
+    }
+  }
+
+  function showResult(r){
+    baseVal.textContent  = yen(r.base);
+    taxVal.textContent   = yen(r.tax);
+    totalVal.textContent = yen(r.total);
+  }
+
+  // ====== ループ ======
+  let scanning = false;
+  let timer = null;
+
+  async function tick(){
+    if(!autoOn || scanning) return;
+    scanning = true;
+    try{
+      const total = await recognizeTotal();
+      onDetected(total);
     }catch(e){
       console.error(e);
-      setStatus(`❌ カメラ起動失敗：${e.name || 'Error'}`);
+      if(!locked) setStatus('err','❌ 通信/認識エラー');
+    }finally{
+      scanning = false;
     }
   }
 
-  function startAutoHold(){
-    if (timer) clearInterval(timer);
-    holding = false;
-    busy = false;
-    stableMs = 0;
-    lastSmall = null;
-
-    timer = setInterval(async () => {
-      if (!video.videoWidth || busy) return;
-
-      // ---- 軽い動き検知（小さいフレームで差分） ----
-      const w = 160, h = 120;
-      canvas.width = w; canvas.height = h;
-      ctx.drawImage(video, 0, 0, w, h);
-      const data = ctx.getImageData(0, 0, w, h).data;
-
-      let diff = 0;
-      if (lastSmall){
-        // 間引きで計算（i+=16で1/16サンプル）
-        for (let i = 0; i < data.length; i += 16){
-          diff += Math.abs(data[i] - lastSmall[i]);
-        }
-        diff = diff / (data.length / 16);
-      }
-      lastSmall = data;
-
-      // ---- ホールド中：動いたら解除して次へ ----
-      if (holding){
-        if (diff > MOTION_TH){
-          holding = false;
-          setStatus('✅ 次の用紙をかざして止めてください');
-        }
-        return;
-      }
-
-      // ---- ホールド待ち：静止が続いたらホールド ----
-      if (diff && diff < MOTION_TH) stableMs += TICK_MS;
-      else stableMs = 0;
-
-      if (stableMs >= HOLD_STABLE_MS){
-        stableMs = 0;
-        holding = true;
-        busy = true;
-        setStatus('⏸ ホールド中（読み取り中…）');
-
-        try{
-          const cropDataUrl = captureCropPNG();
-          const text = await ocrOnce(cropDataUrl);
-          const base = pickBase(text);
-
-          if (base > 0){
-            showResult(base);
-            setStatus(`✅ 税抜 ${yen(base)} → 計算完了（紙を動かすと次）`);
-          }else{
-            setStatus('⚠️ 金額が見つかりません（少し近づけて）');
-            // 失敗時はホールド解除して再トライ可能に
-            holding = false;
-          }
-        }catch(err){
-          console.error(err);
-          setStatus('❌ OCRエラー（もう一度）');
-          holding = false;
-        }finally{
-          busy = false;
-        }
-      }
-    }, TICK_MS);
+  function startLoop(){
+    stopLoop();
+    timer = setInterval(tick, TICK_MS);
+  }
+  function stopLoop(){
+    if(timer){ clearInterval(timer); timer = null; }
   }
 
-  function captureCropPNG(){
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-
-    // 元解像度で一度描画
-    canvas.width = vw; canvas.height = vh;
-    ctx.drawImage(video, 0, 0, vw, vh);
-
-    const x = Math.max(0, Math.floor(vw * ROI.x));
-    const y = Math.max(0, Math.floor(vh * ROI.y));
-    const w = Math.min(vw - x, Math.floor(vw * ROI.w));
-    const h = Math.min(vh - y, Math.floor(vh * ROI.h));
-
-    const cut = ctx.getImageData(x, y, w, h);
-
-    const tmp = document.createElement('canvas');
-    tmp.width = w; tmp.height = h;
-    tmp.getContext('2d').putImageData(cut, 0, 0);
-
-    return tmp.toDataURL('image/png');
+  // ====== 操作：直近取り消し / 選んで削除 / 今日リセット ======
+  function undoLast(){
+    const ds = datePick.value;
+    const log = loadLog(ds);
+    if(!log.length) return;
+    log.pop();
+    saveLog(ds, log);
+    setTopStatsForDate(ds);
+    renderLog(ds);
+    drawMonthChart();
+    setStatus('ok','↩︎ 直近1件を取り消しました');
   }
 
-  async function ocrOnce(dataUrl){
-    // Tesseractは重いので、ホールド時だけ呼ぶ
-    const { data } = await Tesseract.recognize(dataUrl, OCR_LANG, {
-      logger: m => {
-        // 進捗を軽く表示（邪魔なら消してOK）
-        if (m.status === 'recognizing text'){
-          const p = Math.round((m.progress || 0) * 100);
-          setStatus(`⏸ 読み取り中… ${p}%`);
-        }
-      }
-    });
-
-    // 文字種フィルタ（できるだけノイズ減らす）
-    const raw = (data.text || '').replace(/[^\d,円￥\s]/g, ' ');
-    return raw;
+  function deleteSelected(){
+    const ds = datePick.value;
+    const idxs = getSelectedIdx().sort((a,b)=>b-a); // descending
+    if(!idxs.length){
+      setStatus('err','⚠️ 削除する項目を選んでね');
+      return;
+    }
+    const log = loadLog(ds);
+    for(const i of idxs){
+      if(i>=0 && i<log.length) log.splice(i,1);
+    }
+    saveLog(ds, log);
+    setTopStatsForDate(ds);
+    renderLog(ds);
+    drawMonthChart();
+    setStatus('ok',`✅ 選択 ${idxs.length} 件を削除`);
   }
 
-  // ========= UI =========
-  startBtn.addEventListener('click', startCamera);
+  function resetToday(){
+    const ds = datePick.value;
+    localStorage.removeItem(logKey(ds));
+    setTopStatsForDate(ds);
+    renderLog(ds);
+    drawMonthChart();
+    setStatus('ok','⟲ その日（選択日）の履歴をリセット');
+  }
 
-  toggleRoiBtn.addEventListener('click', () => {
-    roiBox.style.display = (roiBox.style.display === 'none') ? 'block' : 'none';
-  });
+  // ====== 日付操作 ======
+  function shiftDate(days){
+    const d = new Date(datePick.value + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    const ds = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    datePick.value = ds;
+    onDateChanged();
+  }
+  function onDateChanged(){
+    const ds = datePick.value;
+    setTopStatsForDate(ds);
+    renderLog(ds);
+  }
 
-  // 初期：Safari設定やブラウザ制限のヒント
-  window.addEventListener('load', () => {
-    if (!navigator.mediaDevices?.getUserMedia){
-      setStatus('❌ このブラウザはカメラ非対応（Safari/Chromeで開いて）');
+  // ====== AUTOトグル ======
+  function setAuto(on){
+    autoOn = on;
+    btnAuto.textContent = on ? "AUTO: ON" : "AUTO: OFF";
+    btnAuto.classList.toggle('off', !on);
+    if(on){
+      setStatus('ok','✅ AUTO ON');
     }else{
-      setStatus('📷 「カメラ開始」を押してね（HTTPS必須）');
+      setStatus('ok','⏸ AUTO OFF');
     }
+  }
+
+  // ====== init ======
+  window.addEventListener('load', async () => {
+    // 初期日付
+    datePick.value = todayStr();
+    monthPick.value = monthStr();
+
+    // 初期描画
+    setTopStatsForDate(datePick.value);
+    renderLog(datePick.value);
+    drawMonthChart();
+
+    // カメラ開始
+    await startCamera();
+    startLoop();
   });
 
-  // 画面離脱で停止
-  window.addEventListener('beforeunload', () => {
-    if (timer) clearInterval(timer);
-    stopStream();
-  });
+  // events
+  btnAuto.addEventListener('click', () => setAuto(!autoOn));
+  btnUndo.addEventListener('click', undoLast);
+  btnResetToday.addEventListener('click', resetToday);
+
+  btnDeleteSelected.addEventListener('click', deleteSelected);
+  btnSelectAll.addEventListener('click', () => selectAll(true));
+  btnClearSel.addEventListener('click', () => selectAll(false));
+
+  datePick.addEventListener('change', () => { onDateChanged(); });
+  btnPrevDay.addEventListener('click', () => shiftDate(-1));
+  btnNextDay.addEventListener('click', () => shiftDate(1));
+
+  monthPick.addEventListener('change', drawMonthChart);
+  btnThisMonth.addEventListener('click', () => { monthPick.value = monthStr(); drawMonthChart(); });
+
+})();
 </script>
 </body>
 </html>
