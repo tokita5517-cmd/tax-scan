@@ -60,10 +60,12 @@
       white-space:nowrap;
     }
     .pill b{font-size:13px;color:var(--accent)}
-    #status{color:rgba(255,255,255,.85)}
+    #status{color:rgba(255,255,255,.85); user-select:none}
     #status.err{color:var(--red); border-color:rgba(255,95,95,.5)}
     #status.ok{color:rgba(79,212,138,.95); border-color:rgba(79,212,138,.45)}
     #status.scan{color:var(--accent); border-color:rgba(240,192,64,.6)}
+    #status.tap{cursor:pointer}
+    #status.tap:active{transform:scale(0.99)}
 
     #panel{
       position:fixed; left:0; right:0; bottom:0;
@@ -185,7 +187,7 @@
   </div>
 
   <div id="topBar">
-    <div id="status" class="pill">📷 準備中…</div>
+    <div id="status" class="pill tap">📷 準備中…（タップで開始）</div>
     <div class="pill">請求書: <b id="invoiceCount">0</b>枚</div>
     <div class="pill">総合計: <b id="grandTotal">¥0</b></div>
   </div>
@@ -236,6 +238,10 @@
         <div class="muted">棒＝金額（税込） / 上の数字＝枚数</div>
       </div>
     </div>
+
+    <div class="muted">
+      ※ iPhoneで「準備中…」のままの時は、左上バッジをタップしてカメラ開始（Safari対策）
+    </div>
   </div>
 
 <script>
@@ -245,17 +251,16 @@
   const CONFIRM_N = 2;       // 2回一致で確定
   const UNLOCK_N  = 2;       // 違う値が2回出たら解除（書類が変わった扱い）
   const TICK_MS   = 220;     // 認識周期（速すぎるとiPhoneが重い）
-
-  // ROI（動画に対する比率）中央寄せ
-  // x,y は左上（0-1）、w,h は幅高さ（0-1）
-  const ROI = { x: 0.30, y: 0.56, w: 0.40, h: 0.24 };
+  const SCAN_TIMEOUT_MS = 5500; // /api/scan タイムアウト
 
   // ====== DOM ======
   const video = document.getElementById('video');
   const cap = document.getElementById('cap');
   const ctx = cap.getContext('2d');
 
+  const roiBox = document.getElementById('roiBox');
   const statusEl = document.getElementById('status');
+
   const baseVal = document.getElementById('baseVal');
   const taxVal = document.getElementById('taxVal');
   const totalVal = document.getElementById('totalVal');
@@ -293,6 +298,10 @@
 
   let scanning = false;
   let timer = null;
+
+  // カメラ起動状態
+  let cameraReady = false;
+  let startingCamera = false;
 
   // ====== ユーティリティ ======
   const yen = (n) => `¥${Number(n||0).toLocaleString('ja-JP')}`;
@@ -421,17 +430,14 @@
     const maxVal = Math.max(1, ...data.map(x=>x.total));
     const barW = W / data.length;
 
-    // axis
     g.globalAlpha = 0.6;
     g.fillText(`${ym} 合計（税込）`, 10, 12);
     g.globalAlpha = 1;
 
-    // baseline
     g.globalAlpha = 0.25;
     g.fillRect(padL, padT+H, W, 1);
     g.globalAlpha = 1;
 
-    // bars + count labels
     data.forEach((x, i) => {
       const val = x.total;
       const h = Math.round((val/maxVal)*H);
@@ -441,14 +447,12 @@
 
       g.fillRect(bx, by, bw, h);
 
-      // day ticks (sparse)
       if (x.day === 1 || x.day % 5 === 0 || x.day === data.length){
         g.globalAlpha = 0.75;
         g.fillText(String(x.day), bx, padT+H+18);
         g.globalAlpha = 1;
       }
 
-      // count label above bar
       if (x.count > 0){
         g.globalAlpha = 0.9;
         g.fillText(`${x.count}`, bx, Math.max(14, by-4));
@@ -457,56 +461,156 @@
     });
   }
 
+  // ====== 重要：ROI枠（画面上）→ 動画座標へ変換（object-fit:cover補正） ======
+  function getVideoCoverMapping(){
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const sw = window.innerWidth;
+    const sh = window.innerHeight;
+
+    // cover のスケール
+    const s = Math.max(sw / vw, sh / vh);
+    const dw = vw * s;
+    const dh = vh * s;
+
+    // 画面に描画されるvideoの左上（はみ出し分がマイナス）
+    const dx = (sw - dw) / 2;
+    const dy = (sh - dh) / 2;
+
+    return { vw, vh, sw, sh, s, dx, dy };
+  }
+
+  function getRoiRectInVideoPx(){
+    // roiBox の画面上の矩形
+    const r = roiBox.getBoundingClientRect();
+    if (!video.videoWidth || !video.videoHeight) return null;
+
+    const m = getVideoCoverMapping();
+
+    // 画面座標 → video座標
+    const vx = (r.left - m.dx) / m.s;
+    const vy = (r.top  - m.dy) / m.s;
+    const vw = r.width / m.s;
+    const vh = r.height/ m.s;
+
+    // 範囲をクリップ
+    const x = Math.max(0, Math.min(m.vw - 1, Math.floor(vx)));
+    const y = Math.max(0, Math.min(m.vh - 1, Math.floor(vy)));
+    const w = Math.max(1, Math.min(m.vw - x, Math.floor(vw)));
+    const h = Math.max(1, Math.min(m.vh - y, Math.floor(vh)));
+
+    return { x, y, w, h };
+  }
+
   // ====== カメラ ======
-  async function startCamera(){
+  async function stopCamera(){
+    cameraReady = false;
+    if(stream){
+      try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
+      stream = null;
+    }
+    video.srcObject = null;
+  }
+
+  async function safePlayVideo(timeoutMs=1200){
+    // iOSで play() がresolveしない事があるのでタイムアウト
     try{
+      const p = video.play();
+      if(!p) return true;
+      const t = new Promise((_, rej)=>setTimeout(()=>rej(new Error('play timeout')), timeoutMs));
+      await Promise.race([p, t]);
+      return true;
+    }catch(e){
+      // play失敗でも表示できることがあるのでtrue扱いに寄せる
+      return false;
+    }
+  }
+
+  async function startCameraByUserGesture(){
+    if(startingCamera || cameraReady) return;
+    startingCamera = true;
+
+    try{
+      if(location.protocol !== 'https:' && location.hostname !== 'localhost'){
+        setStatus('err','❌ HTTPSで開いてね（カメラはHTTPS必須）');
+        return;
+      }
+
       setStatus('scan','📷 カメラ起動中…');
+      await stopCamera();
+
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal:'environment' }, width: { ideal: 1920 } },
         audio: false
       });
+
       video.srcObject = stream;
-      await video.play();
-      setStatus('ok','✅ 準備OK（合計⇒金額を枠へ）');
+
+      // playが固まっても進む
+      await safePlayVideo();
+
+      // videoWidthが取れるまで少し待つ
+      const waitStart = Date.now();
+      while((!video.videoWidth || !video.videoHeight) && Date.now()-waitStart < 1200){
+        await new Promise(r=>setTimeout(r, 50));
+      }
+
+      cameraReady = true;
+      setStatus('ok','✅ 準備OK（枠に合計金額を合わせて）');
+      startLoop();
     }catch(e){
       console.error(e);
-      setStatus('err','❌ カメラ許可が必要（Safariのサイト設定）');
+      cameraReady = false;
+
+      // よくある権限系の文言
+      setStatus('err','❌ カメラ許可が必要（Safariのサイト設定でカメラ＝許可）');
+    }finally{
+      startingCamera = false;
     }
   }
 
+  // 左上のステータスをタップで開始（iPhone対策）
+  statusEl.addEventListener('click', ()=> startCameraByUserGesture());
+
+  // ====== 認識の切り出し ======
   function captureROI(){
-    const vw = video.videoWidth || 1280;
-    const vh = video.videoHeight || 720;
+    const rect = getRoiRectInVideoPx();
+    if(!rect) return null;
 
-    const x = Math.max(0, Math.floor(ROI.x * vw));
-    const y = Math.max(0, Math.floor(ROI.y * vh));
-    const w = Math.max(1, Math.floor(ROI.w * vw));
-    const h = Math.max(1, Math.floor(ROI.h * vh));
-
-    cap.width = w;
-    cap.height = h;
-    ctx.drawImage(video, x, y, w, h, 0, 0, w, h);
+    cap.width = rect.w;
+    cap.height = rect.h;
+    ctx.drawImage(video, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
     return cap.toDataURL('image/jpeg', 0.88).split(',')[1];
   }
 
-  // ====== 認識（サーバー /api/scan を想定：{"total":35640,"found":true}） ======
+  // ====== 認識（/api/scan を想定：{"total":35640,"found":true}） ======
   async function recognizeTotal(){
     const img = captureROI();
-    const res = await fetch('/api/scan', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ image_base64: img })
-    });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data?.error || 'scan failed');
-    const total = Number(data?.total || 0);
-    return total > 0 ? total : 0;
+    if(!img) return 0;
+
+    const ac = new AbortController();
+    const to = setTimeout(()=>ac.abort(), SCAN_TIMEOUT_MS);
+
+    try{
+      const res = await fetch('/api/scan', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ image_base64: img }),
+        signal: ac.signal
+      });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data?.error || 'scan failed');
+      const total = Number(data?.total || 0);
+      return total > 0 ? total : 0;
+    } finally {
+      clearTimeout(to);
+    }
   }
 
   // ====== 確定ロジック ======
   function onDetected(total){
     if(!total){
-      if(!locked) setStatus('err','⚠️ 金額が見つかりません（少し近づけて）');
+      if(!locked) setStatus('err','⚠️ 金額が見つかりません（枠に合計金額を）');
       stableCount = 0;
       lastSeen = null;
       return;
@@ -525,9 +629,9 @@
           setStatus('scan','📄 次の請求書を検出…');
         }
       }else{
-        unlockCount = 0; // 同じなら解除カウント戻す
+        unlockCount = 0;
       }
-      return; // LOCK中は表示更新しない
+      return;
     }
 
     // LOCKしてない：2回一致で確定
@@ -543,7 +647,7 @@
       const r = splitFromTotal(total);
       showResult(r);
 
-      // 保存（今日）
+      // 保存（選択日）
       const ds = datePick.value;
       const log = loadLog(ds);
       log.push({ total: r.total, base: r.base, tax: r.tax });
@@ -566,18 +670,21 @@
   }
 
   // ====== ループ ======
-  let scanning = false;
-  let timer = null;
-
   async function tick(){
-    if(!autoOn || scanning) return;
+    if(!autoOn || scanning || !cameraReady) return;
     scanning = true;
     try{
       const total = await recognizeTotal();
       onDetected(total);
     }catch(e){
       console.error(e);
-      if(!locked) setStatus('err','❌ 通信/認識エラー');
+      if(!locked){
+        if(String(e?.name||'') === 'AbortError'){
+          setStatus('err','⏱ 認識が遅い/通信待ち（少し待ってね）');
+        }else{
+          setStatus('err','❌ 通信/認識エラー（/api/scan確認）');
+        }
+      }
     }finally{
       scanning = false;
     }
@@ -606,7 +713,7 @@
 
   function deleteSelected(){
     const ds = datePick.value;
-    const idxs = getSelectedIdx().sort((a,b)=>b-a); // descending
+    const idxs = getSelectedIdx().sort((a,b)=>b-a);
     if(!idxs.length){
       setStatus('err','⚠️ 削除する項目を選んでね');
       return;
@@ -659,18 +766,15 @@
 
   // ====== init ======
   window.addEventListener('load', async () => {
-    // 初期日付
     datePick.value = todayStr();
     monthPick.value = monthStr();
 
-    // 初期描画
     setTopStatsForDate(datePick.value);
     renderLog(datePick.value);
     drawMonthChart();
 
-    // カメラ開始
-    await startCamera();
-    startLoop();
+    // 自動でカメラは開始しない（iPhone対策）
+    setStatus('scan','📷 準備中…（タップで開始）');
   });
 
   // events
