@@ -540,20 +540,33 @@
     }
   }
 
-  function captureROI(){
-    const vw = video.videoWidth || 1280;
-    const vh = video.videoHeight || 720;
+ function captureROI(){
+  const vw = video.videoWidth || 1280;
+  const vh = video.videoHeight || 720;
 
-    const x = Math.max(0, Math.floor(ROI.x * vw));
-    const y = Math.max(0, Math.floor(ROI.y * vh));
-    const w = Math.max(1, Math.floor(ROI.w * vw));
-    const h = Math.max(1, Math.floor(ROI.h * vh));
+  const x = Math.max(0, Math.floor(ROI.x * vw));
+  const y = Math.max(0, Math.floor(ROI.y * vh));
+  const w = Math.max(1, Math.floor(ROI.w * vw));
+  const h = Math.max(1, Math.floor(ROI.h * vh));
 
-    cap.width = w;
-    cap.height = h;
-    ctx.drawImage(video, x, y, w, h, 0, 0, w, h);
-    return cap.toDataURL('image/jpeg', 0.88).split(',')[1];
-  }
+  // ✅ ここが効く：切り抜きを拡大してから送る（OCR/視覚モデルに超有利）
+  const SCALE = 3; // 2〜4で好み。まず3推奨
+  cap.width  = Math.floor(w * SCALE);
+  cap.height = Math.floor(h * SCALE);
+
+  // ✅ くっきり化（重要）
+  ctx.imageSmoothingEnabled = false;
+  ctx.filter = "contrast(180%) brightness(120%)";
+
+  // ROI→拡大してキャンバスへ描画
+  ctx.drawImage(video, x, y, w, h, 0, 0, cap.width, cap.height);
+
+  // 次に備えて戻す
+  ctx.filter = "none";
+
+  // JPEG化して送る
+  return cap.toDataURL('image/jpeg', 0.92).split(',')[1];
+}
 
   async function recognizeTotal(){
     const img = captureROI();
@@ -752,3 +765,4 @@
 </script>
 </body>
 </html>
+
