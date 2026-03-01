@@ -19,16 +19,17 @@
     #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
     #cap{display:none}
 
-    /* ROIは常に最前面（パネルより上） */
+    /* ROIは最前面 */
     #roiBox{
       position:fixed;
       left:50%; top:45%;
       transform:translate(-50%,-50%);
-      width:min(80vw,440px);
-      height:min(20vw,130px);
+      /* ✅ 少し小さめ（合計＋数字が入ればOK） */
+      width:min(72vw,420px);
+      height:min(16vw,110px);
       border:2px solid rgba(240,192,64,.65);
       border-radius:14px;
-      z-index:50;              /* ←ここが重要 */
+      z-index:50;
       pointer-events:none;
       box-shadow:0 0 0 9999px rgba(0,0,0,.22);
     }
@@ -70,7 +71,6 @@
     #status.ok{color:rgba(79,212,138,.95); border-color:rgba(79,212,138,.45)}
     #status.scan{color:var(--accent); border-color:rgba(240,192,64,.6)}
 
-    /* 下パネル：スキャンに必要なものだけを最初に表示 */
     #panel{
       position:fixed; left:0; right:0; bottom:0;
       z-index:55;
@@ -120,7 +120,6 @@
     #btnUndo{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
     #btnResetToday{background:#333;color:#fff}
 
-    /* 詳細（履歴/グラフ）は折りたたみ */
     #btnDetails{
       width:100%;
       margin-top:10px;
@@ -131,10 +130,7 @@
       border-radius:14px;
       font-weight:900;
     }
-    #details{
-      margin-top:10px;
-      display:none;
-    }
+    #details{ margin-top:10px; display:none; }
     #details.show{display:block}
 
     .section{
@@ -197,7 +193,6 @@
     canvas{width:100%;height:180px;background:rgba(0,0,0,.25);border-radius:12px;border:1px solid rgba(255,255,255,.10)}
     .muted{color:rgba(255,255,255,.6);font-size:12px;margin:6px 0 0}
 
-    /* カメラ開始が必要な時にだけ出す大ボタン */
     #startOverlay{
       position:fixed; inset:0;
       z-index:80;
@@ -231,7 +226,7 @@
   <canvas id="cap"></canvas>
 
   <div id="roiBox">
-    <div id="roiLabel">合計 ⇒ 金額をここに</div>
+    <div id="roiLabel">合計 ⇒ 金額をここに（合計＋数字が入ったら確定）</div>
     <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
   </div>
 
@@ -305,12 +300,16 @@
 <script>
 (() => {
   const RATE = 0.10;
-  const CONFIRM_N = 2;
-  const UNLOCK_N  = 2;
+
+  // ✅「合計+数字が入ったらホールド」用の安定化
+  const CONFIRM_N = 2; // 連続何回同じ結果なら確定するか
+  const UNLOCK_N  = 2; // 次の紙に移ったと判定するまで
   const TICK_MS   = 260;
 
-  // ROI（動画に対する比率）中央寄せ
-  const ROI = { x: 0.30, y: 0.56, w: 0.40, h: 0.24 };
+  // ✅ ROI（動画に対する比率）
+  // 「合計(左) + 金額(右)」が入るくらいに、"横長・薄め"が強い
+  // たかちんの用紙サンプルに合わせた初期値（必要ならここだけ微調整）
+  const ROI = { x: 0.18, y: 0.58, w: 0.64, h: 0.20 };
 
   // DOM
   const video = document.getElementById('video');
@@ -355,7 +354,8 @@
   let locked = false;
   let lockedTotal = null;
 
-  let lastSeen = null;
+  // ✅「合計+数字」を満たした時だけ候補として採用
+  let lastCandidateKey = null; // total + text判定のキー
   let stableCount = 0;
   let unlockCount = 0;
 
@@ -521,7 +521,6 @@
       });
       video.srcObject = stream;
 
-      // iPhone対策：playが失敗したらオーバーレイを出す
       try{
         await video.play();
       }catch(_){
@@ -531,7 +530,7 @@
       }
 
       cameraReady = true;
-      setStatus('ok','✅ 準備OK（合計を枠に）');
+      setStatus('ok','✅ 準備OK（黄色枠に「合計＋数字」）');
     }catch(e){
       console.error(e);
       cameraReady = false;
@@ -540,45 +539,63 @@
     }
   }
 
- function captureROI(){
-  const vw = video.videoWidth || 1280;
-  const vh = video.videoHeight || 720;
+  // ✅ ROI切り抜き → 拡大＆くっきり化して送る（精度UP）
+  function captureROI(){
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
 
-  const x = Math.max(0, Math.floor(ROI.x * vw));
-  const y = Math.max(0, Math.floor(ROI.y * vh));
-  const w = Math.max(1, Math.floor(ROI.w * vw));
-  const h = Math.max(1, Math.floor(ROI.h * vh));
+    const x = Math.max(0, Math.floor(ROI.x * vw));
+    const y = Math.max(0, Math.floor(ROI.y * vh));
+    const w = Math.max(1, Math.floor(ROI.w * vw));
+    const h = Math.max(1, Math.floor(ROI.h * vh));
 
-  // ✅ ここが効く：切り抜きを拡大してから送る（OCR/視覚モデルに超有利）
-  const SCALE = 3; // 2〜4で好み。まず3推奨
-  cap.width  = Math.floor(w * SCALE);
-  cap.height = Math.floor(h * SCALE);
+    const SCALE = 3; // 2〜4。まず3が無難
+    cap.width  = Math.floor(w * SCALE);
+    cap.height = Math.floor(h * SCALE);
 
-  // ✅ くっきり化（重要）
-  ctx.imageSmoothingEnabled = false;
-  ctx.filter = "contrast(180%) brightness(120%)";
+    ctx.imageSmoothingEnabled = false;
+    ctx.filter = "contrast(190%) brightness(120%)";
 
-  // ROI→拡大してキャンバスへ描画
-  ctx.drawImage(video, x, y, w, h, 0, 0, cap.width, cap.height);
+    ctx.drawImage(video, x, y, w, h, 0, 0, cap.width, cap.height);
 
-  // 次に備えて戻す
-  ctx.filter = "none";
+    ctx.filter = "none";
 
-  // JPEG化して送る
-  return cap.toDataURL('image/jpeg', 0.92).split(',')[1];
-}
+    return cap.toDataURL('image/jpeg', 0.92).split(',')[1];
+  }
 
-  async function recognizeTotal(){
+  // ✅ 合計系ワード＋数字 が「両方」ある時だけ採用する
+  function hasTotalWord(text){
+    return /合計|合計金額|請求金額|ご請求金額|お支払い金額|税込/.test(text || "");
+  }
+  function pickNumber(text){
+    if(!text) return 0;
+    const m = text.match(/\d{1,3}(?:,\d{3})+|\d{3,}/);
+    if(!m) return 0;
+    const n = Number(String(m[0]).replace(/,/g,''));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  // ✅ APIから {total, text} を受け取る
+  async function recognize(){
     const img = captureROI();
     const res = await fetch('/api/scan', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ image_base64: img })
     });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data?.error || 'scan failed');
-    const total = Number(data?.total || 0);
-    return total > 0 ? total : 0;
+    const data = await res.json().catch(()=>({}));
+    // api/scan.js は基本200返し。念のため。
+    const text = String(data?.text || "");
+    let total = Number(data?.total || 0);
+    if(!Number.isFinite(total)) total = 0;
+
+    // ✅ Claudeのtotalが0でも、textに合計+数字があれば拾う（強い保険）
+    if(total <= 0){
+      const n = pickNumber(text);
+      if(n > 0) total = n;
+    }
+
+    return { total, text };
   }
 
   function showResult(r){
@@ -587,14 +604,25 @@
     totalVal.textContent = yen(r.total);
   }
 
-  function onDetected(total){
-    if(!total){
-      if(!locked) setStatus('err','⚠️ 金額が見つかりません（枠に合計金額を）');
+  function onDetected(det){
+    const total = Number(det?.total || 0);
+    const text  = String(det?.text || "");
+
+    // ✅ 採用条件：合計系ワード + 数字 が両方あること
+    const okWord = hasTotalWord(text);
+    const okNum  = total > 0;
+
+    if(!okWord || !okNum){
+      if(!locked) setStatus('err','⚠️ 金額が見つかりません（枠に「合計＋数字」両方）');
       stableCount = 0;
-      lastSeen = null;
+      lastCandidateKey = null;
       return;
     }
 
+    // ✅ 候補キー（同じ枠を見てるかの判定）
+    const candidateKey = `${total}|${okWord ? 1 : 0}`;
+
+    // LOCK中：別紙になったら解除
     if(locked){
       if(total !== lockedTotal){
         unlockCount++;
@@ -603,7 +631,7 @@
           lockedTotal = null;
           unlockCount = 0;
           stableCount = 1;
-          lastSeen = total;
+          lastCandidateKey = candidateKey;
           setStatus('scan','📄 次の請求書を検出…');
         }
       }else{
@@ -612,12 +640,14 @@
       return;
     }
 
-    if(total === lastSeen) stableCount++;
-    else { lastSeen = total; stableCount = 1; }
+    // 未LOCK：同じ候補が続いたら確定
+    if(candidateKey === lastCandidateKey) stableCount++;
+    else { lastCandidateKey = candidateKey; stableCount = 1; }
 
     setStatus('scan',`🔍 認識中…（${stableCount}/${CONFIRM_N}）`);
 
     if(stableCount >= CONFIRM_N){
+      // ✅ 確定＆ホールド
       locked = true;
       lockedTotal = total;
       unlockCount = 0;
@@ -634,7 +664,7 @@
       renderLog(ds);
       drawMonthChart();
 
-      setStatus('ok',`✅ 確定：${yen(total)}（次の請求書で自動解除）`);
+      setStatus('ok',`✅ 確定：${yen(total)}（次の紙で自動解除）`);
       flashGold();
     }
   }
@@ -644,8 +674,8 @@
     if(!cameraReady) return;
     scanning = true;
     try{
-      const total = await recognizeTotal();
-      onDetected(total);
+      const det = await recognize();
+      onDetected(det);
     }catch(e){
       console.error(e);
       if(!locked) setStatus('err','❌ 通信/認識エラー');
@@ -751,18 +781,15 @@
   monthPick.addEventListener('change', drawMonthChart);
   btnThisMonth.addEventListener('click', () => { monthPick.value = monthStr(); drawMonthChart(); });
 
-  // 詳細の開閉
   btnDetails.addEventListener('click', () => {
     const open = !details.classList.contains('show');
     details.classList.toggle('show', open);
     btnDetails.textContent = open ? "▲ 詳細（履歴・グラフ）を閉じる" : "▼ 詳細（履歴・グラフ）を開く";
   });
 
-  // カメラ開始（iPhoneのタップ必須対策）
   statusEl.addEventListener('click', () => startCamera());
   btnStartCam.addEventListener('click', () => startCamera());
 })();
 </script>
 </body>
 </html>
-
