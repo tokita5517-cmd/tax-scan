@@ -1,14 +1,8 @@
-// api/scan.js
+// /api/scan.js
 export default async function handler(req, res) {
-  // キャッシュさせない（地味に効く）
-  res.setHeader("Cache-Control", "no-store");
-
-  // GETで動作確認
   if (req.method === "GET") {
     return res.status(200).json({ ok: true, hint: "POST { image_base64 } to scan" });
   }
-
-  // POST以外は弾く
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
@@ -21,28 +15,25 @@ export default async function handler(req, res) {
 
     const key = process.env.ANTHROPIC_API_KEY;
     if (!key) {
-      return res.status(200).json({ total: 0, debug: "ANTHROPIC_API_KEY is missing" });
+      return res.status(200).json({ total: 0, text: "", debug: "ANTHROPIC_API_KEY is missing" });
     }
 
-    // Anthropic呼び出し（タイムアウト付き）
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
 
     let j;
-    let httpStatus = 0;
-
     try {
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          accept: "application/json",
+          "accept": "application/json",
           "x-api-key": key,
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
           model: "claude-3-haiku-20240307",
-          max_tokens: 180,
+          max_tokens: 220,
           temperature: 0,
           messages: [
             {
@@ -50,19 +41,19 @@ export default async function handler(req, res) {
               content: [
                 {
                   type: "image",
-                  source: {
-                    type: "base64",
-                    media_type: "image/jpeg",
-                    data: image_base64,
-                  },
+                  source: { type: "base64", media_type: "image/jpeg", data: image_base64 },
                 },
                 {
                   type: "text",
                   text:
                     [
-                      "画像の中から『合計』『合計金額』『ご請求金額』『税込』『お支払い金額』などの合計額と思われる数字を1つだけ選んでください。",
-                      "カンマや円記号が付いていてもOK。返す total は整数（カンマ無し）にして。",
-                      '返答はJSONだけ。形式は厳守: {"total": 35640}。見つからない場合は {"total": 0}。',
+                      "あなたはOCR補助です。",
+                      "画像(切り抜き)の中にある文字をできるだけそのまま1行で書き出してください（改行なし）。",
+                      "そして、その中から合計金額（合計/合計金額/請求金額/ご請求金額/お支払い金額/税込 など）の右側にある数字を1つ選んで total に入れてください。",
+                      "必ず JSON だけを返してください。形式厳守：",
+                      '{"text":"合計 5,400","total":5400}',
+                      "見つからなければ：",
+                      '{"text":"","total":0}',
                     ].join("\n"),
                 },
               ],
@@ -72,108 +63,57 @@ export default async function handler(req, res) {
         signal: controller.signal,
       });
 
-      httpStatus = r.status;
       j = await r.json().catch(() => ({}));
 
-      // 失敗でもアプリ側を荒らさない（total:0）
       if (!r.ok) {
         return res.status(200).json({
           total: 0,
-          debug: {
-            where: "anthropic",
-            status: httpStatus,
-            message: j?.error?.message || j?.error || "anthropic error",
-          },
+          text: "",
+          debug: { where: "anthropic", status: r.status, message: j?.error?.message || "anthropic error" },
         });
       }
     } finally {
       clearTimeout(timeout);
     }
 
-    // Claudeの返答テキストを結合
-    const text = (j.content || [])
+    const rawText = (j.content || [])
       .filter((c) => c.type === "text")
       .map((c) => c.text)
       .join("\n")
       .trim();
 
-    // 1) JSON抽出をまず試す
-    const parsed = extractFirstJson(text);
-    let total = normalizeToInt(parsed?.total);
+    const parsed = extractFirstJson(rawText) || {};
+    const text = typeof parsed.text === "string" ? parsed.text : "";
 
-    // 2) JSONが壊れてたら、テキストから数字を拾って保険
-    if (!total) {
-      total = pickLikelyTotalFromText(text);
+    let total = Number(parsed.total || 0);
+    if (!Number.isFinite(total) || total <= 0) {
+      total = pickNumberFromText(text);
     }
 
-    return res.status(200).json({
-      total: Number.isFinite(total) ? total : 0,
-      // デバッグしたい時だけ見る用（邪魔なら消してOK）
-      // debug: { raw: text },
-    });
+    return res.status(200).json({ total: total > 0 ? total : 0, text });
   } catch (e) {
     return res.status(200).json({
       total: 0,
+      text: "",
       debug: { where: "server", message: String(e?.message || e) },
     });
   }
 }
 
-// --- helpers ---
 function extractFirstJson(s) {
   if (!s) return null;
-
-  try {
-    return JSON.parse(s);
-  } catch (_) {}
-
+  try { return JSON.parse(s); } catch (_) {}
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
   if (first === -1 || last === -1 || last <= first) return null;
-
   const chunk = s.slice(first, last + 1);
-  try {
-    return JSON.parse(chunk);
-  } catch (_) {
-    return null;
-  }
+  try { return JSON.parse(chunk); } catch (_) { return null; }
 }
 
-function normalizeToInt(v) {
-  if (v == null) return 0;
-  const s = String(v);
-  // 数字以外を除去（例: "1,234円" -> "1234"）
-  const digits = s.replace(/[^\d]/g, "");
-  if (!digits) return 0;
-  const n = Number(digits);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function pickLikelyTotalFromText(text) {
+function pickNumberFromText(text) {
   if (!text) return 0;
-
-  // "合計 12,340" みたいな近接パターン優先
-  const near = [
-    /合計[^\d]{0,10}([\d,]{1,12})/g,
-    /ご請求金額[^\d]{0,10}([\d,]{1,12})/g,
-    /お支払い金額[^\d]{0,10}([\d,]{1,12})/g,
-    /税込[^\d]{0,10}([\d,]{1,12})/g,
-  ];
-
-  for (const re of near) {
-    const m = re.exec(text);
-    if (m && m[1]) {
-      const n = normalizeToInt(m[1]);
-      if (n) return n;
-    }
-  }
-
-  // それでもダメなら、登場する数値の中で一番大きいのを採用（合計っぽい）
-  const all = text.match(/[\d,]{1,12}/g) || [];
-  let best = 0;
-  for (const x of all) {
-    const n = normalizeToInt(x);
-    if (n > best) best = n;
-  }
-  return best;
+  const m = text.match(/\d{1,3}(?:,\d{3})+|\d{3,}/);
+  if (!m) return 0;
+  const n = Number(String(m[0]).replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
 }
