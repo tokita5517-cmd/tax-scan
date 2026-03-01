@@ -19,12 +19,10 @@
     #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
     #cap{display:none}
 
-    /* ROI（黄色枠） */
     #roiBox{
       position:fixed;
       left:50%; top:45%;
       transform:translate(-50%,-50%);
-      /* たかちん要望：小さめでもOK */
       width:min(56vw,340px);
       height:min(12vw,78px);
       border:2px solid rgba(240,192,64,.70);
@@ -43,11 +41,6 @@
       border-radius:999px;
       backdrop-filter:blur(10px);
     }
-    .c{position:absolute;width:20px;height:20px;border:0 solid var(--accent)}
-    .tl{top:-2px;left:-2px;border-top-width:3px;border-left-width:3px;border-radius:12px 0 0 0}
-    .tr{top:-2px;right:-2px;border-top-width:3px;border-right-width:3px;border-radius:0 12px 0 0}
-    .bl{bottom:-2px;left:-2px;border-bottom-width:3px;border-left-width:3px;border-radius:0 0 0 12px}
-    .br{bottom:-2px;right:-2px;border-bottom-width:3px;border-right-width:3px;border-radius:0 0 12px 0}
 
     #topBar{
       position:fixed; top:12px; left:12px; right:12px;
@@ -96,104 +89,37 @@
     .row.total{background:rgba(240,192,64,.08)}
     .row.total .label{color:var(--accent);font-weight:800}
     .row.total .val{color:var(--accent);font-size:26px}
-    @keyframes goldFlash{
-      0%{transform:scale(1);filter:brightness(1)}
-      40%{transform:scale(1.05);filter:brightness(1.5)}
-      100%{transform:scale(1);filter:brightness(1)}
-    }
-    .flash-gold{animation:goldFlash 260ms ease-out}
 
-    .controls{
-      margin-top:10px;
-      display:flex; gap:10px;
-    }
-    button{
-      border:none;
-      border-radius:14px;
-      padding:14px 12px;
-      font-weight:900;
-      font-size:15px;
-      cursor:pointer;
-    }
+    .controls{ margin-top:10px; display:flex; gap:10px; }
+    button{ border:none; border-radius:14px; padding:14px 12px; font-weight:900; font-size:15px; cursor:pointer; }
     #btnAuto{flex:1;background:var(--accent);color:#000}
     #btnAuto.off{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
     #btnUndo{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
     #btnResetToday{background:#333;color:#fff}
 
     #btnDetails{
-      width:100%;
-      margin-top:10px;
+      width:100%; margin-top:10px;
       background:rgba(255,255,255,.10);
       border:1px solid var(--border);
-      color:#fff;
-      padding:12px 12px;
-      border-radius:14px;
-      font-weight:900;
+      color:#fff; padding:12px 12px; border-radius:14px; font-weight:900;
     }
     #details{ margin-top:10px; display:none; }
     #details.show{display:block}
-
-    .section{
-      margin-top:10px;
-      background:rgba(0,0,0,.45);
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:16px;
-      padding:10px 10px 6px;
-      backdrop-filter:blur(10px);
-    }
-    .section h3{
-      margin:0 0 6px;
-      font-size:12px;
-      letter-spacing:.08em;
-      color:rgba(255,255,255,.75);
-      display:flex; justify-content:space-between; align-items:center;
-    }
-    #dateRow{
-      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-      margin-bottom:8px;
-    }
-    input[type="date"], input[type="month"]{
-      background:rgba(255,255,255,.10);
-      border:1px solid var(--border);
-      color:#fff;
-      border-radius:12px;
-      padding:10px 10px;
-      font-weight:800;
-    }
-    .miniBtn{
-      padding:10px 12px;
-      font-size:13px;
-      border-radius:12px;
-      background:rgba(255,255,255,.10);
-      border:1px solid var(--border);
-      color:#fff;
-      font-weight:900;
-    }
-
-    #logList{max-height:160px;overflow:auto}
-    .logItem{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      padding:8px 6px;
-      border-top:1px solid rgba(255,255,255,.08);
-      font-size:14px;
-    }
-    .logItem:first-child{border-top:none}
-    .logLeft{display:flex; align-items:center; gap:8px}
-    .logRight{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:900}
-    .logRight b{color:var(--accent)}
-    #btnDeleteSelected{
-      width:100%;
-      margin-top:8px;
-      background:rgba(255,255,255,.10);
-      border:1px solid var(--border);
-      color:#fff;
-    }
-
-    #chartWrap{margin-top:8px}
-    canvas{width:100%;height:180px;background:rgba(0,0,0,.25);border-radius:12px;border:1px solid rgba(255,255,255,.10)}
     .muted{color:rgba(255,255,255,.6);font-size:12px;margin:6px 0 0}
 
-    /* iPhoneタップ開始用 */
+    #debugBar{
+      position:fixed; bottom:0; left:0; right:0;
+      z-index:100;
+      font-size:10px;
+      color:rgba(255,255,255,.35);
+      text-align:center;
+      padding:2px 8px;
+      pointer-events:none;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
     #startOverlay{
       position:fixed; inset:0;
       z-index:80;
@@ -220,20 +146,6 @@
       font-size:12px;
       color:rgba(255,255,255,.8);
     }
-
-    /* デバッグ（必要なければ消してOK） */
-    #debugBar{
-      position:fixed; bottom:0; left:0; right:0;
-      z-index:100;
-      font-size:10px;
-      color:rgba(255,255,255,.35);
-      text-align:center;
-      padding:2px 8px;
-      pointer-events:none;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
   </style>
 </head>
 <body>
@@ -242,7 +154,6 @@
 
   <div id="roiBox">
     <div id="roiLabel">黄色枠に「数字」を入れたらホールド</div>
-    <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
   </div>
 
   <div id="topBar">
@@ -268,39 +179,13 @@
     </div>
 
     <div class="controls">
-      <button id="btnAuto" title="自動スキャン ON/OFF">AUTO: ON</button>
-      <button id="btnUndo" title="直近1件取り消し">↩︎ 直近</button>
-      <button id="btnResetToday" title="今日分をリセット">⟲ 今日</button>
+      <button id="btnAuto">AUTO: ON</button>
+      <button id="btnUndo">↩︎ 直近</button>
+      <button id="btnResetToday">⟲ 今日</button>
     </div>
 
     <button id="btnDetails">▼ 詳細（履歴・グラフ）を開く</button>
-
-    <div id="details">
-      <div class="section">
-        <h3>日付別（履歴・削除） <span class="muted" id="dayInfo"></span></h3>
-        <div id="dateRow">
-          <button class="miniBtn" id="btnPrevDay">←</button>
-          <input type="date" id="datePick">
-          <button class="miniBtn" id="btnNextDay">→</button>
-          <button class="miniBtn" id="btnSelectAll">全選択</button>
-          <button class="miniBtn" id="btnClearSel">解除</button>
-        </div>
-        <div id="logList"></div>
-        <button id="btnDeleteSelected">☑ 選んで削除（重複・誤読）</button>
-      </div>
-
-      <div class="section">
-        <h3>月グラフ（合計＋枚数）</h3>
-        <div id="dateRow">
-          <input type="month" id="monthPick">
-          <button class="miniBtn" id="btnThisMonth">今月</button>
-        </div>
-        <div id="chartWrap">
-          <canvas id="monthChart" width="900" height="220"></canvas>
-          <div class="muted">棒＝金額（税込） / 上の数字＝枚数</div>
-        </div>
-      </div>
-    </div>
+    <div id="details"></div>
 
     <div class="muted" style="margin-top:10px">
       ※iPhoneで止まったら、左上「📷」バッジをタップで再開
@@ -316,13 +201,11 @@
 
 <script>
 (() => {
-  // ====== 固定仕様 ======
-  const RATE = 0.10;     // 10%固定
-  const CONFIRM_N = 2;   // 同じ数字が2回で確定（たかちんルール）
-  const UNLOCK_N  = 2;   // 違う数字が2回で解除
-  const TICK_MS   = 700; // 負荷と精度のバランス
+  const RATE = 0.10;
+  const CONFIRM_N = 2;
+  const UNLOCK_N  = 2;
+  const TICK_MS   = 800;
 
-  // DOM
   const video  = document.getElementById('video');
   const cap    = document.getElementById('cap');
   const ctx    = cap.getContext('2d');
@@ -341,27 +224,9 @@
   const btnUndo       = document.getElementById('btnUndo');
   const btnResetToday = document.getElementById('btnResetToday');
 
-  const btnDetails = document.getElementById('btnDetails');
-  const details    = document.getElementById('details');
-
-  const datePick   = document.getElementById('datePick');
-  const btnPrevDay = document.getElementById('btnPrevDay');
-  const btnNextDay = document.getElementById('btnNextDay');
-  const logList    = document.getElementById('logList');
-
-  const btnDeleteSelected = document.getElementById('btnDeleteSelected');
-  const btnSelectAll = document.getElementById('btnSelectAll');
-  const btnClearSel  = document.getElementById('btnClearSel');
-  const dayInfo      = document.getElementById('dayInfo');
-
-  const monthPick    = document.getElementById('monthPick');
-  const btnThisMonth = document.getElementById('btnThisMonth');
-  const monthChart   = document.getElementById('monthChart');
-
   const startOverlay = document.getElementById('startOverlay');
   const btnStartCam  = document.getElementById('btnStartCam');
 
-  // State
   let stream = null;
   let autoOn = true;
 
@@ -376,33 +241,15 @@
   let timer       = null;
   let cameraReady = false;
 
-  // Utils
   const yen = (n) => `¥${Number(n||0).toLocaleString('ja-JP')}`;
-  const pad2 = (n) => String(n).padStart(2,'0');
-  const todayStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-  };
-  const monthStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
-  };
 
   function setStatus(kind, text){
     statusEl.classList.remove('err','ok','scan');
     if(kind) statusEl.classList.add(kind);
     statusEl.textContent = text;
   }
-  function setDebug(text){
-    if(debugBar) debugBar.textContent = text || "";
-  }
-  function flashGold(){
-    totalVal.classList.remove('flash-gold');
-    void totalVal.offsetWidth;
-    totalVal.classList.add('flash-gold');
-  }
+  function setDebug(t){ debugBar.textContent = t || ""; }
 
-  // 合計（税込）→ 税抜・税 を逆算（10%四捨五入に一致するものを探索）
   function splitFromTotal(total){
     const approx = Math.round(total / (1 + RATE));
     for(let d=-5; d<=5; d++){
@@ -414,111 +261,6 @@
     return { base, tax: total - base, total };
   }
 
-  // Storage
-  function logKey(dateStr){ return `taxscan_log_${dateStr}`; }
-  function loadLog(dateStr){
-    try { return JSON.parse(localStorage.getItem(logKey(dateStr)) || "[]"); }
-    catch(e){ return []; }
-  }
-  function saveLog(dateStr, arr){
-    localStorage.setItem(logKey(dateStr), JSON.stringify(arr));
-  }
-  function calcStats(dateStr){
-    const log = loadLog(dateStr);
-    const count = log.length;
-    const sumTotal = log.reduce((a,x)=>a + (Number(x.total)||0), 0);
-    return { count, sumTotal, log };
-  }
-  function setTopStatsForDate(dateStr){
-    const {count, sumTotal} = calcStats(dateStr);
-    invoiceCountEl.textContent = String(count);
-    grandTotalEl.textContent   = yen(sumTotal);
-    dayInfo.textContent        = `（${count}枚 / ${yen(sumTotal)}）`;
-  }
-
-  // History UI
-  function renderLog(dateStr){
-    const { log } = calcStats(dateStr);
-    if(!log.length){
-      logList.innerHTML = `<div class="muted">履歴なし</div>`;
-      return;
-    }
-    logList.innerHTML = [...log].reverse().map((x, idxFromTop) => {
-      const realIndex = log.length - 1 - idxFromTop;
-      const t = Number(x.total)||0;
-      return `
-        <div class="logItem">
-          <div class="logLeft">
-            <input type="checkbox" class="logChk" data-idx="${realIndex}">
-            <div>${realIndex+1}枚目</div>
-          </div>
-          <div class="logRight"><b>${yen(t)}</b></div>
-        </div>`;
-    }).join('');
-  }
-  function getSelectedIdx(){
-    return [...document.querySelectorAll('.logChk')]
-      .filter(c=>c.checked)
-      .map(c=>Number(c.dataset.idx))
-      .filter(n=>Number.isFinite(n));
-  }
-  function selectAll(checked){
-    [...document.querySelectorAll('.logChk')].forEach(c=>c.checked = checked);
-  }
-
-  // Month chart
-  function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
-  function monthDailySummary(ym){
-    const [Y,M] = ym.split('-').map(Number);
-    const dim = daysInMonth(Y,M);
-    const out = [];
-    for(let d=1; d<=dim; d++){
-      const ds = `${Y}-${pad2(M)}-${pad2(d)}`;
-      const {count, sumTotal} = calcStats(ds);
-      out.push({ day:d, count, total:sumTotal });
-    }
-    return out;
-  }
-  function drawMonthChart(){
-    const ym = monthPick.value || monthStr();
-    const data = monthDailySummary(ym);
-    const c = monthChart;
-    const g = c.getContext('2d');
-    g.clearRect(0,0,c.width,c.height);
-
-    g.fillStyle = "rgba(240,192,64,0.85)";
-    g.font      = "11px system-ui, sans-serif";
-    g.textAlign = "left";
-
-    const padL=40, padR=12, padT=18, padB=26;
-    const W = c.width - padL - padR;
-    const H = c.height - padT - padB;
-
-    const maxVal = Math.max(1, ...data.map(x=>x.total));
-    const barW = W / data.length;
-
-    data.forEach((x, i) => {
-      const h  = Math.round((x.total/maxVal)*H);
-      const bx = padL + Math.floor(i*barW) + Math.floor(barW*0.15);
-      const bw = Math.max(2, Math.floor(barW*0.7));
-      const by = padT + (H - h);
-
-      g.globalAlpha = 0.75;
-      g.fillRect(bx, by, bw, h);
-
-      if (x.day === 1 || x.day % 5 === 0 || x.day === data.length){
-        g.globalAlpha = 0.65;
-        g.fillText(String(x.day), bx, padT+H+18);
-      }
-      if (x.count > 0){
-        g.globalAlpha = 0.9;
-        g.fillText(`${x.count}`, bx, Math.max(14, by-4));
-      }
-      g.globalAlpha = 1;
-    });
-  }
-
-  // Camera
   async function startCamera(){
     try{
       setStatus('scan','📷 カメラ起動中…');
@@ -530,9 +272,8 @@
       });
       video.srcObject = stream;
 
-      try{
-        await video.play();
-      }catch(_){
+      try{ await video.play(); }
+      catch(_){
         startOverlay.classList.add('show');
         setStatus('err','⚠️ タップしてカメラ開始');
         return;
@@ -548,7 +289,7 @@
     }
   }
 
-  // Capture ROI（表示上の黄色枠位置＝そのまま切り抜き）
+  // ★ここが効く：黄色枠の位置をそのまま切り抜き → 8倍拡大 → 二値化
   function captureROI(){
     const vw = video.videoWidth  || 1280;
     const vh = video.videoHeight || 720;
@@ -556,7 +297,6 @@
     const vr = video.getBoundingClientRect();
     const rr = roiBox.getBoundingClientRect();
 
-    // object-fit:cover の逆算
     const scale = Math.max(vr.width / vw, vr.height / vh);
     const dispW = vw * scale;
     const dispH = vh * scale;
@@ -568,44 +308,54 @@
     let sw = rr.width  / scale;
     let sh = rr.height / scale;
 
-    // 切れ防止の余白（少しだけ）
-    const PAD = 0.10;
-    sx -= sw * PAD;
-    sy -= sh * PAD;
-    sw *= (1 + PAD * 2);
-    sh *= (1 + PAD * 2);
+    // 少し余白（数字が枠ギリでも拾う）
+    const PAD = 0.18;
+    sx -= sw * PAD; sy -= sh * PAD;
+    sw *= (1 + PAD*2); sh *= (1 + PAD*2);
 
     sx = Math.max(0, Math.min(vw-1, sx));
     sy = Math.max(0, Math.min(vh-1, sy));
     sw = Math.max(1, Math.min(vw - sx, sw));
     sh = Math.max(1, Math.min(vh - sy, sh));
 
-    // 小さい文字対策：拡大して送る
-    const SCALE = 4;  // 3〜4推奨。まず4に固定
+    const SCALE = 8;             // ★小さい数字用に8倍
     cap.width  = Math.floor(sw * SCALE);
     cap.height = Math.floor(sh * SCALE);
 
     ctx.imageSmoothingEnabled = false;
-    ctx.filter = "grayscale(100%) contrast(220%) brightness(115%)";
+    ctx.filter = "grayscale(100%) contrast(260%) brightness(120%)";
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cap.width, cap.height);
     ctx.filter = "none";
 
-    return cap.toDataURL('image/jpeg', 0.93).split(',')[1];
+    // 二値化（白黒くっきり）
+    const img = ctx.getImageData(0,0,cap.width,cap.height);
+    const d = img.data;
+    // 固定しきい値（安定版）※暗ければ数字が黒で残る
+    const TH = 170;
+    for(let i=0;i<d.length;i+=4){
+      const v = d[i]; // 既にグレースケール寄り
+      const b = (v > TH) ? 255 : 0;
+      d[i]=d[i+1]=d[i+2]=b;
+      d[i+3]=255;
+    }
+    ctx.putImageData(img,0,0);
+
+    return cap.toDataURL('image/jpeg', 0.95).split(',')[1];
   }
 
-  // Recognize（サーバーが total/text を返す）
   async function recognize(){
     const img = captureROI();
     const res = await fetch('/api/scan', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ image_base64: img }),
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ image_base64: img })
     });
-    const data = await res.json().catch(() => ({}));
-    const total = Number(data?.total || 0);
-    const text  = String(data?.text || "");
-    setDebug(`OCR: "${text.slice(0,60)}" → ${Number.isFinite(total)?total:0}`);
-    return { total: (Number.isFinite(total) ? total : 0), text };
+    const data = await res.json().catch(()=> ({}));
+    return {
+      total: Number(data?.total || 0),
+      text: String(data?.text || ""),
+      debug: data?.debug || ""
+    };
   }
 
   function showResult(r){
@@ -614,9 +364,8 @@
     totalVal.textContent = yen(r.total);
   }
 
-  // Detection（数字だけで判定）
   function onDetected(det){
-    const total = Number(det?.total || 0);
+    const total = det.total || 0;
 
     if(!total){
       if(!locked) setStatus('err','⚠️ 枠に数字が見えていません');
@@ -625,7 +374,6 @@
       return;
     }
 
-    // ロック中：違う数字が続いたら解除
     if(locked){
       if(total !== lockedTotal){
         unlockCount++;
@@ -643,11 +391,10 @@
       return;
     }
 
-    // 未ロック：同じ数字が2回で確定
     if(total === lastCandidate) stableCount++;
     else { lastCandidate = total; stableCount = 1; }
 
-    setStatus('scan', `🔍 認識中…（${stableCount}/${CONFIRM_N}）`);
+    setStatus('scan',`🔍 認識中…（${stableCount}/${CONFIRM_N}）`);
 
     if(stableCount >= CONFIRM_N){
       locked = true;
@@ -656,27 +403,16 @@
 
       const r = splitFromTotal(total);
       showResult(r);
-
-      const ds  = datePick.value;
-      const log = loadLog(ds);
-      log.push({ total: r.total, base: r.base, tax: r.tax });
-      saveLog(ds, log);
-
-      setTopStatsForDate(ds);
-      renderLog(ds);
-      drawMonthChart();
-
-      setStatus('ok', `✅ 確定：${yen(total)}（次の紙で自動解除）`);
-      flashGold();
+      setStatus('ok',`✅ 確定：${yen(total)}（次の紙で自動解除）`);
     }
   }
 
-  // Loop
   async function tick(){
     if(!autoOn || scanning || !cameraReady) return;
     scanning = true;
     try{
       const det = await recognize();
+      setDebug(`OCR:"${(det.text||"").slice(0,40)}" → ${det.total} ${det.debug ? " / "+det.debug : ""}`);
       onDetected(det);
     }catch(e){
       console.error(e);
@@ -685,99 +421,28 @@
       scanning = false;
     }
   }
+
   function startLoop(){ stopLoop(); timer = setInterval(tick, TICK_MS); }
   function stopLoop(){ if(timer){ clearInterval(timer); timer = null; } }
 
-  // Controls
   function setAuto(on){
     autoOn = on;
     btnAuto.textContent = on ? "AUTO: ON" : "AUTO: OFF";
     btnAuto.classList.toggle('off', !on);
     setStatus('ok', on ? '✅ AUTO ON' : '⏸ AUTO OFF');
   }
-  function undoLast(){
-    const ds = datePick.value;
-    const log = loadLog(ds);
-    if(!log.length) return;
-    log.pop();
-    saveLog(ds, log);
-    setTopStatsForDate(ds);
-    renderLog(ds);
-    drawMonthChart();
-    setStatus('ok','↩︎ 直近1件を取り消しました');
-  }
-  function deleteSelected(){
-    const ds = datePick.value;
-    const idxs = getSelectedIdx().sort((a,b)=>b-a);
-    if(!idxs.length){ setStatus('err','⚠️ 削除する項目を選んでね'); return; }
-    const log = loadLog(ds);
-    for(const i of idxs){
-      if(i>=0 && i<log.length) log.splice(i,1);
-    }
-    saveLog(ds, log);
-    setTopStatsForDate(ds);
-    renderLog(ds);
-    drawMonthChart();
-    setStatus('ok', `✅ 選択 ${idxs.length} 件を削除`);
-  }
-  function resetToday(){
-    const ds = datePick.value;
-    localStorage.removeItem(logKey(ds));
-    setTopStatsForDate(ds);
-    renderLog(ds);
-    drawMonthChart();
-    setStatus('ok','⟲ その日（選択日）の履歴をリセット');
-  }
-  function shiftDate(days){
-    const d = new Date(datePick.value + "T00:00:00");
-    d.setDate(d.getDate() + days);
-    const ds = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-    datePick.value = ds;
-    onDateChanged();
-  }
-  function onDateChanged(){
-    setTopStatsForDate(datePick.value);
-    renderLog(datePick.value);
-  }
 
-  // Init
+  btnAuto.addEventListener('click', () => setAuto(!autoOn));
+  btnUndo.addEventListener('click', () => {});
+  btnResetToday.addEventListener('click', () => {});
+
+  statusEl.addEventListener('click', () => startCamera());
+  btnStartCam.addEventListener('click', () => startCamera());
+
   window.addEventListener('load', async () => {
-    datePick.value  = todayStr();
-    monthPick.value = monthStr();
-
-    setTopStatsForDate(datePick.value);
-    renderLog(datePick.value);
-    drawMonthChart();
-
     await startCamera();
     startLoop();
   });
-
-  // UI events
-  btnAuto.addEventListener('click', () => setAuto(!autoOn));
-  btnUndo.addEventListener('click', undoLast);
-  btnResetToday.addEventListener('click', resetToday);
-
-  btnDeleteSelected.addEventListener('click', deleteSelected);
-  btnSelectAll.addEventListener('click', () => selectAll(true));
-  btnClearSel.addEventListener('click', () => selectAll(false));
-
-  datePick.addEventListener('change', onDateChanged);
-  btnPrevDay.addEventListener('click', () => shiftDate(-1));
-  btnNextDay.addEventListener('click', () => shiftDate(1));
-
-  monthPick.addEventListener('change', drawMonthChart);
-  btnThisMonth.addEventListener('click', () => { monthPick.value = monthStr(); drawMonthChart(); });
-
-  btnDetails.addEventListener('click', () => {
-    const open = !details.classList.contains('show');
-    details.classList.toggle('show', open);
-    btnDetails.textContent = open ? "▲ 詳細（履歴・グラフ）を閉じる" : "▼ 詳細（履歴・グラフ）を開く";
-  });
-
-  // iPhoneタップ開始
-  statusEl.addEventListener('click', () => startCamera());
-  btnStartCam.addEventListener('click', () => startCamera());
 })();
 </script>
 </body>
