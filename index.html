@@ -19,14 +19,12 @@
     #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
     #cap{display:none}
 
-    /* ROIは最前面 */
     #roiBox{
       position:fixed;
       left:50%; top:45%;
       transform:translate(-50%,-50%);
-      /* ✅ 少し小さめ（合計＋数字が入ればOK） */
-      width:min(72vw,420px);
-      height:min(16vw,110px);
+      width:min(62vw,380px);
+      height:min(14vw,90px);
       border:2px solid rgba(240,192,64,.65);
       border-radius:14px;
       z-index:50;
@@ -219,6 +217,20 @@
       font-size:12px;
       color:rgba(255,255,255,.8);
     }
+
+    /* 🔧 追加: デバッグ表示 */
+    #debugBar{
+      position:fixed; bottom:0; left:0; right:0;
+      z-index:100;
+      font-size:10px;
+      color:rgba(255,255,255,.35);
+      text-align:center;
+      padding:2px 8px;
+      pointer-events:none;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
   </style>
 </head>
 <body>
@@ -226,7 +238,7 @@
   <canvas id="cap"></canvas>
 
   <div id="roiBox">
-    <div id="roiLabel">合計 ⇒ 金額をここに（合計＋数字が入ったら確定）</div>
+    <div id="roiLabel">黄色枠に「合計」＋「金額」を入れたらホールド</div>
     <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
   </div>
 
@@ -288,9 +300,11 @@
     </div>
 
     <div class="muted" style="margin-top:10px">
-      ※iPhoneでカメラが止まったら、左上「📷」のバッジ（準備中…）をタップで再開
+      ※iPhoneでカメラが止まったら、左上「📷」のバッジをタップで再開
     </div>
   </div>
+
+  <div id="debugBar" id="debugBar"></div>
 
   <div id="startOverlay">
     <div id="startHint">iPhone Safariは最初にタップが必要なことがあるよ</div>
@@ -300,72 +314,64 @@
 <script>
 (() => {
   const RATE = 0.10;
-
-  // ✅「合計+数字が入ったらホールド」用の安定化
-  const CONFIRM_N = 2; // 連続何回同じ結果なら確定するか
-  const UNLOCK_N  = 2; // 次の紙に移ったと判定するまで
-  const TICK_MS   = 260;
-
-  // ✅ ROI（動画に対する比率）
-  // 「合計(左) + 金額(右)」が入るくらいに、"横長・薄め"が強い
-  // たかちんの用紙サンプルに合わせた初期値（必要ならここだけ微調整）
-  const ROI = { x: 0.18, y: 0.58, w: 0.64, h: 0.20 };
+  // 🔧 Fix: 安定確認回数を2→3に増やして誤認識を減らす
+  const CONFIRM_N = 3;
+  const UNLOCK_N  = 3;
+  // 🔧 Fix: ポーリング間隔を700msに延長（API負荷・コスト対策）
+  const TICK_MS   = 700;
 
   // DOM
   const video = document.getElementById('video');
-  const cap = document.getElementById('cap');
-  const ctx = cap.getContext('2d');
+  const cap   = document.getElementById('cap');
+  const ctx   = cap.getContext('2d');
+  const roiBox = document.getElementById('roiBox');
 
-  const statusEl = document.getElementById('status');
-  const baseVal = document.getElementById('baseVal');
-  const taxVal = document.getElementById('taxVal');
-  const totalVal = document.getElementById('totalVal');
-
+  const statusEl      = document.getElementById('status');
+  const baseVal       = document.getElementById('baseVal');
+  const taxVal        = document.getElementById('taxVal');
+  const totalVal      = document.getElementById('totalVal');
   const invoiceCountEl = document.getElementById('invoiceCount');
-  const grandTotalEl = document.getElementById('grandTotal');
+  const grandTotalEl  = document.getElementById('grandTotal');
+  const debugBar      = document.getElementById('debugBar');
 
-  const btnAuto = document.getElementById('btnAuto');
-  const btnUndo = document.getElementById('btnUndo');
+  const btnAuto       = document.getElementById('btnAuto');
+  const btnUndo       = document.getElementById('btnUndo');
   const btnResetToday = document.getElementById('btnResetToday');
+  const btnDetails    = document.getElementById('btnDetails');
+  const details       = document.getElementById('details');
 
-  const btnDetails = document.getElementById('btnDetails');
-  const details = document.getElementById('details');
-
-  const datePick = document.getElementById('datePick');
-  const btnPrevDay = document.getElementById('btnPrevDay');
-  const btnNextDay = document.getElementById('btnNextDay');
-  const logList = document.getElementById('logList');
+  const datePick         = document.getElementById('datePick');
+  const btnPrevDay       = document.getElementById('btnPrevDay');
+  const btnNextDay       = document.getElementById('btnNextDay');
+  const logList          = document.getElementById('logList');
   const btnDeleteSelected = document.getElementById('btnDeleteSelected');
-  const btnSelectAll = document.getElementById('btnSelectAll');
-  const btnClearSel = document.getElementById('btnClearSel');
-  const dayInfo = document.getElementById('dayInfo');
+  const btnSelectAll     = document.getElementById('btnSelectAll');
+  const btnClearSel      = document.getElementById('btnClearSel');
+  const dayInfo          = document.getElementById('dayInfo');
 
-  const monthPick = document.getElementById('monthPick');
+  const monthPick    = document.getElementById('monthPick');
   const btnThisMonth = document.getElementById('btnThisMonth');
-  const monthChart = document.getElementById('monthChart');
+  const monthChart   = document.getElementById('monthChart');
 
   const startOverlay = document.getElementById('startOverlay');
-  const btnStartCam = document.getElementById('btnStartCam');
+  const btnStartCam  = document.getElementById('btnStartCam');
 
   // State
-  let stream = null;
-  let autoOn = true;
-
-  let locked = false;
+  let stream      = null;
+  let autoOn      = true;
+  let locked      = false;
   let lockedTotal = null;
 
-  // ✅「合計+数字」を満たした時だけ候補として採用
-  let lastCandidateKey = null; // total + text判定のキー
-  let stableCount = 0;
-  let unlockCount = 0;
+  let lastCandidateKey = null;
+  let stableCount      = 0;
+  let unlockCount      = 0;
 
-  let scanning = false;
-  let timer = null;
-
+  let scanning    = false;
+  let timer       = null;
   let cameraReady = false;
 
-  // Utils
-  const yen = (n) => `¥${Number(n||0).toLocaleString('ja-JP')}`;
+  // ─── Utils ────────────────────────────────────────
+  const yen  = (n) => `¥${Number(n||0).toLocaleString('ja-JP')}`;
   const pad2 = (n) => String(n).padStart(2,'0');
   const todayStr = () => {
     const d = new Date();
@@ -381,7 +387,9 @@
     if(kind) statusEl.classList.add(kind);
     statusEl.textContent = text;
   }
-
+  function setDebug(text){
+    if(debugBar) debugBar.textContent = text;
+  }
   function flashGold(){
     totalVal.classList.remove('flash-gold');
     void totalVal.offsetWidth;
@@ -392,15 +400,14 @@
     const approx = Math.round(total / (1 + RATE));
     for(let d=-5; d<=5; d++){
       const base = approx + d;
-      const tax = Math.round(base * RATE);
+      const tax  = Math.round(base * RATE);
       if(base + tax === total) return { base, tax, total };
     }
     const base = approx;
-    const tax = total - base;
-    return { base, tax, total };
+    return { base, tax: total - base, total };
   }
 
-  // Storage
+  // ─── Storage ──────────────────────────────────────
   function logKey(dateStr){ return `taxscan_log_${dateStr}`; }
   function loadLog(dateStr){
     try { return JSON.parse(localStorage.getItem(logKey(dateStr)) || "[]"); }
@@ -410,53 +417,53 @@
     localStorage.setItem(logKey(dateStr), JSON.stringify(arr));
   }
   function calcStats(dateStr){
-    const log = loadLog(dateStr);
-    const count = log.length;
-    const sumTotal = log.reduce((a,x)=>a + (Number(x.total)||0), 0);
+    const log      = loadLog(dateStr);
+    const count    = log.length;
+    const sumTotal = log.reduce((a,x) => a + (Number(x.total)||0), 0);
     return { count, sumTotal, log };
   }
   function setTopStatsForDate(dateStr){
     const {count, sumTotal} = calcStats(dateStr);
     invoiceCountEl.textContent = String(count);
-    grandTotalEl.textContent = yen(sumTotal);
-    dayInfo.textContent = `（${count}枚 / ${yen(sumTotal)}）`;
+    grandTotalEl.textContent   = yen(sumTotal);
+    dayInfo.textContent        = `（${count}枚 / ${yen(sumTotal)}）`;
   }
 
-  // History UI
+  // ─── Log render ───────────────────────────────────
   function renderLog(dateStr){
     const { log } = calcStats(dateStr);
     if(!log.length){
       logList.innerHTML = `<div class="muted">履歴なし</div>`;
       return;
     }
-    const rows = [...log].reverse().map((x, idxFromTop) => {
-      const realIndex = log.length - 1 - idxFromTop;
-      const t = Number(x.total)||0;
+    logList.innerHTML = [...log].reverse().map((x, i) => {
+      const realIndex = log.length - 1 - i;
       return `
         <div class="logItem">
           <div class="logLeft">
             <input type="checkbox" class="logChk" data-idx="${realIndex}">
             <div>${realIndex+1}枚目</div>
           </div>
-          <div class="logRight"><b>${yen(t)}</b></div>
+          <div class="logRight"><b>${yen(Number(x.total)||0)}</b></div>
         </div>`;
     }).join('');
-    logList.innerHTML = rows;
   }
   function getSelectedIdx(){
-    const chks = [...document.querySelectorAll('.logChk')];
-    return chks.filter(c=>c.checked).map(c=>Number(c.dataset.idx)).filter(n=>Number.isFinite(n));
+    return [...document.querySelectorAll('.logChk')]
+      .filter(c => c.checked)
+      .map(c => Number(c.dataset.idx))
+      .filter(n => Number.isFinite(n));
   }
   function selectAll(checked){
-    [...document.querySelectorAll('.logChk')].forEach(c=>c.checked = checked);
+    [...document.querySelectorAll('.logChk')].forEach(c => c.checked = checked);
   }
 
-  // Month chart
+  // ─── Chart ────────────────────────────────────────
   function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
   function monthDailySummary(ym){
     const [Y,M] = ym.split('-').map(Number);
-    const dim = daysInMonth(Y,M);
-    const out = [];
+    const dim   = daysInMonth(Y,M);
+    const out   = [];
     for(let d=1; d<=dim; d++){
       const ds = `${Y}-${pad2(M)}-${pad2(d)}`;
       const {count, sumTotal} = calcStats(ds);
@@ -465,51 +472,45 @@
     return out;
   }
   function drawMonthChart(){
-    const ym = monthPick.value || monthStr();
+    const ym   = monthPick.value || monthStr();
     const data = monthDailySummary(ym);
-    const c = monthChart;
-    const g = c.getContext('2d');
+    const c    = monthChart;
+    const g    = c.getContext('2d');
     g.clearRect(0,0,c.width,c.height);
 
+    // 🔧 Fix: fillStyle・fontを明示的に設定
+    g.fillStyle = "rgba(240,192,64,0.85)";
+    g.font      = "11px system-ui, sans-serif";
+    g.textAlign = "left";
+
     const padL=40, padR=12, padT=18, padB=26;
-    const W = c.width - padL - padR;
-    const H = c.height - padT - padB;
-
-    const maxVal = Math.max(1, ...data.map(x=>x.total));
-    const barW = W / data.length;
-
-    g.globalAlpha = 0.6;
-    g.fillText(`${ym} 合計（税込）`, 10, 12);
-    g.globalAlpha = 1;
-
-    g.globalAlpha = 0.25;
-    g.fillRect(padL, padT+H, W, 1);
-    g.globalAlpha = 1;
+    const W    = c.width  - padL - padR;
+    const H    = c.height - padT - padB;
+    const maxVal = Math.max(1, ...data.map(x => x.total));
+    const barW   = W / data.length;
 
     data.forEach((x, i) => {
-      const val = x.total;
-      const h = Math.round((val/maxVal)*H);
-      const bx = padL + Math.floor(i*barW) + Math.floor(barW*0.15);
-      const bw = Math.max(2, Math.floor(barW*0.7));
+      const h  = Math.round((x.total / maxVal) * H);
+      const bx = padL + Math.floor(i * barW) + Math.floor(barW * 0.15);
+      const bw = Math.max(2, Math.floor(barW * 0.7));
       const by = padT + (H - h);
 
+      g.globalAlpha = 0.75;
       g.fillRect(bx, by, bw, h);
 
-      if (x.day === 1 || x.day % 5 === 0 || x.day === data.length){
-        g.globalAlpha = 0.75;
-        g.fillText(String(x.day), bx, padT+H+18);
-        g.globalAlpha = 1;
+      if(x.day === 1 || x.day % 5 === 0 || x.day === data.length){
+        g.globalAlpha = 0.65;
+        g.fillText(String(x.day), bx, padT + H + 18);
       }
-
-      if (x.count > 0){
+      if(x.count > 0){
         g.globalAlpha = 0.9;
-        g.fillText(`${x.count}`, bx, Math.max(14, by-4));
-        g.globalAlpha = 1;
+        g.fillText(`${x.count}`, bx, Math.max(14, by - 4));
       }
+      g.globalAlpha = 1;
     });
   }
 
-  // Camera
+  // ─── Camera ───────────────────────────────────────
   async function startCamera(){
     try{
       setStatus('scan','📷 カメラ起動中…');
@@ -530,7 +531,7 @@
       }
 
       cameraReady = true;
-      setStatus('ok','✅ 準備OK（黄色枠に「合計＋数字」）');
+      setStatus('ok','✅ 準備OK（黄色枠に「合計＋金額」）');
     }catch(e){
       console.error(e);
       cameraReady = false;
@@ -539,61 +540,123 @@
     }
   }
 
-  // ✅ ROI切り抜き → 拡大＆くっきり化して送る（精度UP）
+  // ─── Capture ROI ──────────────────────────────────
   function captureROI(){
-    const vw = video.videoWidth || 1280;
+    const vw = video.videoWidth  || 1280;
     const vh = video.videoHeight || 720;
 
-    const x = Math.max(0, Math.floor(ROI.x * vw));
-    const y = Math.max(0, Math.floor(ROI.y * vh));
-    const w = Math.max(1, Math.floor(ROI.w * vw));
-    const h = Math.max(1, Math.floor(ROI.h * vh));
+    const vr = video.getBoundingClientRect();
+    const rr = roiBox.getBoundingClientRect();
 
-    const SCALE = 3; // 2〜4。まず3が無難
-    cap.width  = Math.floor(w * SCALE);
-    cap.height = Math.floor(h * SCALE);
+    const scale = Math.max(vr.width / vw, vr.height / vh);
+    const dispW = vw * scale;
+    const dispH = vh * scale;
+    const offX  = (vr.width  - dispW) / 2;
+    const offY  = (vr.height - dispH) / 2;
+
+    let sx = (rr.left - vr.left - offX) / scale;
+    let sy = (rr.top  - vr.top  - offY) / scale;
+    let sw = rr.width  / scale;
+    let sh = rr.height / scale;
+
+    // 余白（切れ防止）
+    const PAD = 0.12;
+    sx -= sw * PAD;
+    sy -= sh * PAD;
+    sw *= (1 + PAD * 2);
+    sh *= (1 + PAD * 2);
+
+    sx = Math.max(0, Math.min(vw-1, sx));
+    sy = Math.max(0, Math.min(vh-1, sy));
+    sw = Math.max(1, Math.min(vw - sx, sw));
+    sh = Math.max(1, Math.min(vh - sy, sh));
+
+    // 🔧 Fix: 拡大率を3→4に（小さい文字の認識向上）
+    const SCALE = 4;
+    cap.width  = Math.floor(sw * SCALE);
+    cap.height = Math.floor(sh * SCALE);
 
     ctx.imageSmoothingEnabled = false;
-    ctx.filter = "contrast(190%) brightness(120%)";
-
-    ctx.drawImage(video, x, y, w, h, 0, 0, cap.width, cap.height);
-
+    // 🔧 Fix: コントラスト強化・グレースケール変換でOCR精度向上
+    ctx.filter = "grayscale(100%) contrast(220%) brightness(115%)";
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cap.width, cap.height);
     ctx.filter = "none";
 
-    return cap.toDataURL('image/jpeg', 0.92).split(',')[1];
+    return cap.toDataURL('image/jpeg', 0.93).split(',')[1];
   }
 
-  // ✅ 合計系ワード＋数字 が「両方」ある時だけ採用する
+  // ─── hasTotalWord ─────────────────────────────────
+  // この書類は「合　計　⇒」のようにスペース区切りで印字される
+  // → スペースを除去してから判定する
   function hasTotalWord(text){
-    return /合計|合計金額|請求金額|ご請求金額|お支払い金額|税込/.test(text || "");
+    if(!text) return false;
+    // スペース・全角スペース・タブを除去してから判定
+    const compact = text.replace(/[\s\u3000]/g, "");
+    return /合計|合計金額|請求金額|ご請求金額|お支払い?金額|税込|請求|支払/.test(compact);
   }
+
+  // 🔧 Fix: pickNumber の改善（スペース区切りキーワード対応追加）
   function pickNumber(text){
     if(!text) return 0;
-    const m = text.match(/\d{1,3}(?:,\d{3})+|\d{3,}/);
-    if(!m) return 0;
-    const n = Number(String(m[0]).replace(/,/g,''));
-    return Number.isFinite(n) ? n : 0;
+
+    // 全角→半角
+    const t = text.replace(/[０-９]/g, c =>
+      String.fromCharCode(c.charCodeAt(0) - 0xfee0)
+    );
+    // スペース除去版（「合　計」のようなスペース区切りに対応）
+    const compact = t.replace(/[\s\u3000]/g, "");
+
+    // 合計キーワード直後の数字を優先（スペース除去版で検索）
+    const kw = compact.match(/(?:合計|請求金額|ご請求|お支払|税込)[^\d]*(\d{1,3}(?:,\d{3})*|\d+)/);
+    if(kw){
+      const n = Number(kw[1].replace(/,/g,''));
+      if(n > 0) return n;
+    }
+
+    // カンマ区切り（1,000以上）
+    const cm = t.match(/\d{1,3}(?:,\d{3})+/);
+    if(cm){
+      const n = Number(cm[0].replace(/,/g,''));
+      if(n > 0) return n;
+    }
+
+    // 3桁以上
+    const pm = t.match(/\d{3,}/);
+    if(pm){
+      const n = Number(pm[0]);
+      if(n > 0) return n;
+    }
+
+    // 2桁以上（100円未満対応）
+    const sm = t.match(/\d{2,}/);
+    if(sm){
+      const n = Number(sm[0]);
+      if(n > 0) return n;
+    }
+
+    return 0;
   }
 
-  // ✅ APIから {total, text} を受け取る
+  // ─── Recognize ────────────────────────────────────
   async function recognize(){
     const img = captureROI();
     const res = await fetch('/api/scan', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ image_base64: img })
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_base64: img }),
     });
-    const data = await res.json().catch(()=>({}));
-    // api/scan.js は基本200返し。念のため。
-    const text = String(data?.text || "");
-    let total = Number(data?.total || 0);
+    const data  = await res.json().catch(() => ({}));
+    const text  = String(data?.text || "");
+    let   total = Number(data?.total || 0);
     if(!Number.isFinite(total)) total = 0;
 
-    // ✅ Claudeのtotalが0でも、textに合計+数字があれば拾う（強い保険）
     if(total <= 0){
       const n = pickNumber(text);
       if(n > 0) total = n;
     }
+
+    // デバッグ表示（開発時のみ確認可能）
+    setDebug(`OCR: "${text.slice(0,60)}" → ${total}`);
 
     return { total, text };
   }
@@ -604,34 +667,34 @@
     totalVal.textContent = yen(r.total);
   }
 
+  // ─── Detection logic ──────────────────────────────
   function onDetected(det){
-    const total = Number(det?.total || 0);
-    const text  = String(det?.text || "");
+    const total   = Number(det?.total || 0);
+    const text    = String(det?.text  || "");
+    const hasWord = hasTotalWord(text);
+    const hasNum  = total > 0;
 
-    // ✅ 採用条件：合計系ワード + 数字 が両方あること
-    const okWord = hasTotalWord(text);
-    const okNum  = total > 0;
+    // 🔧 Fix: キーワードなしでも数字があれば候補として扱う
+    //   ただし、キーワードありの方が優先度が高い（stableCount の閾値を使って区別）
+    const NEED_N = hasWord ? CONFIRM_N : CONFIRM_N + 2; // キーワードなしは確認回数を増やす
 
-    if(!okWord || !okNum){
-      if(!locked) setStatus('err','⚠️ 金額が見つかりません（枠に「合計＋数字」両方）');
-      stableCount = 0;
+    if(!hasNum){
+      if(!locked) setStatus('err','⚠️ 枠に数字が見えていません');
+      stableCount      = 0;
       lastCandidateKey = null;
       return;
     }
 
-    // ✅ 候補キー（同じ枠を見てるかの判定）
-    const candidateKey = `${total}|${okWord ? 1 : 0}`;
-
-    // LOCK中：別紙になったら解除
+    // ロック中：別の金額が来たら解除
     if(locked){
       if(total !== lockedTotal){
         unlockCount++;
         if(unlockCount >= UNLOCK_N){
-          locked = false;
+          locked      = false;
           lockedTotal = null;
           unlockCount = 0;
           stableCount = 1;
-          lastCandidateKey = candidateKey;
+          lastCandidateKey = String(total);
           setStatus('scan','📄 次の請求書を検出…');
         }
       }else{
@@ -640,22 +703,22 @@
       return;
     }
 
-    // 未LOCK：同じ候補が続いたら確定
+    const candidateKey = String(total);
     if(candidateKey === lastCandidateKey) stableCount++;
     else { lastCandidateKey = candidateKey; stableCount = 1; }
 
-    setStatus('scan',`🔍 認識中…（${stableCount}/${CONFIRM_N}）`);
+    const label = hasWord ? `🔍 認識中（合計あり）` : `🔍 認識中（数字のみ）`;
+    setStatus('scan', `${label} ${stableCount}/${NEED_N}`);
 
-    if(stableCount >= CONFIRM_N){
-      // ✅ 確定＆ホールド
-      locked = true;
+    if(stableCount >= NEED_N){
+      locked      = true;
       lockedTotal = total;
       unlockCount = 0;
 
       const r = splitFromTotal(total);
       showResult(r);
 
-      const ds = datePick.value;
+      const ds  = datePick.value;
       const log = loadLog(ds);
       log.push({ total: r.total, base: r.base, tax: r.tax });
       saveLog(ds, log);
@@ -664,44 +727,40 @@
       renderLog(ds);
       drawMonthChart();
 
-      setStatus('ok',`✅ 確定：${yen(total)}（次の紙で自動解除）`);
+      setStatus('ok', `✅ 確定：${yen(total)}（次の紙で自動解除）`);
       flashGold();
     }
   }
 
+  // ─── Loop ─────────────────────────────────────────
   async function tick(){
-    if(!autoOn || scanning) return;
-    if(!cameraReady) return;
+    if(!autoOn || scanning || !cameraReady) return;
     scanning = true;
     try{
       const det = await recognize();
       onDetected(det);
     }catch(e){
       console.error(e);
-      if(!locked) setStatus('err','❌ 通信/認識エラー');
+      // タイムアウト時はステータスを変えない（一時的なものなので）
+      if(e?.name !== 'AbortError' && !locked){
+        setStatus('err','❌ 通信/認識エラー');
+      }
     }finally{
       scanning = false;
     }
   }
+  function startLoop(){ stopLoop(); timer = setInterval(tick, TICK_MS); }
+  function stopLoop(){ if(timer){ clearInterval(timer); timer = null; } }
 
-  function startLoop(){
-    stopLoop();
-    timer = setInterval(tick, TICK_MS);
-  }
-  function stopLoop(){
-    if(timer){ clearInterval(timer); timer = null; }
-  }
-
-  // actions
+  // ─── Controls ─────────────────────────────────────
   function setAuto(on){
     autoOn = on;
     btnAuto.textContent = on ? "AUTO: ON" : "AUTO: OFF";
     btnAuto.classList.toggle('off', !on);
     setStatus('ok', on ? '✅ AUTO ON' : '⏸ AUTO OFF');
   }
-
   function undoLast(){
-    const ds = datePick.value;
+    const ds  = datePick.value;
     const log = loadLog(ds);
     if(!log.length) return;
     log.pop();
@@ -711,14 +770,10 @@
     drawMonthChart();
     setStatus('ok','↩︎ 直近1件を取り消しました');
   }
-
   function deleteSelected(){
-    const ds = datePick.value;
-    const idxs = getSelectedIdx().sort((a,b)=>b-a);
-    if(!idxs.length){
-      setStatus('err','⚠️ 削除する項目を選んでね');
-      return;
-    }
+    const ds   = datePick.value;
+    const idxs = getSelectedIdx().sort((a,b) => b-a);
+    if(!idxs.length){ setStatus('err','⚠️ 削除する項目を選んでね'); return; }
     const log = loadLog(ds);
     for(const i of idxs){
       if(i>=0 && i<log.length) log.splice(i,1);
@@ -727,9 +782,8 @@
     setTopStatsForDate(ds);
     renderLog(ds);
     drawMonthChart();
-    setStatus('ok',`✅ 選択 ${idxs.length} 件を削除`);
+    setStatus('ok', `✅ 選択 ${idxs.length} 件を削除`);
   }
-
   function resetToday(){
     const ds = datePick.value;
     localStorage.removeItem(logKey(ds));
@@ -738,7 +792,6 @@
     drawMonthChart();
     setStatus('ok','⟲ その日（選択日）の履歴をリセット');
   }
-
   function shiftDate(days){
     const d = new Date(datePick.value + "T00:00:00");
     d.setDate(d.getDate() + days);
@@ -747,48 +800,41 @@
     onDateChanged();
   }
   function onDateChanged(){
-    const ds = datePick.value;
-    setTopStatsForDate(ds);
-    renderLog(ds);
+    setTopStatsForDate(datePick.value);
+    renderLog(datePick.value);
   }
 
-  // init
+  // ─── Init ─────────────────────────────────────────
   window.addEventListener('load', async () => {
-    datePick.value = todayStr();
+    datePick.value  = todayStr();
     monthPick.value = monthStr();
-
     setTopStatsForDate(datePick.value);
     renderLog(datePick.value);
     drawMonthChart();
-
     await startCamera();
     startLoop();
   });
 
-  // UI events
-  btnAuto.addEventListener('click', () => setAuto(!autoOn));
-  btnUndo.addEventListener('click', undoLast);
+  btnAuto.addEventListener('click',       () => setAuto(!autoOn));
+  btnUndo.addEventListener('click',       undoLast);
   btnResetToday.addEventListener('click', resetToday);
-
   btnDeleteSelected.addEventListener('click', deleteSelected);
-  btnSelectAll.addEventListener('click', () => selectAll(true));
-  btnClearSel.addEventListener('click', () => selectAll(false));
-
-  datePick.addEventListener('change', () => { onDateChanged(); });
-  btnPrevDay.addEventListener('click', () => shiftDate(-1));
-  btnNextDay.addEventListener('click', () => shiftDate(1));
-
-  monthPick.addEventListener('change', drawMonthChart);
-  btnThisMonth.addEventListener('click', () => { monthPick.value = monthStr(); drawMonthChart(); });
-
+  btnSelectAll.addEventListener('click',  () => selectAll(true));
+  btnClearSel.addEventListener('click',   () => selectAll(false));
+  datePick.addEventListener('change',     onDateChanged);
+  btnPrevDay.addEventListener('click',    () => shiftDate(-1));
+  btnNextDay.addEventListener('click',    () => shiftDate(1));
+  monthPick.addEventListener('change',    drawMonthChart);
+  btnThisMonth.addEventListener('click',  () => { monthPick.value = monthStr(); drawMonthChart(); });
   btnDetails.addEventListener('click', () => {
     const open = !details.classList.contains('show');
     details.classList.toggle('show', open);
-    btnDetails.textContent = open ? "▲ 詳細（履歴・グラフ）を閉じる" : "▼ 詳細（履歴・グラフ）を開く";
+    btnDetails.textContent = open
+      ? "▲ 詳細（履歴・グラフ）を閉じる"
+      : "▼ 詳細（履歴・グラフ）を開く";
   });
-
-  statusEl.addEventListener('click', () => startCamera());
-  btnStartCam.addEventListener('click', () => startCamera());
+  statusEl.addEventListener('click',   () => startCamera());
+  btnStartCam.addEventListener('click',() => startCamera());
 })();
 </script>
 </body>
