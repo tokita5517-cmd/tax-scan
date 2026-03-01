@@ -37,7 +37,7 @@ export default async function handler(req, res) {
         },
         signal: controller.signal,
         body: JSON.stringify({
-          model: "claude-3-haiku-20240307",
+          model: "claude-3-haiku",
           max_tokens: 80,
           temperature: 0,
           messages: [
