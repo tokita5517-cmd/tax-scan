@@ -1,4 +1,4 @@
-// /api/scan.js  ── 数字だけ抽出版（合計キーワード判定なし）
+// /api/scan.js  ── 数字だけ抽出版（強化版：sonnet + 数字JSON直返し）
 export default async function handler(req, res) {
   if (req.method === "GET") {
     return res.status(200).json({ ok: true, hint: "POST { image_base64 } to scan" });
@@ -9,26 +9,17 @@ export default async function handler(req, res) {
 
   try {
     const { image_base64 } = req.body || {};
-    if (!image_base64) {
-      return res.status(400).json({ error: "image_base64 required" });
-    }
-
-    // 画像サイズ上限（base64なので少し余裕みて）
-    if (image_base64.length > 2_200_000) {
-      return res.status(200).json({ total: 0, text: "", debug: "image too large" });
-    }
+    if (!image_base64) return res.status(400).json({ error: "image_base64 required" });
 
     const key = process.env.ANTHROPIC_API_KEY;
-    if (!key) {
-      // アプリ側を壊さないため 200 で返す
-      return res.status(200).json({ total: 0, text: "", debug: "ANTHROPIC_API_KEY is missing" });
-    }
+    if (!key) return res.status(200).json({ total: 0, text: "", debug: "ANTHROPIC_API_KEY is missing" });
 
-    // タイムアウト（AUTOループ用）
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 9000);
 
     let j = {};
+    let status = 0;
+
     try {
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -39,8 +30,9 @@ export default async function handler(req, res) {
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-3-5-haiku-20241022",
-          max_tokens: 220,
+          // ★小さい数字用に sonnet 推奨
+          model: "claude-3-5-sonnet-20241022",
+          max_tokens: 120,
           temperature: 0,
           messages: [
             {
@@ -53,15 +45,15 @@ export default async function handler(req, res) {
                 {
                   type: "text",
                   text: `
-あなたはOCRです。
-この画像に写っている文字をできるだけ正確に読み取り、次のJSONだけを返してください（説明不要）。
+この画像（黄色枠の切り抜き）に写っている「金額の数字」を読み取ってください。
 
-返す形式（厳守）:
-{"text":"ここに読み取れた文字を1行で（改行→半角スペース）"}
+ルール:
+- 数字は1つだけ選ぶ（カンマは無視してOK）
+- 迷ったら「一番それっぽい金額（通常は最大値）」を返す
+- 読めなければ 0
 
-注意:
-- 数字・カンマ・￥なども含めて、見えたまま入れてOK
-- 文字が読めなければ {"text":""}
+返す形式はJSONだけ（説明禁止）:
+{"total":5400,"text":"読めた断片（任意）"}
 `.trim(),
                 },
               ],
@@ -71,17 +63,14 @@ export default async function handler(req, res) {
         signal: controller.signal,
       });
 
+      status = r.status;
       j = await r.json().catch(() => ({}));
 
       if (!r.ok) {
         return res.status(200).json({
           total: 0,
           text: "",
-          debug: {
-            where: "anthropic",
-            status: r.status,
-            message: j?.error?.message || "anthropic error",
-          },
+          debug: { where: "anthropic", status, message: j?.error?.message || "anthropic error" },
         });
       }
     } finally {
@@ -95,12 +84,17 @@ export default async function handler(req, res) {
       .trim();
 
     const parsed = extractFirstJson(rawText) || {};
-    const text = typeof parsed.text === "string" ? parsed.text : rawText;
+    const total = Number(parsed?.total || 0);
+    const text = typeof parsed?.text === "string" ? parsed.text : rawText;
 
-    // ★ここがポイント：合計ワードは見ないで、数字だけからベストを選ぶ
-    const total = pickBestNumber(text);
+    // もしモデルが total を返せてなくても、textから保険抽出
+    const finalTotal = Number.isFinite(total) && total > 0 ? total : pickBestNumber(text);
 
-    return res.status(200).json({ total, text });
+    return res.status(200).json({
+      total: finalTotal > 0 ? finalTotal : 0,
+      text: text || "",
+      debug: finalTotal > 0 ? "" : `empty_or_unreadable (status:${status})`,
+    });
   } catch (e) {
     const isTimeout = e?.name === "AbortError";
     return res.status(200).json({
@@ -112,8 +106,6 @@ export default async function handler(req, res) {
 }
 
 // ---- helpers ----
-
-// Claudeの返答から最初のJSONを抜く（壊れてても救う）
 function extractFirstJson(s) {
   if (!s) return null;
   const stripped = s.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
@@ -127,36 +119,22 @@ function extractFirstJson(s) {
   const chunk = stripped.slice(first, last + 1);
   try { return JSON.parse(chunk); } catch (_) {}
 
-  // 最終手段： "text":"..." だけ抜く
-  const m = stripped.match(/"text"\s*:\s*"([\s\S]*?)"\s*}/);
-  if (m) return { text: m[1] };
   return null;
 }
 
-// 文字列から「一番それっぽい金額」を数字だけで決める
 function pickBestNumber(text) {
   if (!text) return 0;
 
-  // 全角→半角、通貨記号を少し掃除
-  const normalized = text
+  const normalized = String(text)
     .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
     .replace(/[¥￥]/g, "");
 
-  // 例: 45,630 / 5400 / 810 / 270
   const matches = normalized.match(/\d{1,3}(?:,\d{3})+|\d{2,}/g) || [];
   const nums = matches
     .map((s) => Number(String(s).replace(/,/g, "")))
-    .filter((n) => Number.isFinite(n));
+    .filter((n) => Number.isFinite(n))
+    .filter((n) => n >= 10 && n < 10_000_000);
 
   if (!nums.length) return 0;
-
-  // “日付っぽい 20260301” みたいなのが混ざる可能性があるので弾く
-  //  - 8桁以上は基本捨てる（必要なら緩められる）
-  const filtered = nums.filter((n) => n >= 10 && n < 10_000_000);
-
-  const pool = filtered.length ? filtered : nums;
-
-  // ROIが合計周りなら「最大値」がほぼ合計になるので最大を採用
-  const best = Math.max(...pool);
-  return best > 0 ? best : 0;
+  return Math.max(...nums);
 }
