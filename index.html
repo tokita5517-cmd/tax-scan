@@ -2,478 +2,470 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>請求書スキャン（数字だけ）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>tax-scan</title>
   <style>
     :root{
-      --accent:#f0c040;
-      --red:#ff5f5f;
-      --border:rgba(255,255,255,.14);
-      --surface:rgba(10,10,10,.82);
-      --glass:rgba(0,0,0,.65);
-      --ok:#4fd48a;
+      --bg:#0b0b0c;
+      --panel:#111216;
+      --ink:#f4f4f5;
+      --muted:#b6b6b8;
+      --warn:#ff3b30;
+      --ok:#34c759;
+      --accent:#f6c343; /* yellow */
+      --chip:#1b1c22;
     }
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    body{margin:0;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;overflow:hidden}
-
-    #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
-    #cap{display:none}
-
-    /* ROI（黄色枠） */
-    #roiBox{
-      position:fixed;
-      left:56%; top:50%;
-      transform:translate(-50%,-50%);
-      width:min(62vw,360px);
-      height:min(14vw,90px);
-      border:3px solid rgba(240,192,64,.75);
-      border-radius:14px;
-      z-index:50;
+    html,body{height:100%; margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI","Yu Gothic",sans-serif; background:var(--bg); color:var(--ink);}
+    .wrap{position:relative; height:100%; overflow:hidden;}
+    video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; background:#000;}
+    canvas{display:none;}
+    .topbar{
+      position:absolute; top:10px; left:10px; right:10px;
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
       pointer-events:none;
-      box-shadow:0 0 0 9999px rgba(0,0,0,.22);
     }
-    #roiLabel{
-      position:absolute; top:-28px; left:0;
-      font-size:12px; letter-spacing:.08em;
-      color:rgba(255,255,255,.78);
-      background:rgba(0,0,0,.55);
-      border:1px solid var(--border);
-      padding:5px 10px;
-      border-radius:999px;
-      backdrop-filter:blur(10px);
-    }
-
-    #topBar{
-      position:fixed; top:12px; left:12px; right:12px;
-      z-index:60;
-      display:flex; gap:8px; align-items:center; justify-content:space-between;
-      flex-wrap:wrap;
-    }
-    .pill{
-      display:inline-flex; align-items:center; gap:8px;
-      background:var(--glass);
-      border:1px solid var(--border);
-      border-radius:999px;
+    .chip{
+      pointer-events:auto;
+      background:rgba(27,28,34,0.88);
+      border:1px solid rgba(255,255,255,0.08);
+      color:var(--ink);
       padding:10px 12px;
-      font-size:12px;
-      backdrop-filter:blur(10px);
+      border-radius:999px;
+      font-weight:600;
+      font-size:14px;
+      display:flex; align-items:center; gap:8px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       white-space:nowrap;
     }
-    .pill b{font-size:13px;color:var(--accent)}
-    #status{color:rgba(255,255,255,.9); cursor:pointer}
-    #status.err{color:var(--red); border-color:rgba(255,95,95,.5)}
-    #status.ok{color:rgba(79,212,138,.95); border-color:rgba(79,212,138,.45)}
-    #status.scan{color:var(--accent); border-color:rgba(240,192,64,.6)}
-
-    /* 下パネル */
-    #panel{
-      position:fixed; left:0; right:0; bottom:0;
-      z-index:55;
-      padding:12px 12px 18px;
-      background:linear-gradient(to top, rgba(0,0,0,.96) 72%, rgba(0,0,0,.25));
+    .chip.warn{border-color:rgba(255,59,48,0.55); color:#ffd5d2;}
+    .chip.ok{border-color:rgba(52,199,89,0.55); color:#d6ffe3;}
+    .chip .yen{color:var(--accent); font-weight:800;}
+    .midhint{
+      position:absolute; left:0; right:0; top:50%;
+      transform:translateY(-50%);
+      display:flex; justify-content:center;
+      pointer-events:none;
     }
-    .card{
-      background:var(--surface);
-      border:1px solid var(--border);
+    .hintbubble{
+      background:rgba(15,16,20,0.78);
+      border:1px solid rgba(255,255,255,0.08);
+      color:var(--ink);
+      padding:10px 14px;
+      border-radius:999px;
+      font-size:14px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .roi{
+      position:absolute;
+      border:4px solid rgba(246,195,67,0.95);
       border-radius:16px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.22);
+      pointer-events:none;
+    }
+    .roi:after{
+      content:"";
+      position:absolute; inset:-6px;
+      border:2px solid rgba(246,195,67,0.35);
+      border-radius:18px;
+    }
+    .bottombar{
+      position:absolute; left:10px; right:10px; bottom:10px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .sheet{
+      background:rgba(17,18,22,0.90);
+      border:1px solid rgba(255,255,255,0.08);
+      border-radius:18px;
       overflow:hidden;
-      backdrop-filter:blur(16px);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
     .row{
-      display:flex; justify-content:space-between; align-items:baseline;
-      padding:12px 14px;
-      border-bottom:1px solid rgba(255,255,255,.10);
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 16px;
+      border-top:1px solid rgba(255,255,255,0.06);
+      font-weight:650;
     }
-    .row:last-child{border-bottom:none}
-    .label{font-size:11px;color:rgba(255,255,255,.55);letter-spacing:.08em}
-    .val{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:800;font-size:18px}
-    .val.red{color:var(--red)}
-    .row.total{background:rgba(240,192,64,.08)}
-    .row.total .label{color:var(--accent);font-weight:800}
-    .row.total .val{color:var(--accent);font-size:26px}
-    @keyframes goldFlash{
-      0%{transform:scale(1);filter:brightness(1)}
-      40%{transform:scale(1.05);filter:brightness(1.35)}
-      100%{transform:scale(1);filter:brightness(1)}
-    }
-    .flash-gold{animation:goldFlash 260ms ease-out}
-
+    .row:first-child{border-top:none;}
+    .row .label{color:var(--muted); font-weight:650;}
+    .row .val{font-size:22px; font-weight:900;}
+    .row .val.small{font-size:18px;}
+    .row .val.tax{color:var(--warn);}
+    .row .val.sum{color:var(--accent);}
     .controls{
-      margin-top:10px;
       display:flex; gap:10px;
     }
-    button{
-      border:none;
-      border-radius:14px;
-      padding:14px 12px;
-      font-weight:900;
-      font-size:15px;
-      cursor:pointer;
-    }
-    #btnAuto{flex:1;background:var(--accent);color:#000}
-    #btnAuto.off{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
-    #btnUndo{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
-    #btnResetToday{background:#333;color:#fff}
-
-    #startOverlay{
-      position:fixed; inset:0;
-      z-index:80;
-      display:none;
-      align-items:center;
-      justify-content:center;
-      background:rgba(0,0,0,.55);
-      backdrop-filter: blur(10px);
-    }
-    #startOverlay.show{display:flex}
-    #btnStartCam{
-      width:min(86vw,420px);
-      padding:18px 16px;
+    .btn{
+      flex:1;
+      padding:16px 14px;
       border-radius:18px;
+      border:1px solid rgba(255,255,255,0.10);
+      background:rgba(246,195,67,0.95);
+      color:#141414;
       font-size:18px;
-      font-weight:1000;
-      background:var(--accent);
-      color:#000;
-    }
-    #startHint{
-      position:absolute;
-      top:22px; left:12px; right:12px;
+      font-weight:900;
       text-align:center;
-      font-size:12px;
-      color:rgba(255,255,255,.8);
+      user-select:none;
     }
-
-    .muted{color:rgba(255,255,255,.6);font-size:12px;margin:8px 0 0}
+    .btn.secondary{
+      background:rgba(27,28,34,0.90);
+      color:var(--ink);
+      font-weight:800;
+    }
+    .tiny{
+      text-align:center;
+      color:rgba(255,255,255,0.55);
+      font-size:12px;
+      padding-bottom:4px;
+    }
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:12px;
+      color:rgba(255,255,255,0.55);
+      text-align:center;
+    }
   </style>
 </head>
 <body>
-  <video id="video" autoplay muted playsinline></video>
-  <canvas id="cap"></canvas>
+<div class="wrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="work"></canvas>
 
-  <div id="roiBox">
-    <div id="roiLabel">黄色枠に「数字」を入れたらホールド</div>
+  <div class="topbar">
+    <div id="statusChip" class="chip warn">⚠️ 枠に数字が見えていません</div>
+    <div class="chip">請求書: <span id="count">0</span> 枚</div>
+    <div class="chip">総合計: <span class="yen">¥</span><span id="grand">0</span></div>
   </div>
 
-  <div id="topBar">
-    <div id="status" class="pill" title="タップでカメラ開始/再開">📷 準備中…（タップで開始）</div>
-    <div class="pill">請求書: <b id="invoiceCount">0</b>枚</div>
-    <div class="pill">総合計: <b id="grandTotal">¥0</b></div>
+  <div class="midhint">
+    <div class="hintbubble">黄色枠に「数字」を入れたらホールド</div>
   </div>
 
-  <div id="panel">
-    <div class="card">
+  <div id="roi" class="roi"></div>
+
+  <div class="bottombar">
+    <div class="sheet">
       <div class="row">
         <div class="label">税抜（逆算）</div>
-        <div class="val" id="baseVal">—</div>
+        <div class="val small" id="net">—</div>
       </div>
       <div class="row">
         <div class="label">消費税（10%・四捨五入）</div>
-        <div class="val red" id="taxVal">—</div>
+        <div class="val small tax" id="tax">—</div>
       </div>
-      <div class="row total">
+      <div class="row">
         <div class="label">合計（税込）</div>
-        <div class="val" id="totalVal">—</div>
+        <div class="val sum" id="sum">—</div>
       </div>
     </div>
 
     <div class="controls">
-      <button id="btnAuto" title="自動スキャン ON/OFF">AUTO: ON</button>
-      <button id="btnUndo" title="直近1件取り消し">↩︎ 直近</button>
-      <button id="btnResetToday" title="今日分をリセット">⟲ 今日</button>
+      <div id="autoBtn" class="btn">AUTO: ON</div>
+      <div id="undoBtn" class="btn secondary">↩ 直近</div>
+      <div id="todayBtn" class="btn secondary">⟲ 今日</div>
     </div>
 
-    <div class="muted" id="ocrLine">OCR: -</div>
-    <div class="muted">
-      ※iPhoneで止まったら、左上「📷」をタップで再開
-    </div>
+    <div class="mono" id="debugLine">OCR: "" → 0</div>
+    <div class="tiny">※iPhoneで止まったら、左上「🅰︎」バッジをタップで再開</div>
   </div>
-
-  <div id="startOverlay">
-    <div id="startHint">iPhone Safariは最初にタップが必要なことがあるよ</div>
-    <button id="btnStartCam">カメラ開始</button>
-  </div>
+</div>
 
 <script>
 (() => {
-  const RATE = 0.10;
-  const CONFIRM_N = 2;
-  const UNLOCK_N  = 2;
-  const TICK_MS   = 320;
-
-  // ✅ 黄色枠（動画に対する比率）— 小さめ＆数字寄り
-  // left/top は画面上の枠位置に対応。数字だけ入れる想定で右寄り
-  const ROI = { x: 0.50, y: 0.58, w: 0.32, h: 0.12 };
-
-  // DOM
   const video = document.getElementById('video');
-  const cap = document.getElementById('cap');
-  const ctx = cap.getContext('2d');
+  const canvas = document.getElementById('work');
+  const ctx = canvas.getContext('2d', { willReadFrequently:true });
 
-  const statusEl = document.getElementById('status');
-  const baseVal = document.getElementById('baseVal');
-  const taxVal = document.getElementById('taxVal');
-  const totalVal = document.getElementById('totalVal');
-  const invoiceCountEl = document.getElementById('invoiceCount');
-  const grandTotalEl = document.getElementById('grandTotal');
-  const btnAuto = document.getElementById('btnAuto');
-  const btnUndo = document.getElementById('btnUndo');
-  const btnResetToday = document.getElementById('btnResetToday');
-  const startOverlay = document.getElementById('startOverlay');
-  const btnStartCam = document.getElementById('btnStartCam');
-  const ocrLine = document.getElementById('ocrLine');
+  const roiEl = document.getElementById('roi');
+  const statusChip = document.getElementById('statusChip');
+  const countEl = document.getElementById('count');
+  const grandEl = document.getElementById('grand');
+  const netEl = document.getElementById('net');
+  const taxEl = document.getElementById('tax');
+  const sumEl = document.getElementById('sum');
+  const debugLine = document.getElementById('debugLine');
 
-  // State
-  let stream = null;
-  let autoOn = true;
+  const autoBtn = document.getElementById('autoBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const todayBtn = document.getElementById('todayBtn');
 
-  let locked = false;
-  let lockedTotal = null;
+  // ---- 設定（ここ大事） ----
+  // 黄色枠：画面比率で固定（今のたかちんの運用に合わせて、横長の枠）
+  const ROI = { x: 0.18, y: 0.41, w: 0.64, h: 0.10 }; // ←必要なら微調整
+  // 送信画像は拡大してAIに渡す（数字を大きくする）
+  const UPSCALE = 4.0;  // 2.5→4.0（強め）
+  // シャープネス閾値（近すぎ/ブレ検知）
+  const SHARPNESS_TH = 120; // 低いほど甘い。迷ったら120
 
-  let lastSeen = null;
-  let stableCount = 0;
-  let unlockCount = 0;
+  // オートOCR間隔
+  const INTERVAL_MS = 650;
 
+  // 状態
+  let auto = true;
   let scanning = false;
-  let timer = null;
-  let cameraReady = false;
+  let lastTotal = 0;
+  let grandTotal = 0;
+  let invoiceCount = 0;
 
-  // Utils
-  const yen = (n) => `¥${Number(n||0).toLocaleString('ja-JP')}`;
+  const history = []; // {total, ts}
+
+  function placeROI() {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const x = Math.round(vw * ROI.x);
+    const y = Math.round(vh * ROI.y);
+    const w = Math.round(vw * ROI.w);
+    const h = Math.round(vh * ROI.h);
+    roiEl.style.left = x + 'px';
+    roiEl.style.top = y + 'px';
+    roiEl.style.width = w + 'px';
+    roiEl.style.height = h + 'px';
+  }
+
+  window.addEventListener('resize', placeROI);
+  placeROI();
+
+  // カメラ起動
+  async function startCamera() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+  }
+
+  // 文字→数値フォーマット
+  function fmt(n){ return (n||0).toLocaleString('ja-JP'); }
+
+  // 税計算（10%税込 → 税抜/税）
+  function calcTax(total){
+    const net = Math.round(total / 1.1);
+    const tax = total - net;
+    return { net, tax, total };
+  }
 
   function setStatus(kind, text){
-    statusEl.classList.remove('err','ok','scan');
-    if(kind) statusEl.classList.add(kind);
-    statusEl.textContent = text;
+    statusChip.classList.remove('warn','ok');
+    statusChip.classList.add(kind);
+    statusChip.textContent = text;
   }
 
-  function flashGold(){
-    totalVal.classList.remove('flash-gold');
-    void totalVal.offsetWidth;
-    totalVal.classList.add('flash-gold');
-  }
+  // ROI切り抜き → 画像(強調)をJPEG base64に
+  function captureROIBase64(){
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return null;
 
-  function splitFromTotal(total){
-    const approx = Math.round(total / (1 + RATE));
-    for(let d=-5; d<=5; d++){
-      const base = approx + d;
-      const tax = Math.round(base * RATE);
-      if(base + tax === total) return { base, tax, total };
+    // video要素の表示領域（object-fit:cover）を逆算
+    const dw = window.innerWidth;
+    const dh = window.innerHeight;
+    const videoAspect = vw / vh;
+    const displayAspect = dw / dh;
+
+    let sx=0, sy=0, sw=vw, sh=vh;
+    if (displayAspect > videoAspect) {
+      // 横に広い → 上下が切れる
+      const shownH = vw / displayAspect;
+      sy = (vh - shownH) / 2;
+      sh = shownH;
+    } else {
+      // 縦に長い → 左右が切れる
+      const shownW = vh * displayAspect;
+      sx = (vw - shownW) / 2;
+      sw = shownW;
     }
-    const base = approx;
-    const tax = total - base;
-    return { base, tax, total };
+
+    // ROI（画面比率）→ video座標へ
+    const rx = sx + sw * ROI.x;
+    const ry = sy + sh * ROI.y;
+    const rw = sw * ROI.w;
+    const rh = sh * ROI.h;
+
+    // アップスケールして描画
+    const outW = Math.max(1, Math.round(rw * UPSCALE));
+    const outH = Math.max(1, Math.round(rh * UPSCALE));
+    canvas.width = outW;
+    canvas.height = outH;
+
+    // まずコントラスト強めで描く
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.filter = 'contrast(1.65) brightness(1.05) saturate(0.9)';
+    ctx.drawImage(video, rx, ry, rw, rh, 0, 0, outW, outH);
+    ctx.restore();
+
+    // グレースケール + 軽い二値化（数字強調）
+    const img = ctx.getImageData(0, 0, outW, outH);
+    const d = img.data;
+
+    // 明るさ基準で閾値を雑に計算
+    let sum = 0;
+    for (let i=0;i<d.length;i+=4){
+      const g = (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114);
+      sum += g;
+    }
+    const mean = sum / (d.length/4);
+    const th = Math.min(210, Math.max(90, mean * 0.92)); // 自動閾値（ざっくり）
+
+    for (let i=0;i<d.length;i+=4){
+      const g = (d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114);
+      const v = (g > th) ? 255 : 0;
+      d[i]=d[i+1]=d[i+2]=v;
+      d[i+3]=255;
+    }
+    ctx.putImageData(img, 0, 0);
+
+    // シャープネス判定（近すぎ/ブレ検出）
+    const sharp = calcSharpness(img);
+    return { base64: canvas.toDataURL('image/jpeg', 0.92).split(',')[1], sharp };
   }
 
-  // 今日だけ簡易ログ（localStorage）
-  const pad2 = (n) => String(n).padStart(2,'0');
-  const todayStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-  };
-  function logKey(dateStr){ return `taxscan_log_${dateStr}`; }
-  function loadLog(dateStr){
-    try { return JSON.parse(localStorage.getItem(logKey(dateStr)) || "[]"); }
-    catch(e){ return []; }
-  }
-  function saveLog(dateStr, arr){
-    localStorage.setItem(logKey(dateStr), JSON.stringify(arr));
-  }
-  function refreshTop(){
-    const ds = todayStr();
-    const log = loadLog(ds);
-    const count = log.length;
-    const sumTotal = log.reduce((a,x)=>a + (Number(x.total)||0), 0);
-    invoiceCountEl.textContent = String(count);
-    grandTotalEl.textContent = yen(sumTotal);
-  }
-
-  // Camera
-  async function startCamera(){
-    try{
-      setStatus('scan','📷 カメラ起動中…');
-      startOverlay.classList.remove('show');
-
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal:'environment' }, width: { ideal: 1920 } },
-        audio: false
-      });
-      video.srcObject = stream;
-
-      try{
-        await video.play();
-      }catch(_){
-        startOverlay.classList.add('show');
-        setStatus('err','⚠️ タップしてカメラ開始');
-        return;
+  // ざっくりLaplacianでシャープネス（分散）
+  function calcSharpness(imageData){
+    const { width:w, height:h, data } = imageData;
+    // 速くするために 2px 間引き
+    const step = 2;
+    const lap = [];
+    for(let y=1; y<h-1; y+=step){
+      for(let x=1; x<w-1; x+=step){
+        const idx = (y*w + x)*4;
+        const c = data[idx]; // 二値化後なのでRだけでOK
+        const up = data[((y-1)*w + x)*4];
+        const dn = data[((y+1)*w + x)*4];
+        const lf = data[(y*w + (x-1))*4];
+        const rt = data[(y*w + (x+1))*4];
+        // Laplacian
+        const v = (4*c - up - dn - lf - rt);
+        lap.push(v);
       }
-
-      cameraReady = true;
-      setStatus('ok','✅ 準備OK（数字を枠に）');
-    }catch(e){
-      console.error(e);
-      cameraReady = false;
-      setStatus('err','❌ カメラ許可が必要（Safariのサイト設定）');
-      startOverlay.classList.add('show');
     }
+    if (!lap.length) return 0;
+    let mean = 0;
+    for (const v of lap) mean += v;
+    mean /= lap.length;
+    let vari = 0;
+    for (const v of lap){
+      const dv = v - mean;
+      vari += dv*dv;
+    }
+    vari /= lap.length;
+    return vari; // 大きいほどシャープ
   }
 
-  function captureROI(){
-    const vw = video.videoWidth || 1280;
-    const vh = video.videoHeight || 720;
-
-    const x = Math.max(0, Math.floor(ROI.x * vw));
-    const y = Math.max(0, Math.floor(ROI.y * vh));
-    const w = Math.max(1, Math.floor(ROI.w * vw));
-    const h = Math.max(1, Math.floor(ROI.h * vh));
-
-    // ✅ 拡大（数字が小さいので大事）
-    const SCALE = 4;
-    cap.width  = Math.floor(w * SCALE);
-    cap.height = Math.floor(h * SCALE);
-
-    // ✅ 画質改善（明るくしすぎない）
-    ctx.imageSmoothingEnabled = false;
-    ctx.filter = "grayscale(100%) contrast(220%) brightness(110%)";
-    ctx.drawImage(video, x, y, w, h, 0, 0, cap.width, cap.height);
-    ctx.filter = "none";
-
-    // ✅ PNG（にじみ対策）
-    return cap.toDataURL('image/png').split(',')[1];
-  }
-
-  async function recognizeTotal(){
-    const img = captureROI();
-    const res = await fetch('/api/scan', {
+  async function callOCR(image_base64){
+    const r = await fetch('/api/scan', {
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ image_base64: img })
+      headers:{'content-type':'application/json'},
+      body: JSON.stringify({ image_base64 })
     });
-    const data = await res.json().catch(()=> ({}));
-
-    // 画面の下に raw/debug を出す（objectを文字列化して [object Object] を消す）
-    const raw = (data && typeof data.raw === "string") ? data.raw : "";
-    const dbg = data && data.debug ? JSON.stringify(data.debug) : "";
-    ocrLine.textContent = `OCR: "${raw}" → ${Number(data?.total||0)}${dbg ? " / " + dbg : ""}`;
-
-    const total = Number(data?.total || 0);
-    return total > 0 ? total : 0;
+    return await r.json().catch(()=>({ total:0, text:"", debug:{where:"client", message:"json parse failed"} }));
   }
 
-  function showResult(r){
-    baseVal.textContent  = yen(r.base);
-    taxVal.textContent   = yen(r.tax);
-    totalVal.textContent = yen(r.total);
+  function applyResult(total){
+    const n = Number(total)||0;
+    const { net, tax } = calcTax(n);
+
+    lastTotal = n;
+    sumEl.textContent = '¥' + fmt(n);
+    netEl.textContent = '¥' + fmt(net);
+    taxEl.textContent = '¥' + fmt(tax);
   }
 
-  function onDetected(total){
-    if(!total){
-      if(!locked) setStatus('err','⚠️ 枠に数字が見えていません');
-      stableCount = 0;
-      lastSeen = null;
+  function addInvoice(total){
+    invoiceCount += 1;
+    grandTotal += total;
+    history.push({ total, ts: Date.now() });
+    countEl.textContent = String(invoiceCount);
+    grandEl.textContent = fmt(grandTotal);
+  }
+
+  function undo(){
+    const last = history.pop();
+    if (!last) return;
+    invoiceCount = Math.max(0, invoiceCount-1);
+    grandTotal = Math.max(0, grandTotal - last.total);
+    countEl.textContent = String(invoiceCount);
+    grandEl.textContent = fmt(grandTotal);
+  }
+
+  function resetToday(){
+    history.length = 0;
+    invoiceCount = 0;
+    grandTotal = 0;
+    countEl.textContent = "0";
+    grandEl.textContent = "0";
+    sumEl.textContent = "—";
+    netEl.textContent = "—";
+    taxEl.textContent = "—";
+    lastTotal = 0;
+  }
+
+  autoBtn.addEventListener('click', ()=>{
+    auto = !auto;
+    autoBtn.textContent = auto ? 'AUTO: ON' : 'AUTO: OFF';
+  });
+  undoBtn.addEventListener('click', undo);
+  todayBtn.addEventListener('click', resetToday);
+
+  // メインループ
+  async function loop(){
+    if (!auto || scanning) return;
+
+    const cap = captureROIBase64();
+    if (!cap) return;
+
+    const { base64, sharp } = cap;
+
+    // シャープネス不足 → 送らずに案内（たかちんの「離すと読めた」をシステム化）
+    if (sharp < SHARPNESS_TH) {
+      setStatus('warn', `⚠️ ピントが甘い（少し離して）`);
+      debugLine.textContent = `SHARP: ${Math.round(sharp)} < ${SHARPNESS_TH} / skip`;
       return;
     }
 
-    if(locked){
-      if(total !== lockedTotal){
-        unlockCount++;
-        if(unlockCount >= UNLOCK_N){
-          locked = false;
-          lockedTotal = null;
-          unlockCount = 0;
-          stableCount = 1;
-          lastSeen = total;
-          setStatus('scan','📄 次の請求書を検出…');
-        }
-      }else{
-        unlockCount = 0;
-      }
-      return;
-    }
-
-    if(total === lastSeen) stableCount++;
-    else { lastSeen = total; stableCount = 1; }
-
-    setStatus('scan',`🔍 認識中…（${stableCount}/${CONFIRM_N}）`);
-
-    if(stableCount >= CONFIRM_N){
-      locked = true;
-      lockedTotal = total;
-      unlockCount = 0;
-
-      const r = splitFromTotal(total);
-      showResult(r);
-
-      const ds = todayStr();
-      const log = loadLog(ds);
-      log.push({ total: r.total, base: r.base, tax: r.tax });
-      saveLog(ds, log);
-      refreshTop();
-
-      setStatus('ok',`✅ 確定：${yen(total)}（次で自動解除）`);
-      flashGold();
-    }
-  }
-
-  async function tick(){
-    if(!autoOn || scanning) return;
-    if(!cameraReady) return;
     scanning = true;
     try{
-      const total = await recognizeTotal();
-      onDetected(total);
-    }catch(e){
-      console.error(e);
-      if(!locked) setStatus('err','❌ 通信/認識エラー');
-    }finally{
+      const j = await callOCR(base64);
+      const total = Number(j.total)||0;
+
+      // デバッグ表示
+      debugLine.textContent = `OCR: "${String(j.text||"").slice(0,60)}" → ${total}` + (j.debug ? ` / ${JSON.stringify(j.debug)}` : "");
+
+      if (total > 0){
+        setStatus('ok', `✅ 確定：¥${fmt(total)}（次で自動解除）`);
+        applyResult(total);
+        addInvoice(total);
+
+        // 1回読めたら自動解除（誤連発防止）
+        auto = false;
+        autoBtn.textContent = 'AUTO: OFF';
+      } else {
+        setStatus('warn', '⚠️ 枠に数字が見えていません');
+      }
+    } finally {
       scanning = false;
     }
   }
 
-  function startLoop(){
-    if(timer) clearInterval(timer);
-    timer = setInterval(tick, TICK_MS);
-  }
-
-  function setAuto(on){
-    autoOn = on;
-    btnAuto.textContent = on ? "AUTO: ON" : "AUTO: OFF";
-    btnAuto.classList.toggle('off', !on);
-    setStatus('ok', on ? '✅ AUTO ON' : '⏸ AUTO OFF');
-  }
-
-  function undoLast(){
-    const ds = todayStr();
-    const log = loadLog(ds);
-    if(!log.length) return;
-    log.pop();
-    saveLog(ds, log);
-    refreshTop();
-    setStatus('ok','↩︎ 直近1件を取り消しました');
-  }
-
-  function resetToday(){
-    const ds = todayStr();
-    localStorage.removeItem(logKey(ds));
-    refreshTop();
-    baseVal.textContent = "—";
-    taxVal.textContent = "—";
-    totalVal.textContent = "—";
-    setStatus('ok','⟲ 今日の履歴をリセット');
-  }
-
-  // init
-  window.addEventListener('load', async () => {
-    refreshTop();
-    await startCamera();
-    startLoop();
-  });
-
-  // UI events
-  btnAuto.addEventListener('click', () => setAuto(!autoOn));
-  btnUndo.addEventListener('click', undoLast);
-  btnResetToday.addEventListener('click', resetToday);
-
-  statusEl.addEventListener('click', () => startCamera());
-  btnStartCam.addEventListener('click', () => startCamera());
+  // 起動
+  (async ()=>{
+    try{
+      await startCamera();
+      setStatus('warn', '⚠️ 枠に数字が見えていません');
+      setInterval(loop, INTERVAL_MS);
+    } catch(e){
+      setStatus('warn', '⚠️ カメラ起動に失敗（権限OK？）');
+      debugLine.textContent = String(e?.message || e);
+    }
+  })();
 })();
 </script>
 </body>
