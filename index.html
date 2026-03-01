@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>請求書スキャン（数字→税抜/税/税込）</title>
+  <title>請求書スキャン（数字だけ）</title>
   <style>
     :root{
       --accent:#f0c040;
@@ -19,13 +19,14 @@
     #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
     #cap{display:none}
 
+    /* ROI（黄色枠） */
     #roiBox{
       position:fixed;
-      left:50%; top:45%;
+      left:56%; top:50%;
       transform:translate(-50%,-50%);
-      width:min(56vw,340px);
-      height:min(12vw,78px);
-      border:2px solid rgba(240,192,64,.70);
+      width:min(62vw,360px);
+      height:min(14vw,90px);
+      border:3px solid rgba(240,192,64,.75);
       border-radius:14px;
       z-index:50;
       pointer-events:none;
@@ -64,6 +65,7 @@
     #status.ok{color:rgba(79,212,138,.95); border-color:rgba(79,212,138,.45)}
     #status.scan{color:var(--accent); border-color:rgba(240,192,64,.6)}
 
+    /* 下パネル */
     #panel{
       position:fixed; left:0; right:0; bottom:0;
       z-index:55;
@@ -89,36 +91,29 @@
     .row.total{background:rgba(240,192,64,.08)}
     .row.total .label{color:var(--accent);font-weight:800}
     .row.total .val{color:var(--accent);font-size:26px}
+    @keyframes goldFlash{
+      0%{transform:scale(1);filter:brightness(1)}
+      40%{transform:scale(1.05);filter:brightness(1.35)}
+      100%{transform:scale(1);filter:brightness(1)}
+    }
+    .flash-gold{animation:goldFlash 260ms ease-out}
 
-    .controls{ margin-top:10px; display:flex; gap:10px; }
-    button{ border:none; border-radius:14px; padding:14px 12px; font-weight:900; font-size:15px; cursor:pointer; }
+    .controls{
+      margin-top:10px;
+      display:flex; gap:10px;
+    }
+    button{
+      border:none;
+      border-radius:14px;
+      padding:14px 12px;
+      font-weight:900;
+      font-size:15px;
+      cursor:pointer;
+    }
     #btnAuto{flex:1;background:var(--accent);color:#000}
     #btnAuto.off{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
     #btnUndo{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
     #btnResetToday{background:#333;color:#fff}
-
-    #btnDetails{
-      width:100%; margin-top:10px;
-      background:rgba(255,255,255,.10);
-      border:1px solid var(--border);
-      color:#fff; padding:12px 12px; border-radius:14px; font-weight:900;
-    }
-    #details{ margin-top:10px; display:none; }
-    #details.show{display:block}
-    .muted{color:rgba(255,255,255,.6);font-size:12px;margin:6px 0 0}
-
-    #debugBar{
-      position:fixed; bottom:0; left:0; right:0;
-      z-index:100;
-      font-size:10px;
-      color:rgba(255,255,255,.35);
-      text-align:center;
-      padding:2px 8px;
-      pointer-events:none;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
 
     #startOverlay{
       position:fixed; inset:0;
@@ -146,6 +141,8 @@
       font-size:12px;
       color:rgba(255,255,255,.8);
     }
+
+    .muted{color:rgba(255,255,255,.6);font-size:12px;margin:8px 0 0}
   </style>
 </head>
 <body>
@@ -179,20 +176,16 @@
     </div>
 
     <div class="controls">
-      <button id="btnAuto">AUTO: ON</button>
-      <button id="btnUndo">↩︎ 直近</button>
-      <button id="btnResetToday">⟲ 今日</button>
+      <button id="btnAuto" title="自動スキャン ON/OFF">AUTO: ON</button>
+      <button id="btnUndo" title="直近1件取り消し">↩︎ 直近</button>
+      <button id="btnResetToday" title="今日分をリセット">⟲ 今日</button>
     </div>
 
-    <button id="btnDetails">▼ 詳細（履歴・グラフ）を開く</button>
-    <div id="details"></div>
-
-    <div class="muted" style="margin-top:10px">
-      ※iPhoneで止まったら、左上「📷」バッジをタップで再開
+    <div class="muted" id="ocrLine">OCR: -</div>
+    <div class="muted">
+      ※iPhoneで止まったら、左上「📷」をタップで再開
     </div>
   </div>
-
-  <div id="debugBar"></div>
 
   <div id="startOverlay">
     <div id="startHint">iPhone Safariは最初にタップが必要なことがあるよ</div>
@@ -204,43 +197,46 @@
   const RATE = 0.10;
   const CONFIRM_N = 2;
   const UNLOCK_N  = 2;
-  const TICK_MS   = 800;
+  const TICK_MS   = 320;
 
-  const video  = document.getElementById('video');
-  const cap    = document.getElementById('cap');
-  const ctx    = cap.getContext('2d');
-  const roiBox = document.getElementById('roiBox');
+  // ✅ 黄色枠（動画に対する比率）— 小さめ＆数字寄り
+  // left/top は画面上の枠位置に対応。数字だけ入れる想定で右寄り
+  const ROI = { x: 0.50, y: 0.58, w: 0.32, h: 0.12 };
+
+  // DOM
+  const video = document.getElementById('video');
+  const cap = document.getElementById('cap');
+  const ctx = cap.getContext('2d');
 
   const statusEl = document.getElementById('status');
-  const baseVal  = document.getElementById('baseVal');
-  const taxVal   = document.getElementById('taxVal');
+  const baseVal = document.getElementById('baseVal');
+  const taxVal = document.getElementById('taxVal');
   const totalVal = document.getElementById('totalVal');
-
   const invoiceCountEl = document.getElementById('invoiceCount');
-  const grandTotalEl   = document.getElementById('grandTotal');
-  const debugBar       = document.getElementById('debugBar');
-
-  const btnAuto       = document.getElementById('btnAuto');
-  const btnUndo       = document.getElementById('btnUndo');
+  const grandTotalEl = document.getElementById('grandTotal');
+  const btnAuto = document.getElementById('btnAuto');
+  const btnUndo = document.getElementById('btnUndo');
   const btnResetToday = document.getElementById('btnResetToday');
-
   const startOverlay = document.getElementById('startOverlay');
-  const btnStartCam  = document.getElementById('btnStartCam');
+  const btnStartCam = document.getElementById('btnStartCam');
+  const ocrLine = document.getElementById('ocrLine');
 
+  // State
   let stream = null;
   let autoOn = true;
 
   let locked = false;
   let lockedTotal = null;
 
-  let lastCandidate = null;
-  let stableCount   = 0;
-  let unlockCount   = 0;
+  let lastSeen = null;
+  let stableCount = 0;
+  let unlockCount = 0;
 
-  let scanning    = false;
-  let timer       = null;
+  let scanning = false;
+  let timer = null;
   let cameraReady = false;
 
+  // Utils
   const yen = (n) => `¥${Number(n||0).toLocaleString('ja-JP')}`;
 
   function setStatus(kind, text){
@@ -248,19 +244,49 @@
     if(kind) statusEl.classList.add(kind);
     statusEl.textContent = text;
   }
-  function setDebug(t){ debugBar.textContent = t || ""; }
+
+  function flashGold(){
+    totalVal.classList.remove('flash-gold');
+    void totalVal.offsetWidth;
+    totalVal.classList.add('flash-gold');
+  }
 
   function splitFromTotal(total){
     const approx = Math.round(total / (1 + RATE));
     for(let d=-5; d<=5; d++){
       const base = approx + d;
-      const tax  = Math.round(base * RATE);
+      const tax = Math.round(base * RATE);
       if(base + tax === total) return { base, tax, total };
     }
     const base = approx;
-    return { base, tax: total - base, total };
+    const tax = total - base;
+    return { base, tax, total };
   }
 
+  // 今日だけ簡易ログ（localStorage）
+  const pad2 = (n) => String(n).padStart(2,'0');
+  const todayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  };
+  function logKey(dateStr){ return `taxscan_log_${dateStr}`; }
+  function loadLog(dateStr){
+    try { return JSON.parse(localStorage.getItem(logKey(dateStr)) || "[]"); }
+    catch(e){ return []; }
+  }
+  function saveLog(dateStr, arr){
+    localStorage.setItem(logKey(dateStr), JSON.stringify(arr));
+  }
+  function refreshTop(){
+    const ds = todayStr();
+    const log = loadLog(ds);
+    const count = log.length;
+    const sumTotal = log.reduce((a,x)=>a + (Number(x.total)||0), 0);
+    invoiceCountEl.textContent = String(count);
+    grandTotalEl.textContent = yen(sumTotal);
+  }
+
+  // Camera
   async function startCamera(){
     try{
       setStatus('scan','📷 カメラ起動中…');
@@ -272,15 +298,16 @@
       });
       video.srcObject = stream;
 
-      try{ await video.play(); }
-      catch(_){
+      try{
+        await video.play();
+      }catch(_){
         startOverlay.classList.add('show');
         setStatus('err','⚠️ タップしてカメラ開始');
         return;
       }
 
       cameraReady = true;
-      setStatus('ok','✅ 準備OK（黄色枠に数字）');
+      setStatus('ok','✅ 準備OK（数字を枠に）');
     }catch(e){
       console.error(e);
       cameraReady = false;
@@ -289,61 +316,31 @@
     }
   }
 
-  // ★ここが効く：黄色枠の位置をそのまま切り抜き → 8倍拡大 → 二値化
   function captureROI(){
-    const vw = video.videoWidth  || 1280;
+    const vw = video.videoWidth || 1280;
     const vh = video.videoHeight || 720;
 
-    const vr = video.getBoundingClientRect();
-    const rr = roiBox.getBoundingClientRect();
+    const x = Math.max(0, Math.floor(ROI.x * vw));
+    const y = Math.max(0, Math.floor(ROI.y * vh));
+    const w = Math.max(1, Math.floor(ROI.w * vw));
+    const h = Math.max(1, Math.floor(ROI.h * vh));
 
-    const scale = Math.max(vr.width / vw, vr.height / vh);
-    const dispW = vw * scale;
-    const dispH = vh * scale;
-    const offX  = (vr.width  - dispW) / 2;
-    const offY  = (vr.height - dispH) / 2;
+    // ✅ 拡大（数字が小さいので大事）
+    const SCALE = 4;
+    cap.width  = Math.floor(w * SCALE);
+    cap.height = Math.floor(h * SCALE);
 
-    let sx = (rr.left - vr.left - offX) / scale;
-    let sy = (rr.top  - vr.top  - offY) / scale;
-    let sw = rr.width  / scale;
-    let sh = rr.height / scale;
-
-    // 少し余白（数字が枠ギリでも拾う）
-    const PAD = 0.18;
-    sx -= sw * PAD; sy -= sh * PAD;
-    sw *= (1 + PAD*2); sh *= (1 + PAD*2);
-
-    sx = Math.max(0, Math.min(vw-1, sx));
-    sy = Math.max(0, Math.min(vh-1, sy));
-    sw = Math.max(1, Math.min(vw - sx, sw));
-    sh = Math.max(1, Math.min(vh - sy, sh));
-
-    const SCALE = 8;             // ★小さい数字用に8倍
-    cap.width  = Math.floor(sw * SCALE);
-    cap.height = Math.floor(sh * SCALE);
-
+    // ✅ 画質改善（明るくしすぎない）
     ctx.imageSmoothingEnabled = false;
-    ctx.filter = "grayscale(100%) contrast(260%) brightness(120%)";
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cap.width, cap.height);
+    ctx.filter = "grayscale(100%) contrast(220%) brightness(110%)";
+    ctx.drawImage(video, x, y, w, h, 0, 0, cap.width, cap.height);
     ctx.filter = "none";
 
-    // 二値化（白黒くっきり）
-    const img = ctx.getImageData(0,0,cap.width,cap.height);
-    const d = img.data;
-    // 固定しきい値（安定版）※暗ければ数字が黒で残る
-    const TH = 170;
-    for(let i=0;i<d.length;i+=4){
-      const v = d[i]; // 既にグレースケール寄り
-      const b = (v > TH) ? 255 : 0;
-      d[i]=d[i+1]=d[i+2]=b;
-      d[i+3]=255;
-    }
-    ctx.putImageData(img,0,0);
-
-    return cap.toDataURL('image/jpeg', 0.95).split(',')[1];
+    // ✅ PNG（にじみ対策）
+    return cap.toDataURL('image/png').split(',')[1];
   }
 
-  async function recognize(){
+  async function recognizeTotal(){
     const img = captureROI();
     const res = await fetch('/api/scan', {
       method:'POST',
@@ -351,11 +348,14 @@
       body: JSON.stringify({ image_base64: img })
     });
     const data = await res.json().catch(()=> ({}));
-    return {
-      total: Number(data?.total || 0),
-      text: String(data?.text || ""),
-      debug: data?.debug || ""
-    };
+
+    // 画面の下に raw/debug を出す（objectを文字列化して [object Object] を消す）
+    const raw = (data && typeof data.raw === "string") ? data.raw : "";
+    const dbg = data && data.debug ? JSON.stringify(data.debug) : "";
+    ocrLine.textContent = `OCR: "${raw}" → ${Number(data?.total||0)}${dbg ? " / " + dbg : ""}`;
+
+    const total = Number(data?.total || 0);
+    return total > 0 ? total : 0;
   }
 
   function showResult(r){
@@ -364,13 +364,11 @@
     totalVal.textContent = yen(r.total);
   }
 
-  function onDetected(det){
-    const total = det.total || 0;
-
+  function onDetected(total){
     if(!total){
       if(!locked) setStatus('err','⚠️ 枠に数字が見えていません');
       stableCount = 0;
-      lastCandidate = null;
+      lastSeen = null;
       return;
     }
 
@@ -382,7 +380,7 @@
           lockedTotal = null;
           unlockCount = 0;
           stableCount = 1;
-          lastCandidate = total;
+          lastSeen = total;
           setStatus('scan','📄 次の請求書を検出…');
         }
       }else{
@@ -391,8 +389,8 @@
       return;
     }
 
-    if(total === lastCandidate) stableCount++;
-    else { lastCandidate = total; stableCount = 1; }
+    if(total === lastSeen) stableCount++;
+    else { lastSeen = total; stableCount = 1; }
 
     setStatus('scan',`🔍 認識中…（${stableCount}/${CONFIRM_N}）`);
 
@@ -403,17 +401,25 @@
 
       const r = splitFromTotal(total);
       showResult(r);
-      setStatus('ok',`✅ 確定：${yen(total)}（次の紙で自動解除）`);
+
+      const ds = todayStr();
+      const log = loadLog(ds);
+      log.push({ total: r.total, base: r.base, tax: r.tax });
+      saveLog(ds, log);
+      refreshTop();
+
+      setStatus('ok',`✅ 確定：${yen(total)}（次で自動解除）`);
+      flashGold();
     }
   }
 
   async function tick(){
-    if(!autoOn || scanning || !cameraReady) return;
+    if(!autoOn || scanning) return;
+    if(!cameraReady) return;
     scanning = true;
     try{
-      const det = await recognize();
-      setDebug(`OCR:"${(det.text||"").slice(0,40)}" → ${det.total} ${det.debug ? " / "+det.debug : ""}`);
-      onDetected(det);
+      const total = await recognizeTotal();
+      onDetected(total);
     }catch(e){
       console.error(e);
       if(!locked) setStatus('err','❌ 通信/認識エラー');
@@ -422,8 +428,10 @@
     }
   }
 
-  function startLoop(){ stopLoop(); timer = setInterval(tick, TICK_MS); }
-  function stopLoop(){ if(timer){ clearInterval(timer); timer = null; } }
+  function startLoop(){
+    if(timer) clearInterval(timer);
+    timer = setInterval(tick, TICK_MS);
+  }
 
   function setAuto(on){
     autoOn = on;
@@ -432,17 +440,40 @@
     setStatus('ok', on ? '✅ AUTO ON' : '⏸ AUTO OFF');
   }
 
-  btnAuto.addEventListener('click', () => setAuto(!autoOn));
-  btnUndo.addEventListener('click', () => {});
-  btnResetToday.addEventListener('click', () => {});
+  function undoLast(){
+    const ds = todayStr();
+    const log = loadLog(ds);
+    if(!log.length) return;
+    log.pop();
+    saveLog(ds, log);
+    refreshTop();
+    setStatus('ok','↩︎ 直近1件を取り消しました');
+  }
 
-  statusEl.addEventListener('click', () => startCamera());
-  btnStartCam.addEventListener('click', () => startCamera());
+  function resetToday(){
+    const ds = todayStr();
+    localStorage.removeItem(logKey(ds));
+    refreshTop();
+    baseVal.textContent = "—";
+    taxVal.textContent = "—";
+    totalVal.textContent = "—";
+    setStatus('ok','⟲ 今日の履歴をリセット');
+  }
 
+  // init
   window.addEventListener('load', async () => {
+    refreshTop();
     await startCamera();
     startLoop();
   });
+
+  // UI events
+  btnAuto.addEventListener('click', () => setAuto(!autoOn));
+  btnUndo.addEventListener('click', undoLast);
+  btnResetToday.addEventListener('click', resetToday);
+
+  statusEl.addEventListener('click', () => startCamera());
+  btnStartCam.addEventListener('click', () => startCamera());
 })();
 </script>
 </body>
