@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>請求書スキャン（合計→税抜/税/税込）</title>
+  <style>
+    :root{
+      --accent:#f0c040;
+      --red:#ff5f5f;
+      --border:rgba(255,255,255,.14);
+      --surface:rgba(10,10,10,.82);
+      --glass:rgba(0,0,0,.65);
+      --ok:#4fd48a;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;overflow:hidden}
+
+    #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+    #cap{display:none}
+
+    #roiBox{
+      position:fixed;
+      left:50%; top:45%;
+      transform:translate(-50%,-50%);
+      width:min(62vw,380px);
+      height:min(14vw,90px);
+      border:2px solid rgba(240,192,64,.65);
+      border-radius:14px;
+      z-index:50;
+      pointer-events:none;
+      box-shadow:0 0 0 9999px rgba(0,0,0,.22);
+    }
+    #roiLabel{
+      position:absolute; top:-28px; left:0;
+      font-size:12px; letter-spacing:.08em;
+      color:rgba(255,255,255,.78);
+      background:rgba(0,0,0,.55);
+      border:1px solid var(--border);
+      padding:5px 10px;
+      border-radius:999px;
+      backdrop-filter:blur(10px);
+    }
+    .c{position:absolute;width:20px;height:20px;border:0 solid var(--accent)}
+    .tl{top:-2px;left:-2px;border-top-width:3px;border-left-width:3px;border-radius:12px 0 0 0}
+    .tr{top:-2px;right:-2px;border-top-width:3px;border-right-width:3px;border-radius:0 12px 0 0}
+    .bl{bottom:-2px;left:-2px;border-bottom-width:3px;border-left-width:3px;border-radius:0 0 0 12px}
+    .br{bottom:-2px;right:-2px;border-bottom-width:3px;border-right-width:3px;border-radius:0 0 12px 0}
+
+    #topBar{
+      position:fixed; top:12px; left:12px; right:12px;
+      z-index:60;
+      display:flex; gap:8px; align-items:center; justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      background:var(--glass);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:10px 12px;
+      font-size:12px;
+      backdrop-filter:blur(10px);
+      white-space:nowrap;
+    }
+    .pill b{font-size:13px;color:var(--accent)}
+    #status{color:rgba(255,255,255,.9); cursor:pointer}
+    #status.err{color:var(--red); border-color:rgba(255,95,95,.5)}
+    #status.ok{color:rgba(79,212,138,.95); border-color:rgba(79,212,138,.45)}
+    #status.scan{color:var(--accent); border-color:rgba(240,192,64,.6)}
+
+    #panel{
+      position:fixed; left:0; right:0; bottom:0;
+      z-index:55;
+      padding:12px 12px 18px;
+      background:linear-gradient(to top, rgba(0,0,0,.96) 72%, rgba(0,0,0,.25));
+    }
+    .card{
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:16px;
+      overflow:hidden;
+      backdrop-filter:blur(16px);
+    }
+    .row{
+      display:flex; justify-content:space-between; align-items:baseline;
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+    }
+    .row:last-child{border-bottom:none}
+    .label{font-size:11px;color:rgba(255,255,255,.55);letter-spacing:.08em}
+    .val{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:800;font-size:18px}
+    .val.red{color:var(--red)}
+    .row.total{background:rgba(240,192,64,.08)}
+    .row.total .label{color:var(--accent);font-weight:800}
+    .row.total .val{color:var(--accent);font-size:26px}
+    @keyframes goldFlash{
+      0%{transform:scale(1);filter:brightness(1)}
+      40%{transform:scale(1.05);filter:brightness(1.5)}
+      100%{transform:scale(1);filter:brightness(1)}
+    }
+    .flash-gold{animation:goldFlash 260ms ease-out}
+
+    .controls{
+      margin-top:10px;
+      display:flex; gap:10px;
+    }
+    button{
+      border:none;
+      border-radius:14px;
+      padding:14px 12px;
+      font-weight:900;
+      font-size:15px;
+      cursor:pointer;
+    }
+    #btnAuto{flex:1;background:var(--accent);color:#000}
+    #btnAuto.off{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
+    #btnUndo{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
+    #btnResetToday{background:#333;color:#fff}
+
+    #btnDetails{
+      width:100%;
+      margin-top:10px;
+      background:rgba(255,255,255,.10);
+      border:1px solid var(--border);
+      color:#fff;
+      padding:12px 12px;
+      border-radius:14px;
+      font-weight:900;
+    }
+    #details{ margin-top:10px; display:none; }
+    #details.show{display:block}
+
+    .section{
+      margin-top:10px;
+      background:rgba(0,0,0,.45);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:16px;
+      padding:10px 10px 6px;
+      backdrop-filter:blur(10px);
+    }
+    .section h3{
+      margin:0 0 6px;
+      font-size:12px;
+      letter-spacing:.08em;
+      color:rgba(255,255,255,.75);
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    #dateRow{
+      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+      margin-bottom:8px;
+    }
+    input[type="date"], input[type="month"]{
+      background:rgba(255,255,255,.10);
+      border:1px solid var(--border);
+      color:#fff;
+      border-radius:12px;
+      padding:10px 10px;
+      font-weight:800;
+    }
+    .miniBtn{
+      padding:10px 12px;
+      font-size:13px;
+      border-radius:12px;
+      background:rgba(255,255,255,.10);
+      border:1px solid var(--border);
+      color:#fff;
+      font-weight:900;
+    }
+
+    #logList{max-height:160px;overflow:auto}
+    .logItem{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:8px 6px;
+      border-top:1px solid rgba(255,255,255,.08);
+      font-size:14px;
+    }
+    .logItem:first-child{border-top:none}
+    .logLeft{display:flex; align-items:center; gap:8px}
+    .logRight{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:900}
+    .logRight b{color:var(--accent)}
+    #btnDeleteSelected{
+      width:100%;
+      margin-top:8px;
+      background:rgba(255,255,255,.10);
+      border:1px solid var(--border);
+      color:#fff;
+    }
+
+    #chartWrap{margin-top:8px}
+    canvas{width:100%;height:180px;background:rgba(0,0,0,.25);border-radius:12px;border:1px solid rgba(255,255,255,.10)}
+    .muted{color:rgba(255,255,255,.6);font-size:12px;margin:6px 0 0}
+
+    #startOverlay{
+      position:fixed; inset:0;
+      z-index:80;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(0,0,0,.55);
+      backdrop-filter: blur(10px);
+    }
+    #startOverlay.show{display:flex}
+    #btnStartCam{
+      width:min(86vw,420px);
+      padding:18px 16px;
+      border-radius:18px;
+      font-size:18px;
+      font-weight:1000;
+      background:var(--accent);
+      color:#000;
+    }
+    #startHint{
+      position:absolute;
+      top:22px; left:12px; right:12px;
+      text-align:center;
+      font-size:12px;
+      color:rgba(255,255,255,.8);
+    }
+
+    /* 🔧 追加: デバッグ表示 */
+    #debugBar{
+      position:fixed; bottom:0; left:0; right:0;
+      z-index:100;
+      font-size:10px;
+      color:rgba(255,255,255,.35);
+      text-align:center;
+      padding:2px 8px;
+      pointer-events:none;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="cap"></canvas>
+
+  <div id="roiBox">
+    <div id="roiLabel">黄色枠に「合計」＋「金額」を入れたらホールド</div>
+    <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
+  </div>
+
+  <div id="topBar">
+    <div id="status" class="pill" title="タップでカメラ開始/再開">📷 準備中…（タップで開始）</div>
+    <div class="pill">請求書: <b id="invoiceCount">0</b>枚</div>
+    <div class="pill">総合計: <b id="grandTotal">¥0</b></div>
+  </div>
+
+  <div id="panel">
+    <div class="card">
+      <div class="row">
+        <div class="label">税抜（逆算）</div>
+        <div class="val" id="baseVal">—</div>
+      </div>
+      <div class="row">
+        <div class="label">消費税（10%・四捨五入）</div>
+        <div class="val red" id="taxVal">—</div>
+      </div>
+      <div class="row total">
+        <div class="label">合計（税込）</div>
+        <div class="val" id="totalVal">—</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btnAuto" title="自動スキャン ON/OFF">AUTO: ON</button>
+      <button id="btnUndo" title="直近1件取り消し">↩︎ 直近</button>
+      <button id="btnResetToday" title="今日分をリセット">⟲ 今日</button>
+    </div>
+
+    <button id="btnDetails">▼ 詳細（履歴・グラフ）を開く</button>
+
+    <div id="details">
+      <div class="section">
+        <h3>日付別（履歴・削除） <span class="muted" id="dayInfo"></span></h3>
+        <div id="dateRow">
+          <button class="miniBtn" id="btnPrevDay">←</button>
+          <input type="date" id="datePick">
+          <button class="miniBtn" id="btnNextDay">→</button>
+          <button class="miniBtn" id="btnSelectAll">全選択</button>
+          <button class="miniBtn" id="btnClearSel">解除</button>
+        </div>
+        <div id="logList"></div>
+        <button id="btnDeleteSelected">☑ 選んで削除（重複・誤読）</button>
+      </div>
+
+      <div class="section">
+        <h3>月グラフ（合計＋枚数）</h3>
+        <div id="dateRow">
+          <input type="month" id="monthPick">
+          <button class="miniBtn" id="btnThisMonth">今月</button>
+        </div>
+        <div id="chartWrap">
+          <canvas id="monthChart" width="900" height="220"></canvas>
+          <div class="muted">棒＝金額（税込） / 上の数字＝枚数</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="muted" style="margin-top:10px">
+      ※iPhoneでカメラが止まったら、左上「📷」のバッジをタップで再開
+    </div>
+  </div>
+
+  <div id="debugBar" id="debugBar"></div>
+
+  <div id="startOverlay">
+    <div id="startHint">iPhone Safariは最初にタップが必要なことがあるよ</div>
+    <button id="btnStartCam">カメラ開始</button>
+  </div>
+
+<script>
+(() => {
+  const RATE = 0.10;
+  // 🔧 Fix: 安定確認回数を2→3に増やして誤認識を減らす
+  const CONFIRM_N = 3;
+  const UNLOCK_N  = 3;
+  // 🔧 Fix: ポーリング間隔を700msに延長（API負荷・コスト対策）
+  const TICK_MS   = 700;
+
+  // DOM
+  const video = document.getElementById('video');
+  const cap   = document.getElementById('cap');
+  const ctx   = cap.getContext('2d');
+  const roiBox = document.getElementById('roiBox');
+
+  const statusEl      = document.getElementById('status');
+  const baseVal       = document.getElementById('baseVal');
+  const taxVal        = document.getElementById('taxVal');
+  const totalVal      = document.getElementById('totalVal');
+  const invoiceCountEl = document.getElementById('invoiceCount');
+  const grandTotalEl  = document.getElementById('grandTotal');
+  const debugBar      = document.getElementById('debugBar');
+
+  const btnAuto       = document.getElementById('btnAuto');
+  const btnUndo       = document.getElementById('btnUndo');
+  const btnResetToday = document.getElementById('btnResetToday');
+  const btnDetails    = document.getElementById('btnDetails');
+  const details       = document.getElementById('details');
+
+  const datePick         = document.getElementById('datePick');
+  const btnPrevDay       = document.getElementById('btnPrevDay');
+  const btnNextDay       = document.getElementById('btnNextDay');
+  const logList          = document.getElementById('logList');
+  const btnDeleteSelected = document.getElementById('btnDeleteSelected');
+  const btnSelectAll     = document.getElementById('btnSelectAll');
+  const btnClearSel      = document.getElementById('btnClearSel');
+  const dayInfo          = document.getElementById('dayInfo');
+
+  const monthPick    = document.getElementById('monthPick');
+  const btnThisMonth = document.getElementById('btnThisMonth');
+  const monthChart   = document.getElementById('monthChart');
+
+  const startOverlay = document.getElementById('startOverlay');
+  const btnStartCam  = document.getElementById('btnStartCam');
+
+  // State
+  let stream      = null;
+  let autoOn      = true;
+  let locked      = false;
+  let lockedTotal = null;
+
+  let lastCandidateKey = null;
+  let stableCount      = 0;
+  let unlockCount      = 0;
+
+  let scanning    = false;
+  let timer       = null;
+  let cameraReady = false;
+
+  // ─── Utils ────────────────────────────────────────
+  const yen  = (n) => `¥${Number(n||0).toLocaleString('ja-JP')}`;
+  const pad2 = (n) => String(n).padStart(2,'0');
+  const todayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  };
+  const monthStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
+  };
+
+  function setStatus(kind, text){
+    statusEl.classList.remove('err','ok','scan');
+    if(kind) statusEl.classList.add(kind);
+    statusEl.textContent = text;
+  }
+  function setDebug(text){
+    if(debugBar) debugBar.textContent = text;
+  }
+  function flashGold(){
+    totalVal.classList.remove('flash-gold');
+    void totalVal.offsetWidth;
+    totalVal.classList.add('flash-gold');
+  }
+
+  function splitFromTotal(total){
+    const approx = Math.round(total / (1 + RATE));
+    for(let d=-5; d<=5; d++){
+      const base = approx + d;
+      const tax  = Math.round(base * RATE);
+      if(base + tax === total) return { base, tax, total };
+    }
+    const base = approx;
+    return { base, tax: total - base, total };
+  }
+
+  // ─── Storage ──────────────────────────────────────
+  function logKey(dateStr){ return `taxscan_log_${dateStr}`; }
+  function loadLog(dateStr){
+    try { return JSON.parse(localStorage.getItem(logKey(dateStr)) || "[]"); }
+    catch(e){ return []; }
+  }
+  function saveLog(dateStr, arr){
+    localStorage.setItem(logKey(dateStr), JSON.stringify(arr));
+  }
+  function calcStats(dateStr){
+    const log      = loadLog(dateStr);
+    const count    = log.length;
+    const sumTotal = log.reduce((a,x) => a + (Number(x.total)||0), 0);
+    return { count, sumTotal, log };
+  }
+  function setTopStatsForDate(dateStr){
+    const {count, sumTotal} = calcStats(dateStr);
+    invoiceCountEl.textContent = String(count);
+    grandTotalEl.textContent   = yen(sumTotal);
+    dayInfo.textContent        = `（${count}枚 / ${yen(sumTotal)}）`;
+  }
+
+  // ─── Log render ───────────────────────────────────
+  function renderLog(dateStr){
+    const { log } = calcStats(dateStr);
+    if(!log.length){
+      logList.innerHTML = `<div class="muted">履歴なし</div>`;
+      return;
+    }
+    logList.innerHTML = [...log].reverse().map((x, i) => {
+      const realIndex = log.length - 1 - i;
+      return `
+        <div class="logItem">
+          <div class="logLeft">
+            <input type="checkbox" class="logChk" data-idx="${realIndex}">
+            <div>${realIndex+1}枚目</div>
+          </div>
+          <div class="logRight"><b>${yen(Number(x.total)||0)}</b></div>
+        </div>`;
+    }).join('');
+  }
+  function getSelectedIdx(){
+    return [...document.querySelectorAll('.logChk')]
+      .filter(c => c.checked)
+      .map(c => Number(c.dataset.idx))
+      .filter(n => Number.isFinite(n));
+  }
+  function selectAll(checked){
+    [...document.querySelectorAll('.logChk')].forEach(c => c.checked = checked);
+  }
+
+  // ─── Chart ────────────────────────────────────────
+  function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
+  function monthDailySummary(ym){
+    const [Y,M] = ym.split('-').map(Number);
+    const dim   = daysInMonth(Y,M);
+    const out   = [];
+    for(let d=1; d<=dim; d++){
+      const ds = `${Y}-${pad2(M)}-${pad2(d)}`;
+      const {count, sumTotal} = calcStats(ds);
+      out.push({ day:d, count, total:sumTotal });
+    }
+    return out;
+  }
+  function drawMonthChart(){
+    const ym   = monthPick.value || monthStr();
+    const data = monthDailySummary(ym);
+    const c    = monthChart;
+    const g    = c.getContext('2d');
+    g.clearRect(0,0,c.width,c.height);
+
+    // 🔧 Fix: fillStyle・fontを明示的に設定
+    g.fillStyle = "rgba(240,192,64,0.85)";
+    g.font      = "11px system-ui, sans-serif";
+    g.textAlign = "left";
+
+    const padL=40, padR=12, padT=18, padB=26;
+    const W    = c.width  - padL - padR;
+    const H    = c.height - padT - padB;
+    const maxVal = Math.max(1, ...data.map(x => x.total));
+    const barW   = W / data.length;
+
+    data.forEach((x, i) => {
+      const h  = Math.round((x.total / maxVal) * H);
+      const bx = padL + Math.floor(i * barW) + Math.floor(barW * 0.15);
+      const bw = Math.max(2, Math.floor(barW * 0.7));
+      const by = padT + (H - h);
+
+      g.globalAlpha = 0.75;
+      g.fillRect(bx, by, bw, h);
+
+      if(x.day === 1 || x.day % 5 === 0 || x.day === data.length){
+        g.globalAlpha = 0.65;
+        g.fillText(String(x.day), bx, padT + H + 18);
+      }
+      if(x.count > 0){
+        g.globalAlpha = 0.9;
+        g.fillText(`${x.count}`, bx, Math.max(14, by - 4));
+      }
+      g.globalAlpha = 1;
+    });
+  }
+
+  // ─── Camera ───────────────────────────────────────
+  async function startCamera(){
+    try{
+      setStatus('scan','📷 カメラ起動中…');
+      startOverlay.classList.remove('show');
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal:'environment' }, width: { ideal: 1920 } },
+        audio: false
+      });
+      video.srcObject = stream;
+
+      try{
+        await video.play();
+      }catch(_){
+        startOverlay.classList.add('show');
+        setStatus('err','⚠️ タップしてカメラ開始');
+        return;
+      }
+
+      cameraReady = true;
+      setStatus('ok','✅ 準備OK（黄色枠に「合計＋金額」）');
+    }catch(e){
+      console.error(e);
+      cameraReady = false;
+      setStatus('err','❌ カメラ許可が必要（Safariのサイト設定）');
+      startOverlay.classList.add('show');
+    }
+  }
+
+  // ─── Capture ROI ──────────────────────────────────
+  function captureROI(){
+    const vw = video.videoWidth  || 1280;
+    const vh = video.videoHeight || 720;
+
+    const vr = video.getBoundingClientRect();
+    const rr = roiBox.getBoundingClientRect();
+
+    const scale = Math.max(vr.width / vw, vr.height / vh);
+    const dispW = vw * scale;
+    const dispH = vh * scale;
+    const offX  = (vr.width  - dispW) / 2;
+    const offY  = (vr.height - dispH) / 2;
+
+    let sx = (rr.left - vr.left - offX) / scale;
+    let sy = (rr.top  - vr.top  - offY) / scale;
+    let sw = rr.width  / scale;
+    let sh = rr.height / scale;
+
+    // 余白（切れ防止）
+    const PAD = 0.12;
+    sx -= sw * PAD;
+    sy -= sh * PAD;
+    sw *= (1 + PAD * 2);
+    sh *= (1 + PAD * 2);
+
+    sx = Math.max(0, Math.min(vw-1, sx));
+    sy = Math.max(0, Math.min(vh-1, sy));
+    sw = Math.max(1, Math.min(vw - sx, sw));
+    sh = Math.max(1, Math.min(vh - sy, sh));
+
+    // 🔧 Fix: 拡大率を3→4に（小さい文字の認識向上）
+    const SCALE = 4;
+    cap.width  = Math.floor(sw * SCALE);
+    cap.height = Math.floor(sh * SCALE);
+
+    ctx.imageSmoothingEnabled = false;
+    // 🔧 Fix: コントラスト強化・グレースケール変換でOCR精度向上
+    ctx.filter = "grayscale(100%) contrast(220%) brightness(115%)";
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cap.width, cap.height);
+    ctx.filter = "none";
+
+    return cap.toDataURL('image/jpeg', 0.93).split(',')[1];
+  }
+
+  // ─── hasTotalWord ─────────────────────────────────
+  // この書類は「合　計　⇒」のようにスペース区切りで印字される
+  // → スペースを除去してから判定する
+  function hasTotalWord(text){
+    if(!text) return false;
+    // スペース・全角スペース・タブを除去してから判定
+    const compact = text.replace(/[\s\u3000]/g, "");
+    return /合計|合計金額|請求金額|ご請求金額|お支払い?金額|税込|請求|支払/.test(compact);
+  }
+
+  // 🔧 Fix: pickNumber の改善（スペース区切りキーワード対応追加）
+  function pickNumber(text){
+    if(!text) return 0;
+
+    // 全角→半角
+    const t = text.replace(/[０-９]/g, c =>
+      String.fromCharCode(c.charCodeAt(0) - 0xfee0)
+    );
+    // スペース除去版（「合　計」のようなスペース区切りに対応）
+    const compact = t.replace(/[\s\u3000]/g, "");
+
+    // 合計キーワード直後の数字を優先（スペース除去版で検索）
+    const kw = compact.match(/(?:合計|請求金額|ご請求|お支払|税込)[^\d]*(\d{1,3}(?:,\d{3})*|\d+)/);
+    if(kw){
+      const n = Number(kw[1].replace(/,/g,''));
+      if(n > 0) return n;
+    }
+
+    // カンマ区切り（1,000以上）
+    const cm = t.match(/\d{1,3}(?:,\d{3})+/);
+    if(cm){
+      const n = Number(cm[0].replace(/,/g,''));
+      if(n > 0) return n;
+    }
+
+    // 3桁以上
+    const pm = t.match(/\d{3,}/);
+    if(pm){
+      const n = Number(pm[0]);
+      if(n > 0) return n;
+    }
+
+    // 2桁以上（100円未満対応）
+    const sm = t.match(/\d{2,}/);
+    if(sm){
+      const n = Number(sm[0]);
+      if(n > 0) return n;
+    }
+
+    return 0;
+  }
+
+  // ─── Recognize ────────────────────────────────────
+  async function recognize(){
+    const img = captureROI();
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_base64: img }),
+    });
+    const data  = await res.json().catch(() => ({}));
+    const text  = String(data?.text || "");
+    let   total = Number(data?.total || 0);
+    if(!Number.isFinite(total)) total = 0;
+
+    if(total <= 0){
+      const n = pickNumber(text);
+      if(n > 0) total = n;
+    }
+
+    // デバッグ表示（開発時のみ確認可能）
+    setDebug(`OCR: "${text.slice(0,60)}" → ${total}`);
+
+    return { total, text };
+  }
+
+  function showResult(r){
+    baseVal.textContent  = yen(r.base);
+    taxVal.textContent   = yen(r.tax);
+    totalVal.textContent = yen(r.total);
+  }
+
+  // ─── Detection logic ──────────────────────────────
+  function onDetected(det){
+    const total   = Number(det?.total || 0);
+    const text    = String(det?.text  || "");
+    const hasWord = hasTotalWord(text);
+    const hasNum  = total > 0;
+
+    // 🔧 Fix: キーワードなしでも数字があれば候補として扱う
+    //   ただし、キーワードありの方が優先度が高い（stableCount の閾値を使って区別）
+    const NEED_N = hasWord ? CONFIRM_N : CONFIRM_N + 2; // キーワードなしは確認回数を増やす
+
+    if(!hasNum){
+      if(!locked) setStatus('err','⚠️ 枠に数字が見えていません');
+      stableCount      = 0;
+      lastCandidateKey = null;
+      return;
+    }
+
+    // ロック中：別の金額が来たら解除
+    if(locked){
+      if(total !== lockedTotal){
+        unlockCount++;
+        if(unlockCount >= UNLOCK_N){
+          locked      = false;
+          lockedTotal = null;
+          unlockCount = 0;
+          stableCount = 1;
+          lastCandidateKey = String(total);
+          setStatus('scan','📄 次の請求書を検出…');
+        }
+      }else{
+        unlockCount = 0;
+      }
+      return;
+    }
+
+    const candidateKey = String(total);
+    if(candidateKey === lastCandidateKey) stableCount++;
+    else { lastCandidateKey = candidateKey; stableCount = 1; }
+
+    const label = hasWord ? `🔍 認識中（合計あり）` : `🔍 認識中（数字のみ）`;
+    setStatus('scan', `${label} ${stableCount}/${NEED_N}`);
+
+    if(stableCount >= NEED_N){
+      locked      = true;
+      lockedTotal = total;
+      unlockCount = 0;
+
+      const r = splitFromTotal(total);
+      showResult(r);
+
+      const ds  = datePick.value;
+      const log = loadLog(ds);
+      log.push({ total: r.total, base: r.base, tax: r.tax });
+      saveLog(ds, log);
+
+      setTopStatsForDate(ds);
+      renderLog(ds);
+      drawMonthChart();
+
+      setStatus('ok', `✅ 確定：${yen(total)}（次の紙で自動解除）`);
+      flashGold();
+    }
+  }
+
+  // ─── Loop ─────────────────────────────────────────
+  async function tick(){
+    if(!autoOn || scanning || !cameraReady) return;
+    scanning = true;
+    try{
+      const det = await recognize();
+      onDetected(det);
+    }catch(e){
+      console.error(e);
+      // タイムアウト時はステータスを変えない（一時的なものなので）
+      if(e?.name !== 'AbortError' && !locked){
+        setStatus('err','❌ 通信/認識エラー');
+      }
+    }finally{
+      scanning = false;
+    }
+  }
+  function startLoop(){ stopLoop(); timer = setInterval(tick, TICK_MS); }
+  function stopLoop(){ if(timer){ clearInterval(timer); timer = null; } }
+
+  // ─── Controls ─────────────────────────────────────
+  function setAuto(on){
+    autoOn = on;
+    btnAuto.textContent = on ? "AUTO: ON" : "AUTO: OFF";
+    btnAuto.classList.toggle('off', !on);
+    setStatus('ok', on ? '✅ AUTO ON' : '⏸ AUTO OFF');
+  }
+  function undoLast(){
+    const ds  = datePick.value;
+    const log = loadLog(ds);
+    if(!log.length) return;
+    log.pop();
+    saveLog(ds, log);
+    setTopStatsForDate(ds);
+    renderLog(ds);
+    drawMonthChart();
+    setStatus('ok','↩︎ 直近1件を取り消しました');
+  }
+  function deleteSelected(){
+    const ds   = datePick.value;
+    const idxs = getSelectedIdx().sort((a,b) => b-a);
+    if(!idxs.length){ setStatus('err','⚠️ 削除する項目を選んでね'); return; }
+    const log = loadLog(ds);
+    for(const i of idxs){
+      if(i>=0 && i<log.length) log.splice(i,1);
+    }
+    saveLog(ds, log);
+    setTopStatsForDate(ds);
+    renderLog(ds);
+    drawMonthChart();
+    setStatus('ok', `✅ 選択 ${idxs.length} 件を削除`);
+  }
+  function resetToday(){
+    const ds = datePick.value;
+    localStorage.removeItem(logKey(ds));
+    setTopStatsForDate(ds);
+    renderLog(ds);
+    drawMonthChart();
+    setStatus('ok','⟲ その日（選択日）の履歴をリセット');
+  }
+  function shiftDate(days){
+    const d = new Date(datePick.value + "T00:00:00");
+    d.setDate(d.getDate() + days);
+    const ds = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    datePick.value = ds;
+    onDateChanged();
+  }
+  function onDateChanged(){
+    setTopStatsForDate(datePick.value);
+    renderLog(datePick.value);
+  }
+
+  // ─── Init ─────────────────────────────────────────
+  window.addEventListener('load', async () => {
+    datePick.value  = todayStr();
+    monthPick.value = monthStr();
+    setTopStatsForDate(datePick.value);
+    renderLog(datePick.value);
+    drawMonthChart();
+    await startCamera();
+    startLoop();
+  });
+
+  btnAuto.addEventListener('click',       () => setAuto(!autoOn));
+  btnUndo.addEventListener('click',       undoLast);
+  btnResetToday.addEventListener('click', resetToday);
+  btnDeleteSelected.addEventListener('click', deleteSelected);
+  btnSelectAll.addEventListener('click',  () => selectAll(true));
+  btnClearSel.addEventListener('click',   () => selectAll(false));
+  datePick.addEventListener('change',     onDateChanged);
+  btnPrevDay.addEventListener('click',    () => shiftDate(-1));
+  btnNextDay.addEventListener('click',    () => shiftDate(1));
+  monthPick.addEventListener('change',    drawMonthChart);
+  btnThisMonth.addEventListener('click',  () => { monthPick.value = monthStr(); drawMonthChart(); });
+  btnDetails.addEventListener('click', () => {
+    const open = !details.classList.contains('show');
+    details.classList.toggle('show', open);
+    btnDetails.textContent = open
+      ? "▲ 詳細（履歴・グラフ）を閉じる"
+      : "▼ 詳細（履歴・グラフ）を開く";
+  });
+  statusEl.addEventListener('click',   () => startCamera());
+  btnStartCam.addEventListener('click',() => startCamera());
+})();
+</script>
+</body>
+</html>
