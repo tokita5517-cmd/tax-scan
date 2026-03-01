@@ -1,27 +1,33 @@
-// /api/scan.js  ── 数字だけ抽出版（強化版：sonnet + 数字JSON直返し）
+// api/scan.js
 export default async function handler(req, res) {
+  // 動作確認用
   if (req.method === "GET") {
     return res.status(200).json({ ok: true, hint: "POST { image_base64 } to scan" });
   }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
   try {
     const { image_base64 } = req.body || {};
-    if (!image_base64) return res.status(400).json({ error: "image_base64 required" });
+    if (!image_base64) {
+      return res.status(200).json({ total: 0, debug: "image_base64 required" });
+    }
 
     const key = process.env.ANTHROPIC_API_KEY;
-    if (!key) return res.status(200).json({ total: 0, text: "", debug: "ANTHROPIC_API_KEY is missing" });
+    if (!key) {
+      // 画面を赤くしたくないので 200 で返す
+      return res.status(200).json({ total: 0, debug: "ANTHROPIC_API_KEY is missing" });
+    }
 
+    // タイムアウト
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 9000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
-    let j = {};
-    let status = 0;
-
+    let r, j;
     try {
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
+      r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -29,10 +35,10 @@ export default async function handler(req, res) {
           "x-api-key": key,
           "anthropic-version": "2023-06-01",
         },
+        signal: controller.signal,
         body: JSON.stringify({
-          // ★小さい数字用に sonnet 推奨
-          model: "claude-3-5-sonnet-20241022",
-          max_tokens: 120,
+          model: "claude-3-haiku-20240307",
+          max_tokens: 80,
           temperature: 0,
           messages: [
             {
@@ -40,101 +46,99 @@ export default async function handler(req, res) {
               content: [
                 {
                   type: "image",
-                  source: { type: "base64", media_type: "image/jpeg", data: image_base64 },
+                  source: {
+                    type: "base64",
+                    media_type: "image/png",
+                    data: image_base64,
+                  },
                 },
                 {
                   type: "text",
-                  text: `
-この画像（黄色枠の切り抜き）に写っている「金額の数字」を読み取ってください。
-
-ルール:
-- 数字は1つだけ選ぶ（カンマは無視してOK）
-- 迷ったら「一番それっぽい金額（通常は最大値）」を返す
-- 読めなければ 0
-
-返す形式はJSONだけ（説明禁止）:
-{"total":5400,"text":"読めた断片（任意）"}
-`.trim(),
+                  text:
+                    "黄色枠内の『数字だけ』を読み取り、最もそれらしい金額を1つだけ返してください。" +
+                    "返答はJSONのみ。形式: {\"total\":5400}。" +
+                    "カンマ(,)やスペースがあってもよい。数字が無ければ {\"total\":0}。",
                 },
               ],
             },
           ],
         }),
-        signal: controller.signal,
       });
 
-      status = r.status;
       j = await r.json().catch(() => ({}));
 
       if (!r.ok) {
         return res.status(200).json({
           total: 0,
-          text: "",
-          debug: { where: "anthropic", status, message: j?.error?.message || "anthropic error" },
+          debug: {
+            where: "anthropic",
+            status: r.status,
+            message: j?.error?.message || "anthropic error",
+          },
         });
       }
     } finally {
       clearTimeout(timeout);
     }
 
-    const rawText = (j.content || [])
+    // テキスト結合
+    const text = (j.content || [])
       .filter((c) => c.type === "text")
       .map((c) => c.text)
       .join("\n")
       .trim();
 
-    const parsed = extractFirstJson(rawText) || {};
-    const total = Number(parsed?.total || 0);
-    const text = typeof parsed?.text === "string" ? parsed.text : rawText;
+    // まずJSONとして読みに行く（成功すればそれが最優先）
+    const parsed = extractFirstJson(text);
+    let total = 0;
 
-    // もしモデルが total を返せてなくても、textから保険抽出
-    const finalTotal = Number.isFinite(total) && total > 0 ? total : pickBestNumber(text);
+    if (parsed && parsed.total != null) {
+      total = normalizeMoney(parsed.total);
+    } else {
+      // JSONじゃなかった場合の保険：文字列から数字だけ抜く
+      total = normalizeMoney(text);
+    }
 
     return res.status(200).json({
-      total: finalTotal > 0 ? finalTotal : 0,
-      text: text || "",
-      debug: finalTotal > 0 ? "" : `empty_or_unreadable (status:${status})`,
+      total: Number.isFinite(total) ? total : 0,
+      raw: text || "",
     });
   } catch (e) {
-    const isTimeout = e?.name === "AbortError";
     return res.status(200).json({
       total: 0,
-      text: "",
-      debug: { where: isTimeout ? "timeout" : "server", message: isTimeout ? "request timed out" : String(e?.message || e) },
+      debug: { where: "server", message: String(e?.message || e) },
     });
   }
 }
 
-// ---- helpers ----
 function extractFirstJson(s) {
   if (!s) return null;
-  const stripped = s.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
+  try {
+    return JSON.parse(s);
+  } catch (_) {}
 
-  try { return JSON.parse(stripped); } catch (_) {}
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  if (first === -1 || last === -1 || last <= first) return null;
 
-  const first = stripped.indexOf("{");
-  const last  = stripped.lastIndexOf("}");
-  if (first === -1 || last <= first) return null;
-
-  const chunk = stripped.slice(first, last + 1);
-  try { return JSON.parse(chunk); } catch (_) {}
-
-  return null;
+  const chunk = s.slice(first, last + 1);
+  try {
+    return JSON.parse(chunk);
+  } catch (_) {
+    return null;
+  }
 }
 
-function pickBestNumber(text) {
-  if (!text) return 0;
+// "5,400" / "5400円" / 5400 → 5400
+function normalizeMoney(v) {
+  if (v == null) return 0;
+  const s = String(v);
 
-  const normalized = String(text)
-    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-    .replace(/[¥￥]/g, "");
+  // 数字っぽい塊を拾う（カンマ/スペース許容）
+  const m = s.match(/(\d[\d,\s]{0,20}\d|\d+)/);
+  if (!m) return 0;
 
-  const matches = normalized.match(/\d{1,3}(?:,\d{3})+|\d{2,}/g) || [];
-  const nums = matches
-    .map((s) => Number(String(s).replace(/,/g, "")))
-    .filter((n) => Number.isFinite(n))
-    .filter((n) => n >= 10 && n < 10_000_000);
-
-  if (!nums.length) return 0;
-  return Math.max(...nums);
+  const digits = m[1].replace(/[^\d]/g, "");
+  const n = Number(digits);
+  return Number.isFinite(n) ? n : 0;
 }
