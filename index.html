@@ -1,275 +1,516 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>tax-scan</title>
-
 <style>
-:root{
-  --surface:rgba(25,28,35,.78);
-  --surface2:rgba(18,20,25,.88);
-  --text:#e9edf6;
-  --muted:#aab2c3;
-  --accent:#f2c14f;
-  --ok:#31d07d;
-  --warn:#ff5a5f;
-  --shadow:0 10px 30px rgba(0,0,0,.45);
+  :root{
+    --bg:#0a0a0a;
+    --panel:#141518cc;
+    --pill:#2a2b2fdd;
+    --text:#f4f4f5;
+    --muted:#b7b7be;
+    --accent:#f7c84b;
+    --warn:#ff4b4b;
+    --ok:#29d17d;
+    --safeTop: env(safe-area-inset-top);
+    --safeBottom: env(safe-area-inset-bottom);
+    --pad: 14px;
+  }
+  html,body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;}
+  #app{position:fixed; inset:0; overflow:hidden;}
+  video{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit:cover;
+    transform: scaleX(-1);
+  }
 
-  --topbar-offset:58px;
-  --frame-top:34%;
-  --frame-width:min(78vw,560px);
-  --frame-height:min(14vh,110px);
+  /* ── top pills ─────────────────────────────── */
+  #topStack{
+    position:fixed;
+    left:var(--pad);
+    right:var(--pad);
+    top: calc(var(--safeTop) + 6px);
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    z-index:30;
+    pointer-events:none;
+  }
+  .pill{
+    height:54px;
+    border-radius:999px;
+    background:var(--pill);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 18px;
+    font-weight:700;
+    letter-spacing:0.5px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  #warnPill{
+    background:#ff5a5a33;
+    border:2px solid #ff5a5a;
+    color:#ffecec;
+    justify-content:flex-start;
+    gap:10px;
+    font-weight:800;
+  }
+  #warnPill.hide{display:none;}
+  .pill .label{color:#d9d9df; font-weight:800;}
+  .pill .value{color:var(--accent); font-size:20px;}
+  .pill .value.white{color:var(--text);}
+  .pill .unit{color:#d9d9df; margin-left:6px; font-weight:800;}
 
-  --shutter-size:56px;
-  --shutter-gap:12px;
-}
+  /* ── ROI + shutter ─────────────────────────── */
+  #roiRow{
+    position:fixed;
+    left:var(--pad);
+    right:var(--pad);
+    top: calc(var(--safeTop) + 182px);
+    display:flex;
+    gap:12px;
+    align-items:center;
+    z-index:25;
+    pointer-events:none;
+  }
+  #roiBox{
+    flex: 1 1 auto;
+    height:92px;
+    border-radius:16px;
+    border:4px solid rgba(247,200,75,.95);
+    background: rgba(0,0,0,.06);
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    position:relative;
+    pointer-events:auto;
+  }
+  #roiBox.flash{
+    box-shadow: 0 0 0 6px rgba(41,209,125,.45), 0 18px 50px rgba(0,0,0,.35);
+    border-color: rgba(41,209,125,.95);
+  }
 
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;margin:0;background:#000;color:var(--text);font-family:-apple-system,system-ui;}
-#app{position:fixed;inset:0;overflow:hidden;background:#000;}
-#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
+  #shutterBtn{
+    width:64px; height:64px;
+    border-radius:999px;
+    background: rgba(255,255,255,.16);
+    border: 3px solid rgba(255,255,255,.55);
+    box-shadow: 0 14px 40px rgba(0,0,0,.35);
+    pointer-events:auto;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #shutterBtn:active{transform: scale(.98);}
+  #shutterBtn .dot{
+    width:18px; height:18px; border-radius:999px;
+    background: rgba(255,255,255,.8);
+  }
 
-.pill{
-  display:flex;align-items:center;gap:8px;
-  padding:10px 14px;border-radius:999px;
-  background:var(--surface);
-  box-shadow:var(--shadow);
-  border:1px solid rgba(255,255,255,.08);
-  white-space:nowrap;
-}
+  /* ── bottom calculator panel ───────────────── */
+  #panel{
+    position:fixed;
+    left:var(--pad);
+    right:var(--pad);
+    bottom: calc(var(--safeBottom) + 104px);
+    background: var(--panel);
+    border-radius:22px;
+    padding:18px 18px 14px;
+    z-index:40;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 60px rgba(0,0,0,.45);
+  }
+  .row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 4px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    font-size:20px;
+    font-weight:800;
+  }
+  .row:last-child{border-bottom:none;}
+  .row .rLabel{color:#dcdce2;}
+  .row .rVal{font-variant-numeric: tabular-nums;}
+  #valBase{color:var(--text); font-size:32px;}
+  #valTax{color:var(--warn); font-size:32px;}
+  #valTotal{color:var(--accent); font-size:44px;}
 
-#topBar{
-  position:absolute;
-  top:calc(env(safe-area-inset-top) + var(--topbar-offset));
-  left:14px;right:14px;
-  display:flex;gap:10px;flex-wrap:wrap;
-  z-index:25;
-}
+  /* controls */
+  #controls{
+    margin-top:14px;
+    display:flex; gap:14px;
+  }
+  .btn{
+    flex:1;
+    height:78px;
+    border-radius:20px;
+    border:none;
+    background:#2b2c31;
+    color:var(--text);
+    font-size:22px;
+    font-weight:900;
+    letter-spacing:.5px;
+    box-shadow: 0 14px 40px rgba(0,0,0,.35);
+  }
+  .btn:active{transform: scale(.99);}
+  #btnAuto{
+    max-width:110px;
+    background: var(--accent);
+    color:#161616;
+    display:flex; flex-direction:column; justify-content:center;
+    line-height:1.0;
+  }
+  #btnAuto small{font-size:16px; font-weight:900; opacity:.95;}
+  #btnUndo{flex:1.2}
+  #btnRelease{flex:1}
 
-#frame{
-  position:absolute;
-  top:var(--frame-top);
-  left:calc(50% - (var(--shutter-size) + var(--shutter-gap))/2);
-  transform:translate(-50%,-50%);
-  width:var(--frame-width);
-  height:var(--frame-height);
-  border-radius:16px;
-  border:4px solid rgba(242,193,79,.85);
-  box-shadow:0 0 0 2px rgba(0,0,0,.35) inset;
-  z-index:40;
-}
+  /* details bar */
+  #detailsBtn{
+    position:fixed;
+    left:var(--pad); right:var(--pad);
+    bottom: calc(var(--safeBottom) + 26px);
+    height:66px;
+    border-radius:999px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.10);
+    color:#e6e6eb;
+    font-size:20px;
+    font-weight:900;
+    z-index:40;
+    box-shadow: 0 14px 40px rgba(0,0,0,.35);
+  }
+  #detailsBtn:active{transform: scale(.99);}
 
-@keyframes frameSuccess{
-  0%{border-color:rgba(242,193,79,.85)}
-  30%{border-color:var(--ok);box-shadow:0 0 0 10px rgba(49,208,125,.4)}
-  100%{border-color:rgba(242,193,79,.85)}
-}
-#frame.flash{animation:frameSuccess 900ms ease-out 1;}
+  /* tiny debug */
+  #debug{
+    position:fixed;
+    left:0; right:0;
+    bottom: calc(var(--safeBottom) + 2px);
+    text-align:center;
+    color:rgba(255,255,255,.55);
+    font-size:14px;
+    z-index:50;
+    pointer-events:none;
+    text-shadow:0 2px 6px rgba(0,0,0,.55);
+  }
 
-#shutter{
-  position:absolute;
-  top:var(--frame-top);
-  left:calc(
-    50% - (var(--shutter-size) + var(--shutter-gap))/2
-    + (var(--frame-width)/2)
-    + var(--shutter-gap)
-    + (var(--shutter-size)/2)
-  );
-  transform:translate(-50%,-50%);
-  width:var(--shutter-size);
-  height:var(--shutter-size);
-  border-radius:50%;
-  background:rgba(255,255,255,.15);
-  display:grid;place-items:center;
-  z-index:45;
-}
-#shutter .dot{
-  width:18px;height:18px;border-radius:50%;
-  background:#fff;
-}
-
-#panel{
-  position:absolute;
-  bottom:0;left:0;right:0;
-  padding:14px 14px calc(18px + env(safe-area-inset-bottom));
-  background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.85) 100%);
-}
-
-#calc{
-  background:var(--surface2);
-  border-radius:22px;
-  padding:14px;
-  margin-bottom:12px;
-}
-
-.row{
-  display:flex;justify-content:space-between;
-  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);
-}
-.row:last-child{border-bottom:none}
-.row .val{font-weight:900;font-size:26px}
-.row.total .val{color:var(--accent);font-size:40px}
-
-#controls{display:flex;gap:10px;margin-top:12px}
-.btn{
-  flex:1;
-  padding:14px;
-  border-radius:18px;
-  background:rgba(255,255,255,.1);
-  color:#fff;
-  border:none;
-  font-weight:800;
-}
-#btnAuto{background:var(--accent);color:#111;flex:0 0 90px}
-#btnDash{font-size:26px}
-#ocrText{font-size:13px;color:rgba(255,255,255,.5);text-align:center;margin-top:8px}
+  /* start overlay */
+  #startOverlay{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    background:rgba(0,0,0,.72);
+    z-index:200;
+  }
+  #startOverlay.hide{display:none;}
+  #startOverlay button{
+    height:56px; padding:0 20px;
+    border-radius:16px;
+    border:none;
+    background: var(--accent);
+    color:#121212;
+    font-size:18px;
+    font-weight:900;
+  }
 </style>
 </head>
-
 <body>
 <div id="app">
-<video id="video" autoplay playsinline muted></video>
+  <video id="video" playsinline muted></video>
 
-<div id="topBar">
-  <div class="pill" id="status">A: 準備中…</div>
-  <div class="pill">請求書: <b id="billCount">0</b> 枚</div>
-  <div class="pill">総合計（税抜）: <b>¥<span id="grandTotal">0</span></b></div>
-</div>
-
-<div id="frame"></div>
-<div id="shutter"><div class="dot"></div></div>
-
-<div id="panel">
-<div id="calc">
-  <div class="row"><div>税抜</div><div class="val" id="net">-</div></div>
-  <div class="row"><div>消費税（10%）</div><div class="val" id="tax">-</div></div>
-  <div class="row total"><div>合計（税込）</div><div class="val" id="gross">-</div></div>
-
-  <div id="controls">
-    <button id="btnAuto" class="btn">AUTO</button>
-    <button id="btnUndo" class="btn">↩︎ 直近</button>
-    <button id="btnDash" class="btn">−</button>
+  <div id="topStack">
+    <div id="warnPill" class="pill"><span>⚠️ 枠に数字が見えていません</span></div>
+    <div class="pill">
+      <span class="label">請求書:</span>
+      <span><span id="invoiceCount" class="value white">0</span><span class="unit">枚</span></span>
+    </div>
+    <div class="pill">
+      <span class="label">総合計（税抜）:</span>
+      <span id="sumTotal" class="value">¥0</span>
+    </div>
   </div>
-</div>
-<div id="ocrText">OCR: "" → 0</div>
-</div>
+
+  <div id="roiRow">
+    <div id="roiBox" aria-label="scan-area"></div>
+    <button id="shutterBtn" aria-label="shutter"><span class="dot"></span></button>
+  </div>
+
+  <div id="panel">
+    <div class="row">
+      <div class="rLabel">税抜</div>
+      <div id="valBase" class="rVal">-</div>
+    </div>
+    <div class="row">
+      <div class="rLabel">消費税（10%・四捨五入）</div>
+      <div id="valTax" class="rVal">-</div>
+    </div>
+    <div class="row">
+      <div class="rLabel">合計（税込）</div>
+      <div id="valTotal" class="rVal">-</div>
+    </div>
+
+    <div id="controls">
+      <button id="btnAuto" class="btn"><div>AUTO</div><small>ON</small></button>
+      <button id="btnUndo" class="btn">↩︎ 直近</button>
+      <button id="btnRelease" class="btn">-</button>
+    </div>
+  </div>
+
+  <button id="detailsBtn">▼ 詳細（履歴・グラフ）を開く</button>
+  <div id="debug"></div>
+
+  <div id="startOverlay">
+    <div style="text-align:center; max-width:320px; padding:0 18px;">
+      <div style="font-size:20px; font-weight:900; margin-bottom:12px;">カメラを起動します</div>
+      <div style="color:rgba(255,255,255,.75); margin-bottom:18px; line-height:1.5;">
+        iPhoneで止まったら、左上の「aA」→「カメラ」許可を確認してね
+      </div>
+      <button id="btnStart">開始</button>
+    </div>
+  </div>
 </div>
 
 <script>
-const video=document.getElementById("video");
-const frame=document.getElementById("frame");
-const shutter=document.getElementById("shutter");
-const billCount=document.getElementById("billCount");
-const grandTotal=document.getElementById("grandTotal");
-const netEl=document.getElementById("net");
-const taxEl=document.getElementById("tax");
-const grossEl=document.getElementById("gross");
-const ocrText=document.getElementById("ocrText");
+(() => {
+  const TAX_RATE = 0.10;
+  const SCAN_INTERVAL_MS = 650;
 
-let autoOn=true;
-let locked=false;
-let requireBlank=false;
-let lastValue=null;
-let stable=0;
+  const video = document.getElementById('video');
+  const startOverlay = document.getElementById('startOverlay');
+  const btnStart = document.getElementById('btnStart');
 
-const NEED_N=2;
+  const warnPill = document.getElementById('warnPill');
+  const invoiceCountEl = document.getElementById('invoiceCount');
+  const sumTotalEl = document.getElementById('sumTotal');
 
-function today(){
-  const d=new Date();
-  return d.toISOString().slice(0,10);
-}
-function load(){return JSON.parse(localStorage.getItem("taxscan:"+today())||"[]")}
-function save(log){localStorage.setItem("taxscan:"+today(),JSON.stringify(log))}
+  const roiBox = document.getElementById('roiBox');
+  const shutterBtn = document.getElementById('shutterBtn');
 
-function updateTop(){
-  const log=load();
-  billCount.textContent=log.length;
-  const sum=log.reduce((a,x)=>a+(x.net||0),0);
-  grandTotal.textContent=sum.toLocaleString("ja-JP");
-}
+  const valBaseEl = document.getElementById('valBase');
+  const valTaxEl = document.getElementById('valTax');
+  const valTotalEl = document.getElementById('valTotal');
 
-function calc(net){
-  const tax=Math.round(net*0.1);
-  return{net,tax,gross:net+tax}
-}
+  const btnAuto = document.getElementById('btnAuto');
+  const btnUndo = document.getElementById('btnUndo');
+  const btnRelease = document.getElementById('btnRelease');
 
-function show(net){
-  if(!net){netEl.textContent=taxEl.textContent=grossEl.textContent="-";return;}
-  const r=calc(net);
-  netEl.textContent="¥"+r.net.toLocaleString();
-  taxEl.textContent="¥"+r.tax.toLocaleString();
-  grossEl.textContent="¥"+r.gross.toLocaleString();
-}
+  const debugEl = document.getElementById('debug');
 
-function flash(){
-  frame.classList.remove("flash");
-  void frame.offsetWidth;
-  frame.classList.add("flash");
-  if(navigator.vibrate)navigator.vibrate(40);
-}
+  let autoOn = true;
+  let scanning = false;
 
-function commit(net){
-  const r=calc(net);
-  const log=load();
-  log.push(r);
-  save(log);
-  updateTop();
-  show(net);
-  flash();
-  requireBlank=true;
-}
+  let lastSeenNumber = null;
+  let lastCommittedNumber = null;
+  let requireBlank = false;
 
-function clearDash(){show(0)}
+  const log = []; // {base, tax, total, ts}
 
-function undo(){
-  const log=load();
-  log.pop();
-  save(log);
-  updateTop();
-  requireBlank=true;
-}
-
-async function startCam(){
-  const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
-  video.srcObject=stream;
-}
-
-async function fakeOCR(){
-  // 本番では /api/scan 呼び出し
-  return 0;
-}
-
-async function scanLoop(){
-  if(!autoOn||locked)return;
-  const value=await fakeOCR();
-  if(!value){
-    requireBlank=false;
-    stable=0;
-    return;
+  function yen(n){
+    if (typeof n !== 'number' || !isFinite(n)) return '-';
+    return '¥' + Math.round(n).toLocaleString('ja-JP');
   }
-  if(requireBlank)return;
-
-  if(value===lastValue)stable++;
-  else stable=1;
-
-  lastValue=value;
-
-  if(stable>=NEED_N){
-    commit(value);
-    stable=0;
+  function calcFromBase(base){
+    const tax = Math.round(base * TAX_RATE);
+    const total = base + tax;
+    return { base, tax, total };
   }
-}
+  function updatePanel(base){
+    if (!base || base <= 0){
+      valBaseEl.textContent = '-';
+      valTaxEl.textContent = '-';
+      valTotalEl.textContent = '-';
+      return;
+    }
+    const {tax, total} = calcFromBase(base);
+    valBaseEl.textContent = yen(base);
+    valTaxEl.textContent = yen(tax);
+    valTotalEl.textContent = yen(total);
+  }
+  function updateTop(){
+    invoiceCountEl.textContent = String(log.length);
+    const sumBase = log.reduce((a,x)=>a + (x.base||0), 0);
+    sumTotalEl.textContent = yen(sumBase);
+  }
 
-document.getElementById("btnAuto").onclick=()=>autoOn=!autoOn;
-document.getElementById("btnUndo").onclick=undo;
-document.getElementById("btnDash").onclick=clearDash;
-shutter.onclick=()=>{if(!autoOn)scanLoop();};
+  function flashGreen(){
+    roiBox.classList.add('flash');
+    setTimeout(()=>roiBox.classList.remove('flash'), 380);
+    try{
+      if (navigator.vibrate) navigator.vibrate(25);
+    }catch(e){}
+  }
 
-setInterval(scanLoop,250);
+  function setWarn(on){
+    warnPill.classList.toggle('hide', !on);
+  }
 
-startCam();
-updateTop();
+  async function startCamera(){
+    const constraints = {
+      audio:false,
+      video:{
+        facingMode:{ideal:'environment'},
+        width:{ideal:1920},
+        height:{ideal:1080}
+      }
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    await video.play();
+  }
+
+  function captureROI(){
+    const vw = video.videoWidth  || 1280;
+    const vh = video.videoHeight || 720;
+
+    const vr = video.getBoundingClientRect();
+    const rr = roiBox.getBoundingClientRect();
+
+    const x = (rr.left - vr.left) / vr.width  * vw;
+    const y = (rr.top  - vr.top ) / vr.height * vh;
+    const w = rr.width  / vr.width  * vw;
+    const h = rr.height / vr.height * vh;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(w));
+    canvas.height = Math.max(1, Math.round(h));
+    const ctx = canvas.getContext('2d', { willReadFrequently:true });
+
+    ctx.save();
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  function normalizeText(s){
+    return String(s||'')
+      .replace(/[￥¥]/g,'')
+      .replace(/[，,]/g, ',')
+      .replace(/[^0-9,]/g,'')
+      .trim();
+  }
+  function parseNumber(text){
+    const t = normalizeText(text);
+    if (!t) return 0;
+    const digits = t.replace(/,/g,'');
+    const n = Number(digits);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  async function callOCR(dataUrl){
+    const resp = await fetch('/api/scan', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ image: dataUrl })
+    });
+    const js = await resp.json().catch(()=> ({}));
+    return js;
+  }
+
+  function commitBase(base, rawText){
+    const {tax, total} = calcFromBase(base);
+    lastCommittedNumber = base;
+    requireBlank = true;
+
+    log.push({ base, tax, total, ts: Date.now(), raw: rawText||'' });
+    updateTop();
+    updatePanel(base);
+    flashGreen();
+  }
+
+  async function scanOnce(){
+    if (scanning) return;
+    scanning = true;
+    try{
+      const img = captureROI();
+      const js = await callOCR(img);
+      const rawText = js && (js.text ?? js.total ?? js.value ?? '');
+      const base = js && typeof js.total === 'number' ? js.total : parseNumber(rawText);
+
+      debugEl.textContent = `OCR: "${String(rawText).slice(0,32)}" → ${base}`;
+
+      if (!base || base <= 0){
+        setWarn(true);
+        lastSeenNumber = null;
+        requireBlank = false; // 空になったら次カウントOK
+        updatePanel(0);
+        return;
+      }
+
+      setWarn(false);
+      lastSeenNumber = base;
+      updatePanel(base);
+
+      // AUTO ON: 1回で即カウント（3/3なし）
+      // 無限増殖防止：一度カウントしたら「0/空」が入るまで次はカウントしない
+      if (autoOn && !requireBlank){
+        commitBase(base, rawText);
+      }
+    }catch(err){
+      debugEl.textContent = 'OCR error';
+      setWarn(true);
+    }finally{
+      scanning = false;
+    }
+  }
+
+  let timer = null;
+  function startAutoLoop(){
+    if (timer) return;
+    timer = setInterval(() => {
+      if (!autoOn) return;
+      scanOnce();
+    }, SCAN_INTERVAL_MS);
+  }
+
+  function setAuto(on){
+    autoOn = !!on;
+    btnAuto.querySelector('small').textContent = autoOn ? 'ON' : 'OFF';
+    btnAuto.style.opacity = autoOn ? '1' : '0.78';
+    if (autoOn) startAutoLoop();
+  }
+
+  btnAuto.addEventListener('click', () => setAuto(!autoOn));
+
+  // 直近：最後に追加した1件を取り消し
+  btnUndo.addEventListener('click', () => {
+    if (!log.length) return;
+    log.pop();
+    updateTop();
+    updatePanel(lastSeenNumber || 0);
+    requireBlank = false;
+  });
+
+  // 「-」：ホールド解除（枚数/総合計はそのまま）
+  btnRelease.addEventListener('click', () => {
+    lastCommittedNumber = null;
+    requireBlank = false;
+    updatePanel(0);
+    setWarn(true);
+  });
+
+  // manual scan: AUTO OFFでもOK（枠タップ or シャッター）
+  shutterBtn.addEventListener('click', () => scanOnce());
+  roiBox.addEventListener('click', () => {
+    if (!autoOn) scanOnce();
+  });
+
+  btnStart.addEventListener('click', async () => {
+    try{
+      await startCamera();
+      startOverlay.classList.add('hide');
+      updateTop();
+      updatePanel(0);
+      setWarn(true);
+      setAuto(true);
+      startAutoLoop();
+    }catch(e){
+      alert('カメラ許可が必要です（Safariのサイト設定）');
+    }
+  });
+})();
 </script>
 </body>
 </html>
