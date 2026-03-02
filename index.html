@@ -20,18 +20,25 @@
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
 
-      /* ここが「オレンジライン」相当：上バーを下げる量 */
-      --topbar-offset: 78px;
+      /* ✅ 上の3バー：少し上げる（前:78px → 今:58px） */
+      --topbar-offset: 58px;
 
-      /* 黄色枠位置（赤枠の場所） */
+      /* 黄色枠の縦位置（そのまま） */
       --frame-top: 34%;
+
+      /* ✅ 黄色枠の右を狭くして、右にシャッター専用スペースを作る */
+      --frame-width: min(78vw, 560px);   /* 前より少し細く */
+      --frame-height: min(14vh, 110px);
+
+      /* シャッターの配置用 */
+      --shutter-size: 56px;
+      --shutter-gap: 12px; /* 黄色枠とシャッターの間の隙間 */
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     html,body{height:100%;margin:0;background:#000;color:var(--text);font-family:var(--sans);}
     #app{position:fixed;inset:0;overflow:hidden;background:#000;}
     #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
 
-    /* 重なり順 */
     #overlay{position:absolute;inset:0;pointer-events:none;z-index:20;}
     #panel{position:absolute;left:0;right:0;bottom:0;z-index:10;}
 
@@ -49,7 +56,7 @@
     .pill b{font-weight:900;}
     .pill .yen{color:var(--accent);font-weight:900;}
 
-    /* ✅ 上バーを全体的に下げた */
+    /* ✅ 上バー（3つ） */
     #topBar{
       position:absolute;
       top: calc(env(safe-area-inset-top) + var(--topbar-offset));
@@ -59,7 +66,6 @@
       pointer-events:auto;
       z-index:25;
     }
-
     @media (max-width: 480px){
       #topBar{
         flex-direction: column;
@@ -80,13 +86,14 @@
     .okBadge{background: rgba(49,208,125,.18);border: 1px solid rgba(49,208,125,.45);}
     .warnBadge{background: rgba(255,90,95,.18);border: 1px solid rgba(255,90,95,.45);}
 
-    /* ✅ 黄色枠（赤枠位置へ移動） */
+    /* ✅ 黄色枠：右を狭く、少し左に寄せて右にシャッタースペース確保 */
     #frame{
-      position:absolute;left:50%;
+      position:absolute;
       top: var(--frame-top);
+      left: calc(50% - (var(--shutter-size) + var(--shutter-gap))/2);
       transform:translate(-50%,-50%);
-      width:min(86vw,620px);
-      height:min(14vh,110px);
+      width: var(--frame-width);
+      height: var(--frame-height);
       border-radius:16px;
       border:4px solid rgba(242,193,79,.85);
       box-shadow: 0 0 0 2px rgba(0,0,0,.35) inset, 0 8px 28px rgba(0,0,0,.35);
@@ -94,38 +101,38 @@
       pointer-events:auto; /* 手動タップ */
     }
 
+    /* ✅ 注意書き：1行にして「黄色枠の上」に固定 */
     #hint{
-      position:absolute;left:50%;
-      top: calc(var(--frame-top) - min(8vh,60px) - 18px);
-      transform:translateX(-50%);
-      font-size:14px;color:rgba(255,255,255,.9);
+      position:absolute;
+      top: calc(var(--frame-top) - (var(--frame-height)/2) - 18px);
+      left: calc(50% - (var(--shutter-size) + var(--shutter-gap))/2);
+      transform:translate(-50%,-100%);
+      font-size:14px;color:rgba(255,255,255,.92);
       background:rgba(0,0,0,.35);
       padding:6px 10px;border-radius:999px;
       border:1px solid rgba(255,255,255,.10);
       backdrop-filter: blur(10px);
-      z-index:40;
+      z-index:41;
       pointer-events:none;
       user-select:none;
       text-align:center;
-      max-width: min(92vw, 720px);
+      white-space: nowrap; /* ✅ 2行にならない */
+      max-width: min(92vw, 820px);
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
 
     @media (max-width: 480px){
       :root{
         --frame-top: 33%;
+        --frame-width: min(80vw, 560px);
       }
-      #frame{ height:min(13vh,105px); }
       #hint{ font-size:13px; }
     }
 
-    /* ✅ 確定フラッシュ：長めに */
+    /* ✅ 確定フラッシュ（長め） */
     @keyframes frameSuccess {
-      0% {
-        border-color: rgba(242,193,79,.85);
-        box-shadow:
-          0 0 0 2px rgba(0,0,0,.35) inset,
-          0 8px 28px rgba(0,0,0,.35);
-      }
+      0% { border-color: rgba(242,193,79,.85); }
       25% {
         border-color: rgba(49,208,125,1);
         box-shadow:
@@ -142,23 +149,22 @@
           0 0 0 10px rgba(49,208,125,.30),
           0 0 32px rgba(49,208,125,.75);
       }
-      100% {
-        border-color: rgba(242,193,79,.85);
-        box-shadow:
-          0 0 0 2px rgba(0,0,0,.35) inset,
-          0 8px 28px rgba(0,0,0,.35);
-      }
+      100% { border-color: rgba(242,193,79,.85); }
     }
-    #frame.flash{
-      animation: frameSuccess 620ms ease-out 1;
-    }
+    #frame.flash{ animation: frameSuccess 720ms ease-out 1; }
 
-    /* ✅ シャッター（赤丸位置）：黄色枠の右上あたり */
+    /* ✅ シャッター：黄色枠の「右」に独立して置く */
     #shutter{
       position:absolute;
-      left: calc(50% + min(86vw,620px)/2 - 56px);
-      top: calc(var(--frame-top) - min(14vh,110px)/2 - 8px);
-      width:56px;height:56px;
+      top: var(--frame-top);
+      left: calc(
+        50% - (var(--shutter-size) + var(--shutter-gap))/2
+        + (var(--frame-width)/2)
+        + var(--shutter-gap)
+        + (var(--shutter-size)/2)
+      );
+      transform:translate(-50%,-50%);
+      width:var(--shutter-size);height:var(--shutter-size);
       border-radius:999px;
       background: rgba(255,255,255,.12);
       border: 1px solid rgba(255,255,255,.16);
@@ -169,15 +175,13 @@
       cursor:pointer;
       user-select:none;
     }
-    #shutter:active{transform:scale(.98);opacity:.95}
+    #shutter:active{transform:translate(-50%,-50%) scale(.98);opacity:.95}
     #shutter .dot{
       width:18px;height:18px;border-radius:999px;
       background: rgba(255,255,255,.85);
       box-shadow: 0 0 0 6px rgba(0,0,0,.25);
     }
-    #shutter[disabled]{
-      opacity:.45;pointer-events:none;
-    }
+    #shutter[disabled]{opacity:.45;pointer-events:none;}
 
     #panel{
       padding:14px 14px calc(18px + env(safe-area-inset-bottom));
@@ -205,12 +209,10 @@
     .row.total .label{color:var(--accent)}
     .row.total .val{color:var(--accent);font-size:40px}
 
-    /* ✅ 下ボタン：AUTOは左下固定枠に */
     #controls{
       display:flex;gap:10px;align-items:stretch;
       margin-top:12px;
     }
-
     .btn{
       border:none;cursor:pointer;
       background: rgba(255,255,255,.10);
@@ -227,7 +229,6 @@
     }
     .btn:active{transform:scale(.99);opacity:.95}
 
-    /* ✅ AUTOボタン（オレンジ四角位置） */
     #btnAuto{
       flex: 0 0 auto;
       width: 90px;
@@ -244,7 +245,6 @@
     }
     #btnAuto .mini{font-size:12px;opacity:.8;letter-spacing:.5px}
 
-    /* 直近/− */
     #btnUndo{ flex: 1; }
     #btnDash{ flex: 1; font-size:26px; }
 
@@ -290,7 +290,6 @@
       <div id="hint">黄色枠に「数字」を入れたらホールド（AUTO OFFは枠タップ / 🔘）</div>
       <div id="frame" title="AUTO OFFならタップで1回スキャン"></div>
 
-      <!-- ✅ 赤丸位置のシャッター -->
       <div id="shutter" title="手動で1回スキャン"><div class="dot"></div></div>
     </div>
 
@@ -326,7 +325,6 @@
   </div>
 
   <script>
-    // ====== DOM ======
     const video = document.getElementById('video');
     const statusPill = document.getElementById('status');
     const billCountEl = document.getElementById('billCount');
@@ -346,21 +344,17 @@
     const btnDash = document.getElementById('btnDash');
     const detailsBtn = document.getElementById('detailsBtn');
 
-    // ====== 状態 ======
     let autoOn = true;
 
-    // AUTO用：安定判定
     let locked = false;
     let lastValue = null;
     let lastSeenAt = 0;
     let stableCount = 0;
 
-    // 調整
     const NEED_N = 3;
     const MAX_GAP_MS = 1200;
     const LOOP_WAIT_MS = 220;
 
-    // ====== 日付（今日固定） ======
     function todayStr(){
       const d = new Date();
       const y = d.getFullYear();
@@ -370,7 +364,6 @@
     }
     const datePick = { get value(){ return todayStr(); } };
 
-    // ====== localStorage ======
     function loadLog(ds){
       try{ return JSON.parse(localStorage.getItem(`taxscan:${ds}`) || '[]'); }
       catch(e){ return []; }
@@ -385,7 +378,6 @@
       grandTotalEl.textContent = String(sum);
     }
 
-    // ====== 表示 ======
     function setStatus(type, msg){
       statusPill.textContent = msg;
       statusPill.classList.remove('warn','ok','warnBadge','okBadge');
@@ -420,26 +412,22 @@
       grossEl.textContent = fmtYen(gross);
     }
 
-    // ✅ フラッシュ（長め）
     function flashFrame(){
       frameEl.classList.remove('flash');
       void frameEl.offsetWidth;
       frameEl.classList.add('flash');
     }
 
-    // ✅ 振動（iPhoneは非対応が多いので、対応端末だけ）
     function haptic(){
       try{
         if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
       }catch(e){}
     }
-
     function flashAndVibrate(){
       flashFrame();
       haptic();
     }
 
-    // ====== 表示だけリセット（カウントは触らない） ======
     function clearToDash(){
       locked = false;
       stableCount = 0;
@@ -450,7 +438,6 @@
       setStatus('ok','− 表示をリセット（枚数・総合計はそのまま）');
     }
 
-    // ====== 直近取り消し（カウントから除外） ======
     function undoLast(){
       const ds  = datePick.value;
       const log = loadLog(ds);
@@ -470,7 +457,6 @@
       setStatus('ok','↩︎ 直近を取り消し（カウントから除外）');
     }
 
-    // ====== 確定 ======
     function commitTotal(total){
       locked = true;
 
@@ -485,7 +471,6 @@
       flashAndVibrate();
       setStatus('ok', `✅ 確定: ¥${Number(total).toLocaleString('ja-JP')}`);
 
-      // AUTO連続のため復帰
       setTimeout(()=>{
         locked = false;
         stableCount = 0;
@@ -494,7 +479,6 @@
       }, 720);
     }
 
-    // ====== カメラ ======
     async function startCamera(){
       try{
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -509,7 +493,6 @@
       }
     }
 
-    // ====== 切り抜き → /api/scan ======
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
@@ -520,7 +503,6 @@
       const frame = frameEl.getBoundingClientRect();
       const vrect = video.getBoundingClientRect();
 
-      // object-fit: cover補正
       const videoAspect = vw / vh;
       const rectAspect = vrect.width / vrect.height;
       let drawW, drawH, offX, offY;
@@ -585,9 +567,7 @@
       }
     }
 
-    // ====== 手動スキャン（枠タップ/🔘） ======
     let manualBusy = false;
-
     async function manualScanOnce(){
       if (manualBusy) return;
       if (locked) return;
@@ -614,7 +594,6 @@
       }
     }
 
-    // ====== AUTOループ ======
     let autoBusy = false;
     let lastLoopAt = 0;
 
@@ -651,7 +630,7 @@
         lastValue = total;
         lastSeenAt = now;
 
-        setStatus('ok',`A: 読み取り中 ¥${Number(total).toLocaleString('ja-JP')}（${stableCount}/${NEED_N}）`);
+        setStatus('ok',`A: 読み取り中 ¥${Number(total).toLocaleString('ja-JP')}（${stableCount}/3）`);
 
         if(stableCount >= NEED_N){
           commitTotal(total);
@@ -668,30 +647,16 @@
       requestAnimationFrame(loop);
     }
 
-    // ====== UIイベント ======
-    btnAuto.addEventListener('click', ()=>{
-      setAuto(!autoOn);
-    });
-
-    // 手動：枠タップ or 🔘
-    frameEl.addEventListener('click', ()=>{
-      if(!autoOn) manualScanOnce();
-    });
-    shutterEl.addEventListener('click', ()=>{
-      manualScanOnce();
-    });
-
+    btnAuto.addEventListener('click', ()=> setAuto(!autoOn));
+    frameEl.addEventListener('click', ()=> { if(!autoOn) manualScanOnce(); });
+    shutterEl.addEventListener('click', ()=> manualScanOnce());
     btnUndo.addEventListener('click', ()=> undoLast());
     btnDash.addEventListener('click', ()=> clearToDash());
-
-    // iPhone対策：止まったらここをタップで再開
     statusPill.addEventListener('click', ()=> startCamera());
-
     detailsBtn.addEventListener('click', ()=>{
       alert('次のステップで「履歴・グラフ」をここに実装するよ（今はボタンのみ）');
     });
 
-    // ====== 起動 ======
     (async ()=>{
       setTopStatsForDate(todayStr());
       showDash();
