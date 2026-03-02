@@ -20,10 +20,15 @@
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
     }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     html,body{height:100%;margin:0;background:#000;color:var(--text);font-family:var(--sans);}
     #app{position:fixed;inset:0;overflow:hidden;background:#000;}
     #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
-    #overlay{position:absolute;inset:0;pointer-events:none;}
+
+    /* 重要：overlay/panel の重なり順を制御 */
+    #overlay{position:absolute;inset:0;pointer-events:none;z-index:20;}
+    #panel{position:absolute;left:0;right:0;bottom:0;z-index:10;}
+
     .pill{
       display:flex;align-items:center;gap:10px;
       padding:10px 14px;border-radius:999px;
@@ -31,61 +36,102 @@
       box-shadow: var(--shadow);
       border: 1px solid rgba(255,255,255,.08);
       max-width: calc(100vw - 24px);
-      box-sizing: border-box;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    .pill b{font-weight:800;}
+    .pill b{font-weight:900;}
     .pill .yen{color:var(--accent);font-weight:900;}
+
     #topBar{
       position:absolute;top:14px;left:14px;right:14px;
       display:flex;gap:10px;align-items:center;justify-content:space-between;
       flex-wrap:wrap;
       pointer-events:auto;
+      z-index:25;
     }
 
-@media (max-width: 480px){
-  #topBar{
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    left: 12px;
-    right: 12px;
-  }
-  #topBar .pill{
-    width: 100%;
-    justify-content: space-between;
-    box-sizing: border-box;
-  }
-}
-
-    #status{
-      border:2px solid rgba(242,193,79,.0);
+    @media (max-width: 480px){
+      #topBar{
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+        left: 12px;
+        right: 12px;
+      }
+      #topBar .pill{
+        width: 100%;
+        justify-content: space-between;
+      }
     }
+
+    #status{border:2px solid rgba(242,193,79,.0); cursor:pointer; user-select:none;}
     #status.warn{border-color: rgba(255,90,95,.55);}
     #status.ok{border-color: rgba(49,208,125,.55);}
+    .okBadge{background: rgba(49,208,125,.18);border: 1px solid rgba(49,208,125,.45);}
+    .warnBadge{background: rgba(255,90,95,.18);border: 1px solid rgba(255,90,95,.45);}
+
+    /* ✅ 黄色枠：総合計の下〜税抜の上のスペースに寄せて上へ */
     #frame{
-      position:absolute;left:50%;top:52%;
+      position:absolute;left:50%;
+      top:44%;
       transform:translate(-50%,-50%);
       width:min(78vw,520px);
-      height:min(18vh,140px);
+      height:min(16vh,120px);
       border-radius:16px;
       border:4px solid rgba(242,193,79,.85);
       box-shadow: 0 0 0 2px rgba(0,0,0,.35) inset, 0 8px 28px rgba(0,0,0,.35);
+      z-index:40;
+      /* ✅ 手動タップ用 */
+      pointer-events:auto;
     }
     #hint{
-      position:absolute;left:50%;top:calc(52% - min(9vh,70px) - 18px);
+      position:absolute;left:50%;
+      top:calc(44% - min(8vh,60px) - 18px);
       transform:translateX(-50%);
       font-size:14px;color:rgba(255,255,255,.9);
       background:rgba(0,0,0,.35);
       padding:6px 10px;border-radius:999px;
       border:1px solid rgba(255,255,255,.10);
       backdrop-filter: blur(10px);
+      z-index:40;
+      pointer-events:none;
+      user-select:none;
+    }
+
+    @media (max-width: 480px){
+      #frame{ top:41%; height:min(15vh,110px); }
+      #hint{ top:calc(41% - min(8vh,60px) - 18px); }
+    }
+
+    /* ✅ 確定合図：一瞬グリーン→黄色に戻る */
+    @keyframes frameSuccess {
+      0% {
+        border-color: rgba(242,193,79,.85);
+        box-shadow:
+          0 0 0 2px rgba(0,0,0,.35) inset,
+          0 8px 28px rgba(0,0,0,.35);
+      }
+      35% {
+        border-color: rgba(49,208,125,1);
+        box-shadow:
+          0 0 0 2px rgba(0,0,0,.35) inset,
+          0 8px 28px rgba(0,0,0,.35),
+          0 0 0 8px rgba(49,208,125,.35),
+          0 0 30px rgba(49,208,125,.8);
+      }
+      100% {
+        border-color: rgba(242,193,79,.85);
+        box-shadow:
+          0 0 0 2px rgba(0,0,0,.35) inset,
+          0 8px 28px rgba(0,0,0,.35);
+      }
+    }
+    #frame.flash{
+      animation: frameSuccess 280ms ease-out 1;
     }
 
     #panel{
-      position:absolute;left:0;right:0;bottom:0;
       padding:14px 14px 18px;
       background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 30%, rgba(0,0,0,.78) 100%);
       pointer-events:auto;
@@ -110,6 +156,7 @@
     .row.tax .val{color:var(--warn)}
     .row.total .label{color:var(--accent)}
     .row.total .val{color:var(--accent);font-size:40px}
+
     #controls{
       display:flex;gap:10px;align-items:center;
       margin-top:12px;
@@ -125,7 +172,9 @@
       font-size:22px;
       flex: 1;
       min-width: 0;
+      user-select:none;
     }
+    .btn:active{transform:scale(.99);opacity:.95}
     .btn.ghost{
       background: rgba(255,255,255,.10);
       color: var(--text);
@@ -136,6 +185,19 @@
       padding:16px 14px;
       font-size:20px;
     }
+
+    /* ✅ 手動シャッター */
+    .btn.shot{
+      flex: 0 0 auto;
+      width: 72px;
+      padding: 16px 0;
+      background: rgba(255,255,255,.10);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,.12);
+      font-size: 22px;
+    }
+    .btn.shot:disabled{opacity:.45;cursor:not-allowed}
+
     #detailsBtn{
       width: 100%;
       margin-top:12px;
@@ -162,28 +224,21 @@
       color:rgba(255,255,255,.6);
       margin-top:6px;
     }
-    .okBadge{
-      background: rgba(49,208,125,.18);
-      border: 1px solid rgba(49,208,125,.45);
-    }
-    .warnBadge{
-      background: rgba(255,90,95,.18);
-      border: 1px solid rgba(255,90,95,.45);
-    }
   </style>
 </head>
 <body>
   <div id="app">
     <video id="video" autoplay playsinline muted></video>
+
     <div id="overlay">
       <div id="topBar">
-        <div id="status" class="pill warnBadge">⚠️ 枠に数字が見えていません</div>
+        <div id="status" class="pill warnBadge" title="タップでカメラ再開">A: 準備中…</div>
         <div class="pill">請求書: <b id="billCount">0</b> 枚</div>
         <div class="pill">総合計: <b class="yen">¥<span id="grandTotal">0</span></b></div>
       </div>
 
-      <div id="hint">黄色枠に「数字」を入れたらホールド</div>
-      <div id="frame"></div>
+      <div id="hint">黄色枠に「数字」を入れたらホールド（AUTO OFFは枠タップ/🔘）</div>
+      <div id="frame" title="AUTO OFFならタップで1回スキャン"></div>
     </div>
 
     <div id="panel">
@@ -202,21 +257,21 @@
         </div>
 
         <div id="controls">
-          <button id="btnAuto" class="btn">AUTO: ON</button>
+          <button id="btnAuto" class="btn" title="自動スキャン ON/OFF">AUTO: ON</button>
+          <button id="btnShot" class="btn shot" title="手動で1回スキャン">🔘</button>
           <button id="btnUndo" class="btn ghost" title="直近の確定を取り消す（カウントに含めない）">↩︎ 直近</button>
-          <button id="btnResetToday" class="btn ghost" title="ホールド解除">⟲ 解除</button>
+          <button id="btnDash" class="btn ghost" title="表示だけ - に戻す（枚数・総合計はそのまま）">−</button>
         </div>
       </div>
 
       <button id="detailsBtn">▼ 詳細（履歴・グラフ）を開く</button>
-
       <div id="ocrText">OCR: "" → 0</div>
-      <div id="foot">※iPhoneで止まったら、左上「A」バッジをタップで再開</div>
+      <div id="foot">※iPhoneで止まったら、左上の「A:」をタップで再開</div>
     </div>
   </div>
 
   <script>
-    // ====== 状態 ======
+    // ====== DOM ======
     const video = document.getElementById('video');
     const statusPill = document.getElementById('status');
     const billCountEl = document.getElementById('billCount');
@@ -227,25 +282,29 @@
     const grossEl = document.getElementById('gross');
     const ocrText = document.getElementById('ocrText');
 
+    const frameEl = document.getElementById('frame');
+
     const btnAuto = document.getElementById('btnAuto');
+    const btnShot = document.getElementById('btnShot');
     const btnUndo = document.getElementById('btnUndo');
-    const btnResetToday = document.getElementById('btnResetToday');
+    const btnDash = document.getElementById('btnDash');
     const detailsBtn = document.getElementById('detailsBtn');
 
+    // ====== 状態 ======
     let autoOn = true;
 
-    // ホールド/安定判定
+    // ホールド/安定判定（AUTO用）
     let locked = false;
     let lastValue = null;
-    let lastText = '';
     let lastSeenAt = 0;
     let stableCount = 0;
 
-    // ちょい強めに安定させる（iPhoneブレ対策）
-    const NEED_N = 3;
-    const MAX_GAP_MS = 1200;
+    // 調整
+    const NEED_N = 3;             // AUTO確定に必要な連続一致回数
+    const MAX_GAP_MS = 1200;      // 連続一致の許容間隔
+    const LOOP_WAIT_MS = 220;     // OCR呼び出し間隔（負荷軽減）
 
-    // ====== ログ（localStorage） ======
+    // ====== 日付（今は今日固定でOK） ======
     function todayStr(){
       const d = new Date();
       const y = d.getFullYear();
@@ -253,10 +312,9 @@
       const dd = String(d.getDate()).padStart(2,'0');
       return `${y}-${m}-${dd}`;
     }
-
-    // 既存UIのまま（内部的に今日を使う）
     const datePick = { get value(){ return todayStr(); } };
 
+    // ====== localStorage ログ ======
     function loadLog(ds){
       try{
         return JSON.parse(localStorage.getItem(`taxscan:${ds}`) || '[]');
@@ -265,24 +323,14 @@
     function saveLog(ds, log){
       localStorage.setItem(`taxscan:${ds}`, JSON.stringify(log));
     }
-
     function setTopStatsForDate(ds){
       const log = loadLog(ds);
-      const sum = log.reduce((a,x)=>a+(x.total||0),0);
+      const sum = log.reduce((a,x)=>a + (Number(x.total)||0), 0);
       billCountEl.textContent = String(log.length);
       grandTotalEl.textContent = String(sum);
     }
 
-    function renderLog(ds){
-      // 詳細UIはこの簡易版では別画面にしてないので、ボタンでアラートだけ
-      // 必要なら次回ここを拡張する
-    }
-
-    function drawMonthChart(){
-      // 簡易版では省略（必要なら次回）
-    }
-
-    // ====== 表示系 ======
+    // ====== 表示 ======
     function setStatus(type, msg){
       statusPill.textContent = msg;
       statusPill.classList.remove('warn','ok','warnBadge','okBadge');
@@ -292,84 +340,93 @@
         statusPill.classList.add('warn','warnBadge');
       }
     }
-
     function setAuto(on){
       autoOn = on;
       btnAuto.textContent = on ? 'AUTO: ON' : 'AUTO: OFF';
+      // 手動ボタンはOFF時に目立つようにしてもいいが、今回は常に押せる
     }
-
     function fmtYen(n){
-      if(n === null || n === undefined) return '-';
-      if(n === '-') return '-';
       try{ return '¥' + Number(n).toLocaleString('ja-JP'); }catch(e){ return '¥' + n; }
     }
-
+    function showDash(){
+      netEl.textContent = '-';
+      taxEl.textContent = '-';
+      grossEl.textContent = '-';
+    }
     function showResult(total){
-      if(!total || total <= 0){
-        netEl.textContent = '-';
-        taxEl.textContent = '-';
-        grossEl.textContent = '-';
-        return;
-      }
-      const gross = total;
-      const net = Math.round(gross / 1.1);
+      if(!total || total <= 0){ showDash(); return; }
+      const gross = Number(total);
+      const net = Math.round(gross / 1.1);   // 四捨五入（要求どおり）
       const tax = gross - net;
-
       netEl.textContent = fmtYen(net);
       taxEl.textContent = fmtYen(tax);
       grossEl.textContent = fmtYen(gross);
     }
 
-    // ====== ボタン動作 ======
-    function resetToday(){
-      // 「解除」ボタン：いまのホールド状態だけ強制解除（枚数・総合計・履歴は触らない）
+    function flashAndVibrate(){
+      if (frameEl) {
+        frameEl.classList.remove('flash');
+        void frameEl.offsetWidth;
+        frameEl.classList.add('flash');
+      }
+      if (navigator.vibrate) navigator.vibrate(40);
+    }
+
+    // ====== 表示だけリセット（枚数・総合計・履歴は触らない） ======
+    function clearToDash(){
       locked = false;
       stableCount = 0;
       lastValue = null;
-      lastText  = '';
       lastSeenAt = 0;
-
-      // 表示だけ「未検出」に戻す
       ocrText.textContent = 'OCR: "" → 0';
-      setStatus('ok','⟲ ホールド解除');
+      showDash();
+      setStatus('ok','− 表示をリセット（枚数・総合計はそのまま）');
     }
 
+    // ====== 直近取り消し（カウントから除外） ======
     function undoLast(){
       const ds  = datePick.value;
       const log = loadLog(ds);
       if(!log.length){
-        // 何もないときは「ホールド解除」だけ
-        locked = false;
-        stableCount = 0;
-        lastValue = null;
-        lastText  = '';
-        lastSeenAt = 0;
-        setStatus('ok','⟲ ホールド解除');
+        clearToDash();
         return;
       }
       log.pop();
       saveLog(ds, log);
       setTopStatsForDate(ds);
-      renderLog(ds);
-      drawMonthChart();
 
-      // 直近を取り消したら、次を読み取れるようにホールドも解除
+      // 次も読めるように解除（AUTO状態は維持）
       locked = false;
       stableCount = 0;
       lastValue = null;
-      lastText  = '';
       lastSeenAt = 0;
 
-      setStatus('ok','↩︎ 直近(ホールド)を取り消し＆解除');
+      setStatus('ok','↩︎ 直近を取り消し（カウントから除外）');
     }
 
-    btnAuto.addEventListener('click', ()=> setAuto(!autoOn));
-    btnUndo.addEventListener('click', ()=> undoLast());
-    btnResetToday.addEventListener('click', ()=> resetToday());
+    // ====== 確定（AUTO/手動 共通） ======
+    function commitTotal(total){
+      locked = true;
 
-    detailsBtn.addEventListener('click', ()=>{
-      alert('このボタンは次のステップで「履歴・グラフ表示」にします（今はUIだけ先に配置）');
-    });
+      const ds = datePick.value;
+      const log = loadLog(ds);
+      log.push({ ts: Date.now(), total: Number(total) });
+      saveLog(ds, log);
+
+      setTopStatsForDate(ds);
+      showResult(total);
+
+      flashAndVibrate();
+      setStatus('ok', `✅ 確定: ¥${Number(total).toLocaleString('ja-JP')}`);
+
+      // 次のスキャンへ戻す（AUTO連続）
+      setTimeout(()=>{
+        locked = false;
+        stableCount = 0;
+        lastValue = null;
+        lastSeenAt = 0;
+      }, 650);
+    }
 
     // ====== カメラ ======
     async function startCamera(){
@@ -379,12 +436,14 @@
           audio: false
         });
         video.srcObject = stream;
+        setStatus('ok', autoOn ? 'A: AUTOで監視中' : 'A: 手動モード（枠/🔘）');
       }catch(e){
         alert('カメラを起動できません: ' + e.message);
+        setStatus('warn','A: カメラ許可が必要');
       }
     }
 
-    // ====== 画像を枠部分だけ切り抜いてAPIへ ======
+    // ====== 枠部分を切り抜いて /api/scan ======
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
@@ -392,11 +451,10 @@
       const vw = video.videoWidth, vh = video.videoHeight;
       if(!vw || !vh) return null;
 
-      // 画面上の黄色枠（CSS）に合わせてビデオ座標へ変換
-      const frame = document.getElementById('frame').getBoundingClientRect();
+      const frame = frameEl.getBoundingClientRect();
       const vrect = video.getBoundingClientRect();
 
-      // object-fit: cover の補正
+      // object-fit: cover補正
       const videoAspect = vw / vh;
       const rectAspect = vrect.width / vrect.height;
       let drawW, drawH, offX, offY;
@@ -422,14 +480,20 @@
       const sw = fw * drawW;
       const sh = fh * drawH;
 
-      const outW = Math.max(320, Math.round(sw));
-      const outH = Math.max(160, Math.round(sh));
+      // 少し拡大して送る（小さい文字に強くする）
+      const SCALE = 3;
+      const outW = Math.max(360, Math.round(sw * SCALE));
+      const outH = Math.max(180, Math.round(sh * SCALE));
       canvas.width = outW;
       canvas.height = outH;
 
+      // くっきり化
+      ctx.imageSmoothingEnabled = false;
+      ctx.filter = "contrast(180%) brightness(120%)";
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+      ctx.filter = "none";
 
-      return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+      return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.90));
     }
 
     async function callOCR(){
@@ -448,91 +512,128 @@
         body: JSON.stringify({ image_base64: base64 })
       });
 
-      const text = await resp.text();
+      const raw = await resp.text();
       try{
-        const json = JSON.parse(text);
-        return { total: Number(json.total||0), raw: text };
+        const json = JSON.parse(raw);
+        return { total: Number(json.total||0), raw };
       }catch(e){
-        return { total: 0, raw: text };
+        return { total: 0, raw };
       }
     }
 
-    // ====== メインループ ======
-    async function loop(){
-      // AUTO OFFなら何もしない
-      if(!autoOn){
-        requestAnimationFrame(loop);
-        return;
-      }
+    // ====== 手動スキャン（1回で即確定） ======
+    let manualBusy = false;
 
-      // ホールド中は新規確定はしない（ただしAUTOはONのまま）
-      if(locked){
-        requestAnimationFrame(loop);
-        return;
-      }
+    async function manualScanOnce(){
+      if (manualBusy) return;
+      if (locked) return;
 
+      manualBusy = true;
+      btnShot.disabled = true;
+
+      try{
+        setStatus('ok','🔘 手動スキャン中…');
+        const { total, raw } = await callOCR();
+
+        ocrText.textContent = `OCR: "${(raw||'').slice(0,60).replace(/\n/g,' ')}" → ${total}`;
+
+        if(!total || total <= 0){
+          setStatus('warn','⚠️ 数字が見つかりません（少し離す/明るく）');
+          return;
+        }
+        commitTotal(total);
+      }catch(e){
+        setStatus('warn','❌ 手動スキャン失敗');
+      }finally{
+        manualBusy = false;
+        btnShot.disabled = false;
+      }
+    }
+
+    // ====== AUTOループ（監視） ======
+    let autoBusy = false;
+    let lastLoopAt = 0;
+
+    async function autoTick(){
       const now = Date.now();
-      const { total, raw } = await callOCR();
+      if (!autoOn) return;
+      if (locked) return;
+      if (autoBusy) return;
+      if (now - lastLoopAt < LOOP_WAIT_MS) return;
 
-      // 表示
-      ocrText.textContent = `OCR: "${(raw||'').slice(0,60).replace(/\n/g,' ')}" → ${total}`;
+      autoBusy = true;
+      lastLoopAt = now;
 
-      if(!total || total <= 0){
-        setStatus('warn','⚠️ 枠に数字が見えていません');
-        stableCount = 0;
-        lastValue = null;
-        lastText = '';
-        requestAnimationFrame(loop);
-        return;
-      }
+      try{
+        const { total, raw } = await callOCR();
+        ocrText.textContent = `OCR: "${(raw||'').slice(0,60).replace(/\n/g,' ')}" → ${total}`;
 
-      setStatus('ok',`✅ 読み取り中: ¥${Number(total).toLocaleString('ja-JP')}`);
-
-      const same = (lastValue === total);
-      const withinGap = (now - lastSeenAt) < MAX_GAP_MS;
-
-      if(same && withinGap){
-        stableCount++;
-      }else{
-        stableCount = 1;
-      }
-
-      lastValue = total;
-      lastSeenAt = now;
-
-      // 安定したら確定（=ホールド）
-      if(stableCount >= NEED_N){
-        locked = true;
-
-        const ds = datePick.value;
-        const log = loadLog(ds);
-        log.push({ ts: Date.now(), total });
-        saveLog(ds, log);
-
-        setTopStatsForDate(ds);
-        showResult(total);
-
-        setStatus('ok',`✅ 確定: ¥${Number(total).toLocaleString('ja-JP')}（次で自動解除）`);
-
-        // 次フレームから自動解除（AUTOは維持）
-        setTimeout(()=>{
-          locked = false;
+        if(!total || total <= 0){
+          setStatus('warn','⚠️ 枠に数字が見えていません');
           stableCount = 0;
           lastValue = null;
-          lastText = '';
-          lastSeenAt = 0;
-        }, 650);
-      }
+          return;
+        }
 
+        setStatus('ok',`A: 読み取り中 ¥${Number(total).toLocaleString('ja-JP')}（${stableCount+1}/${NEED_N}）`);
+
+        const same = (lastValue === total);
+        const withinGap = (now - lastSeenAt) < MAX_GAP_MS;
+
+        if(same && withinGap){
+          stableCount++;
+        }else{
+          stableCount = 1;
+        }
+
+        lastValue = total;
+        lastSeenAt = now;
+
+        if(stableCount >= NEED_N){
+          commitTotal(total);
+        }
+      }catch(e){
+        setStatus('warn','❌ 通信/認識エラー');
+      }finally{
+        autoBusy = false;
+      }
+    }
+
+    function loop(){
+      autoTick();
       requestAnimationFrame(loop);
     }
+
+    // ====== UIイベント ======
+    btnAuto.addEventListener('click', ()=>{
+      setAuto(!autoOn);
+      setStatus('ok', autoOn ? 'A: AUTOで監視中' : 'A: 手動モード（枠/🔘）');
+    });
+
+    btnShot.addEventListener('click', ()=> manualScanOnce());
+
+    // AUTO OFF時：枠タップで1回スキャン
+    frameEl.addEventListener('click', ()=>{
+      if(!autoOn) manualScanOnce();
+    });
+
+    btnUndo.addEventListener('click', ()=> undoLast());
+    btnDash.addEventListener('click', ()=> clearToDash());
+
+    // カメラ再開用（iPhone対策）
+    statusPill.addEventListener('click', ()=> startCamera());
+
+    detailsBtn.addEventListener('click', ()=>{
+      alert('次のステップで「履歴・グラフ」をここに実装するよ（今はボタンのみ）');
+    });
 
     // ====== 起動 ======
     (async ()=>{
       setTopStatsForDate(todayStr());
+      showDash();
+      setStatus('warn','A: 準備中…');
       await startCamera();
-      // iOSでvideoWidthが取れるまで少し待つ
-      setTimeout(()=> requestAnimationFrame(loop), 600);
+      requestAnimationFrame(loop);
     })();
   </script>
 </body>
