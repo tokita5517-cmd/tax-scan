@@ -1,669 +1,275 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>tax-scan</title>
-  <style>
-    :root{
-      --bg:#0b0d10;
-      --surface:rgba(25,28,35,.78);
-      --surface2:rgba(18,20,25,.88);
-      --text:#e9edf6;
-      --muted:#aab2c3;
-      --accent:#f2c14f;
-      --ok:#31d07d;
-      --warn:#ff5a5f;
-      --shadow:0 10px 30px rgba(0,0,0,.45);
-      --radius:18px;
-      --radius2:22px;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>tax-scan</title>
 
-      /* ✅ 上の3バー：少し上げる（前:78px → 今:58px） */
-      --topbar-offset: 58px;
+<style>
+:root{
+  --surface:rgba(25,28,35,.78);
+  --surface2:rgba(18,20,25,.88);
+  --text:#e9edf6;
+  --muted:#aab2c3;
+  --accent:#f2c14f;
+  --ok:#31d07d;
+  --warn:#ff5a5f;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
 
-      /* 黄色枠の縦位置（そのまま） */
-      --frame-top: 34%;
+  --topbar-offset:58px;
+  --frame-top:34%;
+  --frame-width:min(78vw,560px);
+  --frame-height:min(14vh,110px);
 
-      /* ✅ 黄色枠の右を狭くして、右にシャッター専用スペースを作る */
-      --frame-width: min(78vw, 560px);   /* 前より少し細く */
-      --frame-height: min(14vh, 110px);
+  --shutter-size:56px;
+  --shutter-gap:12px;
+}
 
-      /* シャッターの配置用 */
-      --shutter-size: 56px;
-      --shutter-gap: 12px; /* 黄色枠とシャッターの間の隙間 */
-    }
-    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    html,body{height:100%;margin:0;background:#000;color:var(--text);font-family:var(--sans);}
-    #app{position:fixed;inset:0;overflow:hidden;background:#000;}
-    #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0;background:#000;color:var(--text);font-family:-apple-system,system-ui;}
+#app{position:fixed;inset:0;overflow:hidden;background:#000;}
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
 
-    #overlay{position:absolute;inset:0;pointer-events:none;z-index:20;}
-    #panel{position:absolute;left:0;right:0;bottom:0;z-index:10;}
+.pill{
+  display:flex;align-items:center;gap:8px;
+  padding:10px 14px;border-radius:999px;
+  background:var(--surface);
+  box-shadow:var(--shadow);
+  border:1px solid rgba(255,255,255,.08);
+  white-space:nowrap;
+}
 
-    .pill{
-      display:flex;align-items:center;gap:10px;
-      padding:10px 14px;border-radius:999px;
-      background:var(--surface);backdrop-filter: blur(10px);
-      box-shadow: var(--shadow);
-      border: 1px solid rgba(255,255,255,.08);
-      max-width: calc(100vw - 24px);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .pill b{font-weight:900;}
-    .pill .yen{color:var(--accent);font-weight:900;}
+#topBar{
+  position:absolute;
+  top:calc(env(safe-area-inset-top) + var(--topbar-offset));
+  left:14px;right:14px;
+  display:flex;gap:10px;flex-wrap:wrap;
+  z-index:25;
+}
 
-    /* ✅ 上バー（3つ） */
-    #topBar{
-      position:absolute;
-      top: calc(env(safe-area-inset-top) + var(--topbar-offset));
-      left:14px;right:14px;
-      display:flex;gap:10px;align-items:center;justify-content:space-between;
-      flex-wrap:wrap;
-      pointer-events:auto;
-      z-index:25;
-    }
-    @media (max-width: 480px){
-      #topBar{
-        flex-direction: column;
-        align-items: stretch;
-        gap: 8px;
-        left: 12px;
-        right: 12px;
-      }
-      #topBar .pill{
-        width: 100%;
-        justify-content: space-between;
-      }
-    }
+#frame{
+  position:absolute;
+  top:var(--frame-top);
+  left:calc(50% - (var(--shutter-size) + var(--shutter-gap))/2);
+  transform:translate(-50%,-50%);
+  width:var(--frame-width);
+  height:var(--frame-height);
+  border-radius:16px;
+  border:4px solid rgba(242,193,79,.85);
+  box-shadow:0 0 0 2px rgba(0,0,0,.35) inset;
+  z-index:40;
+}
 
-    #status{border:2px solid rgba(242,193,79,.0); cursor:pointer; user-select:none;}
-    #status.warn{border-color: rgba(255,90,95,.55);}
-    #status.ok{border-color: rgba(49,208,125,.55);}
-    .okBadge{background: rgba(49,208,125,.18);border: 1px solid rgba(49,208,125,.45);}
-    .warnBadge{background: rgba(255,90,95,.18);border: 1px solid rgba(255,90,95,.45);}
+@keyframes frameSuccess{
+  0%{border-color:rgba(242,193,79,.85)}
+  30%{border-color:var(--ok);box-shadow:0 0 0 10px rgba(49,208,125,.4)}
+  100%{border-color:rgba(242,193,79,.85)}
+}
+#frame.flash{animation:frameSuccess 900ms ease-out 1;}
 
-    /* ✅ 黄色枠：右を狭く、少し左に寄せて右にシャッタースペース確保 */
-    #frame{
-      position:absolute;
-      top: var(--frame-top);
-      left: calc(50% - (var(--shutter-size) + var(--shutter-gap))/2);
-      transform:translate(-50%,-50%);
-      width: var(--frame-width);
-      height: var(--frame-height);
-      border-radius:16px;
-      border:4px solid rgba(242,193,79,.85);
-      box-shadow: 0 0 0 2px rgba(0,0,0,.35) inset, 0 8px 28px rgba(0,0,0,.35);
-      z-index:40;
-      pointer-events:auto; /* 手動タップ */
-    }
+#shutter{
+  position:absolute;
+  top:var(--frame-top);
+  left:calc(
+    50% - (var(--shutter-size) + var(--shutter-gap))/2
+    + (var(--frame-width)/2)
+    + var(--shutter-gap)
+    + (var(--shutter-size)/2)
+  );
+  transform:translate(-50%,-50%);
+  width:var(--shutter-size);
+  height:var(--shutter-size);
+  border-radius:50%;
+  background:rgba(255,255,255,.15);
+  display:grid;place-items:center;
+  z-index:45;
+}
+#shutter .dot{
+  width:18px;height:18px;border-radius:50%;
+  background:#fff;
+}
 
-    /* ✅ 注意書き：1行にして「黄色枠の上」に固定 */
-    #hint{
-      position:absolute;
-      top: calc(var(--frame-top) - (var(--frame-height)/2) - 18px);
-      left: calc(50% - (var(--shutter-size) + var(--shutter-gap))/2);
-      transform:translate(-50%,-100%);
-      font-size:14px;color:rgba(255,255,255,.92);
-      background:rgba(0,0,0,.35);
-      padding:6px 10px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.10);
-      backdrop-filter: blur(10px);
-      z-index:41;
-      pointer-events:none;
-      user-select:none;
-      text-align:center;
-      white-space: nowrap; /* ✅ 2行にならない */
-      max-width: min(92vw, 820px);
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
+#panel{
+  position:absolute;
+  bottom:0;left:0;right:0;
+  padding:14px 14px calc(18px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,transparent 0%,rgba(0,0,0,.85) 100%);
+}
 
-    @media (max-width: 480px){
-      :root{
-        --frame-top: 33%;
-        --frame-width: min(80vw, 560px);
-      }
-      #hint{ font-size:13px; }
-    }
+#calc{
+  background:var(--surface2);
+  border-radius:22px;
+  padding:14px;
+  margin-bottom:12px;
+}
 
-    /* ✅ 確定フラッシュ（長め） */
-    @keyframes frameSuccess {
-      0% { border-color: rgba(242,193,79,.85); }
-      25% {
-        border-color: rgba(49,208,125,1);
-        box-shadow:
-          0 0 0 2px rgba(0,0,0,.35) inset,
-          0 8px 28px rgba(0,0,0,.35),
-          0 0 0 10px rgba(49,208,125,.35),
-          0 0 34px rgba(49,208,125,.85);
-      }
-      75% {
-        border-color: rgba(49,208,125,1);
-        box-shadow:
-          0 0 0 2px rgba(0,0,0,.35) inset,
-          0 8px 28px rgba(0,0,0,.35),
-          0 0 0 10px rgba(49,208,125,.30),
-          0 0 32px rgba(49,208,125,.75);
-      }
-      100% { border-color: rgba(242,193,79,.85); }
-    }
-    #frame.flash{ animation: frameSuccess 720ms ease-out 1; }
+.row{
+  display:flex;justify-content:space-between;
+  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.row:last-child{border-bottom:none}
+.row .val{font-weight:900;font-size:26px}
+.row.total .val{color:var(--accent);font-size:40px}
 
-    /* ✅ シャッター：黄色枠の「右」に独立して置く */
-    #shutter{
-      position:absolute;
-      top: var(--frame-top);
-      left: calc(
-        50% - (var(--shutter-size) + var(--shutter-gap))/2
-        + (var(--frame-width)/2)
-        + var(--shutter-gap)
-        + (var(--shutter-size)/2)
-      );
-      transform:translate(-50%,-50%);
-      width:var(--shutter-size);height:var(--shutter-size);
-      border-radius:999px;
-      background: rgba(255,255,255,.12);
-      border: 1px solid rgba(255,255,255,.16);
-      box-shadow: var(--shadow);
-      z-index:45;
-      pointer-events:auto;
-      display:grid;place-items:center;
-      cursor:pointer;
-      user-select:none;
-    }
-    #shutter:active{transform:translate(-50%,-50%) scale(.98);opacity:.95}
-    #shutter .dot{
-      width:18px;height:18px;border-radius:999px;
-      background: rgba(255,255,255,.85);
-      box-shadow: 0 0 0 6px rgba(0,0,0,.25);
-    }
-    #shutter[disabled]{opacity:.45;pointer-events:none;}
-
-    #panel{
-      padding:14px 14px calc(18px + env(safe-area-inset-bottom));
-      background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 30%, rgba(0,0,0,.78) 100%);
-      pointer-events:auto;
-    }
-    #calc{
-      background:var(--surface2);
-      border:1px solid rgba(255,255,255,.08);
-      border-radius: var(--radius2);
-      padding:14px;
-      box-shadow: var(--shadow);
-      margin-bottom:12px;
-    }
-    .row{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:12px 0;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      font-size:18px;
-    }
-    .row:last-child{border-bottom:none;}
-    .row .label{color:var(--muted);font-weight:650}
-    .row .val{font-weight:900;font-size:26px;letter-spacing:.2px}
-    .row.tax .val{color:var(--warn)}
-    .row.total .label{color:var(--accent)}
-    .row.total .val{color:var(--accent);font-size:40px}
-
-    #controls{
-      display:flex;gap:10px;align-items:stretch;
-      margin-top:12px;
-    }
-    .btn{
-      border:none;cursor:pointer;
-      background: rgba(255,255,255,.10);
-      color: var(--text);
-      border: 1px solid rgba(255,255,255,.10);
-      font-weight:850;
-      border-radius: 18px;
-      padding:16px 14px;
-      box-shadow: var(--shadow);
-      font-size:20px;
-      user-select:none;
-      min-width: 0;
-      flex: 1;
-    }
-    .btn:active{transform:scale(.99);opacity:.95}
-
-    #btnAuto{
-      flex: 0 0 auto;
-      width: 90px;
-      padding: 16px 10px;
-      background: var(--accent);
-      color: #111;
-      font-weight: 1000;
-      font-size: 18px;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      gap: 6px;
-    }
-    #btnAuto .mini{font-size:12px;opacity:.8;letter-spacing:.5px}
-
-    #btnUndo{ flex: 1; }
-    #btnDash{ flex: 1; font-size:26px; }
-
-    #detailsBtn{
-      width: 100%;
-      margin-top:12px;
-      background: rgba(255,255,255,.10);
-      border: 1px solid rgba(255,255,255,.10);
-      color: var(--text);
-      font-weight:850;
-      padding:16px;
-      border-radius: 18px;
-      font-size:20px;
-    }
-    #ocrText{
-      text-align:center;
-      font-family:var(--mono);
-      color:rgba(255,255,255,.5);
-      font-size:14px;
-      margin-top:8px;
-      user-select:text;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    }
-    #foot{
-      text-align:center;
-      font-size:14px;
-      color:rgba(255,255,255,.6);
-      margin-top:6px;
-    }
-  </style>
+#controls{display:flex;gap:10px;margin-top:12px}
+.btn{
+  flex:1;
+  padding:14px;
+  border-radius:18px;
+  background:rgba(255,255,255,.1);
+  color:#fff;
+  border:none;
+  font-weight:800;
+}
+#btnAuto{background:var(--accent);color:#111;flex:0 0 90px}
+#btnDash{font-size:26px}
+#ocrText{font-size:13px;color:rgba(255,255,255,.5);text-align:center;margin-top:8px}
+</style>
 </head>
+
 <body>
-  <div id="app">
-    <video id="video" autoplay playsinline muted></video>
+<div id="app">
+<video id="video" autoplay playsinline muted></video>
 
-    <div id="overlay">
-      <div id="topBar">
-        <div id="status" class="pill warnBadge" title="タップでカメラ再開">A: 準備中…</div>
-        <div class="pill">請求書: <b id="billCount">0</b> 枚</div>
-        <div class="pill">総合計: <b class="yen">¥<span id="grandTotal">0</span></b></div>
-      </div>
+<div id="topBar">
+  <div class="pill" id="status">A: 準備中…</div>
+  <div class="pill">請求書: <b id="billCount">0</b> 枚</div>
+  <div class="pill">総合計（税抜）: <b>¥<span id="grandTotal">0</span></b></div>
+</div>
 
-      <div id="hint">黄色枠に「数字」を入れたらホールド（AUTO OFFは枠タップ / 🔘）</div>
-      <div id="frame" title="AUTO OFFならタップで1回スキャン"></div>
+<div id="frame"></div>
+<div id="shutter"><div class="dot"></div></div>
 
-      <div id="shutter" title="手動で1回スキャン"><div class="dot"></div></div>
-    </div>
+<div id="panel">
+<div id="calc">
+  <div class="row"><div>税抜</div><div class="val" id="net">-</div></div>
+  <div class="row"><div>消費税（10%）</div><div class="val" id="tax">-</div></div>
+  <div class="row total"><div>合計（税込）</div><div class="val" id="gross">-</div></div>
 
-    <div id="panel">
-      <div id="calc">
-        <div class="row">
-          <div class="label">税抜（逆算）</div>
-          <div class="val" id="net">-</div>
-        </div>
-        <div class="row tax">
-          <div class="label">消費税（10%・四捨五入）</div>
-          <div class="val" id="tax">-</div>
-        </div>
-        <div class="row total">
-          <div class="label">合計（税込）</div>
-          <div class="val" id="gross">-</div>
-        </div>
-
-        <div id="controls">
-          <button id="btnAuto" class="btn" title="自動スキャン ON/OFF">
-            <div>AUTO</div>
-            <div class="mini" id="autoState">ON</div>
-          </button>
-          <button id="btnUndo" class="btn" title="直近の確定を取り消す（カウントに含めない）">↩︎ 直近</button>
-          <button id="btnDash" class="btn" title="表示だけ - に戻す（枚数・総合計そのまま）">−</button>
-        </div>
-      </div>
-
-      <button id="detailsBtn">▼ 詳細（履歴・グラフ）を開く</button>
-      <div id="ocrText">OCR: "" → 0</div>
-      <div id="foot">※iPhoneで止まったら、左上の「A:」をタップで再開</div>
-    </div>
+  <div id="controls">
+    <button id="btnAuto" class="btn">AUTO</button>
+    <button id="btnUndo" class="btn">↩︎ 直近</button>
+    <button id="btnDash" class="btn">−</button>
   </div>
+</div>
+<div id="ocrText">OCR: "" → 0</div>
+</div>
+</div>
 
-  <script>
-    const video = document.getElementById('video');
-    const statusPill = document.getElementById('status');
-    const billCountEl = document.getElementById('billCount');
-    const grandTotalEl = document.getElementById('grandTotal');
+<script>
+const video=document.getElementById("video");
+const frame=document.getElementById("frame");
+const shutter=document.getElementById("shutter");
+const billCount=document.getElementById("billCount");
+const grandTotal=document.getElementById("grandTotal");
+const netEl=document.getElementById("net");
+const taxEl=document.getElementById("tax");
+const grossEl=document.getElementById("gross");
+const ocrText=document.getElementById("ocrText");
 
-    const netEl = document.getElementById('net');
-    const taxEl = document.getElementById('tax');
-    const grossEl = document.getElementById('gross');
-    const ocrText = document.getElementById('ocrText');
+let autoOn=true;
+let locked=false;
+let requireBlank=false;
+let lastValue=null;
+let stable=0;
 
-    const frameEl = document.getElementById('frame');
-    const shutterEl = document.getElementById('shutter');
+const NEED_N=2;
 
-    const btnAuto = document.getElementById('btnAuto');
-    const autoState = document.getElementById('autoState');
-    const btnUndo = document.getElementById('btnUndo');
-    const btnDash = document.getElementById('btnDash');
-    const detailsBtn = document.getElementById('detailsBtn');
+function today(){
+  const d=new Date();
+  return d.toISOString().slice(0,10);
+}
+function load(){return JSON.parse(localStorage.getItem("taxscan:"+today())||"[]")}
+function save(log){localStorage.setItem("taxscan:"+today(),JSON.stringify(log))}
 
-    let autoOn = true;
+function updateTop(){
+  const log=load();
+  billCount.textContent=log.length;
+  const sum=log.reduce((a,x)=>a+(x.net||0),0);
+  grandTotal.textContent=sum.toLocaleString("ja-JP");
+}
 
-    let locked = false;
-    let lastValue = null;
-    let lastSeenAt = 0;
-    let stableCount = 0;
+function calc(net){
+  const tax=Math.round(net*0.1);
+  return{net,tax,gross:net+tax}
+}
 
-    const NEED_N = 3;
-    const MAX_GAP_MS = 1200;
-    const LOOP_WAIT_MS = 220;
+function show(net){
+  if(!net){netEl.textContent=taxEl.textContent=grossEl.textContent="-";return;}
+  const r=calc(net);
+  netEl.textContent="¥"+r.net.toLocaleString();
+  taxEl.textContent="¥"+r.tax.toLocaleString();
+  grossEl.textContent="¥"+r.gross.toLocaleString();
+}
 
-    function todayStr(){
-      const d = new Date();
-      const y = d.getFullYear();
-      const m = String(d.getMonth()+1).padStart(2,'0');
-      const dd = String(d.getDate()).padStart(2,'0');
-      return `${y}-${m}-${dd}`;
-    }
-    const datePick = { get value(){ return todayStr(); } };
+function flash(){
+  frame.classList.remove("flash");
+  void frame.offsetWidth;
+  frame.classList.add("flash");
+  if(navigator.vibrate)navigator.vibrate(40);
+}
 
-    function loadLog(ds){
-      try{ return JSON.parse(localStorage.getItem(`taxscan:${ds}`) || '[]'); }
-      catch(e){ return []; }
-    }
-    function saveLog(ds, log){
-      localStorage.setItem(`taxscan:${ds}`, JSON.stringify(log));
-    }
-    function setTopStatsForDate(ds){
-      const log = loadLog(ds);
-      const sum = log.reduce((a,x)=>a + (Number(x.total)||0), 0);
-      billCountEl.textContent = String(log.length);
-      grandTotalEl.textContent = String(sum);
-    }
+function commit(net){
+  const r=calc(net);
+  const log=load();
+  log.push(r);
+  save(log);
+  updateTop();
+  show(net);
+  flash();
+  requireBlank=true;
+}
 
-    function setStatus(type, msg){
-      statusPill.textContent = msg;
-      statusPill.classList.remove('warn','ok','warnBadge','okBadge');
-      if(type === 'ok'){
-        statusPill.classList.add('ok','okBadge');
-      }else{
-        statusPill.classList.add('warn','warnBadge');
-      }
-    }
+function clearDash(){show(0)}
 
-    function setAuto(on){
-      autoOn = on;
-      autoState.textContent = on ? 'ON' : 'OFF';
-      setStatus('ok', on ? 'A: AUTOで監視中' : 'A: 手動モード（枠/🔘）');
-    }
+function undo(){
+  const log=load();
+  log.pop();
+  save(log);
+  updateTop();
+  requireBlank=true;
+}
 
-    function fmtYen(n){
-      try{ return '¥' + Number(n).toLocaleString('ja-JP'); }catch(e){ return '¥' + n; }
-    }
-    function showDash(){
-      netEl.textContent = '-';
-      taxEl.textContent = '-';
-      grossEl.textContent = '-';
-    }
-    function showResult(total){
-      if(!total || total <= 0){ showDash(); return; }
-      const gross = Number(total);
-      const net = Math.round(gross / 1.1);
-      const tax = gross - net;
-      netEl.textContent = fmtYen(net);
-      taxEl.textContent = fmtYen(tax);
-      grossEl.textContent = fmtYen(gross);
-    }
+async function startCam(){
+  const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+  video.srcObject=stream;
+}
 
-    function flashFrame(){
-      frameEl.classList.remove('flash');
-      void frameEl.offsetWidth;
-      frameEl.classList.add('flash');
-    }
+async function fakeOCR(){
+  // 本番では /api/scan 呼び出し
+  return 0;
+}
 
-    function haptic(){
-      try{
-        if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
-      }catch(e){}
-    }
-    function flashAndVibrate(){
-      flashFrame();
-      haptic();
-    }
+async function scanLoop(){
+  if(!autoOn||locked)return;
+  const value=await fakeOCR();
+  if(!value){
+    requireBlank=false;
+    stable=0;
+    return;
+  }
+  if(requireBlank)return;
 
-    function clearToDash(){
-      locked = false;
-      stableCount = 0;
-      lastValue = null;
-      lastSeenAt = 0;
-      ocrText.textContent = 'OCR: "" → 0';
-      showDash();
-      setStatus('ok','− 表示をリセット（枚数・総合計はそのまま）');
-    }
+  if(value===lastValue)stable++;
+  else stable=1;
 
-    function undoLast(){
-      const ds  = datePick.value;
-      const log = loadLog(ds);
-      if(!log.length){
-        clearToDash();
-        return;
-      }
-      log.pop();
-      saveLog(ds, log);
-      setTopStatsForDate(ds);
+  lastValue=value;
 
-      locked = false;
-      stableCount = 0;
-      lastValue = null;
-      lastSeenAt = 0;
+  if(stable>=NEED_N){
+    commit(value);
+    stable=0;
+  }
+}
 
-      setStatus('ok','↩︎ 直近を取り消し（カウントから除外）');
-    }
+document.getElementById("btnAuto").onclick=()=>autoOn=!autoOn;
+document.getElementById("btnUndo").onclick=undo;
+document.getElementById("btnDash").onclick=clearDash;
+shutter.onclick=()=>{if(!autoOn)scanLoop();};
 
-    function commitTotal(total){
-      locked = true;
+setInterval(scanLoop,250);
 
-      const ds = datePick.value;
-      const log = loadLog(ds);
-      log.push({ ts: Date.now(), total: Number(total) });
-      saveLog(ds, log);
-
-      setTopStatsForDate(ds);
-      showResult(total);
-
-      flashAndVibrate();
-      setStatus('ok', `✅ 確定: ¥${Number(total).toLocaleString('ja-JP')}`);
-
-      setTimeout(()=>{
-        locked = false;
-        stableCount = 0;
-        lastValue = null;
-        lastSeenAt = 0;
-      }, 720);
-    }
-
-    async function startCamera(){
-      try{
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
-          audio: false
-        });
-        video.srcObject = stream;
-        setStatus('ok', autoOn ? 'A: AUTOで監視中' : 'A: 手動モード（枠/🔘）');
-      }catch(e){
-        alert('カメラを起動できません: ' + e.message);
-        setStatus('warn','A: カメラ許可が必要');
-      }
-    }
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    function cropFrameToBlob(){
-      const vw = video.videoWidth, vh = video.videoHeight;
-      if(!vw || !vh) return null;
-
-      const frame = frameEl.getBoundingClientRect();
-      const vrect = video.getBoundingClientRect();
-
-      const videoAspect = vw / vh;
-      const rectAspect = vrect.width / vrect.height;
-      let drawW, drawH, offX, offY;
-      if(videoAspect > rectAspect){
-        drawH = vh;
-        drawW = vh * rectAspect;
-        offX = (vw - drawW) / 2;
-        offY = 0;
-      }else{
-        drawW = vw;
-        drawH = vw / rectAspect;
-        offX = 0;
-        offY = (vh - drawH) / 2;
-      }
-
-      const fx = (frame.left - vrect.left) / vrect.width;
-      const fy = (frame.top - vrect.top) / vrect.height;
-      const fw = frame.width / vrect.width;
-      const fh = frame.height / vrect.height;
-
-      const sx = offX + fx * drawW;
-      const sy = offY + fy * drawH;
-      const sw = fw * drawW;
-      const sh = fh * drawH;
-
-      const SCALE = 3;
-      const outW = Math.max(360, Math.round(sw * SCALE));
-      const outH = Math.max(180, Math.round(sh * SCALE));
-      canvas.width = outW;
-      canvas.height = outH;
-
-      ctx.imageSmoothingEnabled = false;
-      ctx.filter = "contrast(180%) brightness(120%)";
-      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
-      ctx.filter = "none";
-
-      return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.90));
-    }
-
-    async function callOCR(){
-      const blob = await cropFrameToBlob();
-      if(!blob) return { total: 0, raw: '' };
-
-      const base64 = await new Promise((resolve)=>{
-        const r = new FileReader();
-        r.onload = ()=> resolve(String(r.result).split(',')[1]);
-        r.readAsDataURL(blob);
-      });
-
-      const resp = await fetch('/api/scan', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ image_base64: base64 })
-      });
-
-      const raw = await resp.text();
-      try{
-        const json = JSON.parse(raw);
-        return { total: Number(json.total||0), raw };
-      }catch(e){
-        return { total: 0, raw };
-      }
-    }
-
-    let manualBusy = false;
-    async function manualScanOnce(){
-      if (manualBusy) return;
-      if (locked) return;
-
-      manualBusy = true;
-      shutterEl.setAttribute('disabled','disabled');
-
-      try{
-        setStatus('ok','🔘 手動スキャン中…');
-        const { total, raw } = await callOCR();
-
-        ocrText.textContent = `OCR: "${(raw||'').slice(0,60).replace(/\n/g,' ')}" → ${total}`;
-
-        if(!total || total <= 0){
-          setStatus('warn','⚠️ 数字が見つかりません（少し離す/明るく）');
-          return;
-        }
-        commitTotal(total);
-      }catch(e){
-        setStatus('warn','❌ 手動スキャン失敗');
-      }finally{
-        manualBusy = false;
-        shutterEl.removeAttribute('disabled');
-      }
-    }
-
-    let autoBusy = false;
-    let lastLoopAt = 0;
-
-    async function autoTick(){
-      const now = Date.now();
-      if (!autoOn) return;
-      if (locked) return;
-      if (autoBusy) return;
-      if (now - lastLoopAt < LOOP_WAIT_MS) return;
-
-      autoBusy = true;
-      lastLoopAt = now;
-
-      try{
-        const { total, raw } = await callOCR();
-        ocrText.textContent = `OCR: "${(raw||'').slice(0,60).replace(/\n/g,' ')}" → ${total}`;
-
-        if(!total || total <= 0){
-          setStatus('warn','⚠️ 枠に数字が見えていません');
-          stableCount = 0;
-          lastValue = null;
-          return;
-        }
-
-        const same = (lastValue === total);
-        const withinGap = (now - lastSeenAt) < MAX_GAP_MS;
-
-        if(same && withinGap){
-          stableCount++;
-        }else{
-          stableCount = 1;
-        }
-
-        lastValue = total;
-        lastSeenAt = now;
-
-        setStatus('ok',`A: 読み取り中 ¥${Number(total).toLocaleString('ja-JP')}（${stableCount}/3）`);
-
-        if(stableCount >= NEED_N){
-          commitTotal(total);
-        }
-      }catch(e){
-        setStatus('warn','❌ 通信/認識エラー');
-      }finally{
-        autoBusy = false;
-      }
-    }
-
-    function loop(){
-      autoTick();
-      requestAnimationFrame(loop);
-    }
-
-    btnAuto.addEventListener('click', ()=> setAuto(!autoOn));
-    frameEl.addEventListener('click', ()=> { if(!autoOn) manualScanOnce(); });
-    shutterEl.addEventListener('click', ()=> manualScanOnce());
-    btnUndo.addEventListener('click', ()=> undoLast());
-    btnDash.addEventListener('click', ()=> clearToDash());
-    statusPill.addEventListener('click', ()=> startCamera());
-    detailsBtn.addEventListener('click', ()=>{
-      alert('次のステップで「履歴・グラフ」をここに実装するよ（今はボタンのみ）');
-    });
-
-    (async ()=>{
-      setTopStatsForDate(todayStr());
-      showDash();
-      setStatus('warn','A: 準備中…');
-      await startCamera();
-      requestAnimationFrame(loop);
-    })();
-  </script>
+startCam();
+updateTop();
+</script>
 </body>
 </html>
