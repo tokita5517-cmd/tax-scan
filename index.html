@@ -1,515 +1,717 @@
 <!doctype html>
 <html lang="ja">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>tax-scan</title>
-<style>
-  :root{
-    --bg:#0a0a0a;
-    --panel:#141518cc;
-    --pill:#2a2b2fdd;
-    --text:#f4f4f5;
-    --muted:#b7b7be;
-    --accent:#f7c84b;
-    --warn:#ff4b4b;
-    --ok:#29d17d;
-    --safeTop: env(safe-area-inset-top);
-    --safeBottom: env(safe-area-inset-bottom);
-    --pad: 14px;
-  }
-  html,body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family: ui-sans-serif, system-ui, -apple-system, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;}
-  #app{position:fixed; inset:0; overflow:hidden;}
-  video{
-    position:absolute; inset:0;
-    width:100%; height:100%;
-    object-fit:cover;
-    transform: scaleX(-1);
-  }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>tax-scan</title>
+  <style>
+    :root{
+      --bg:#0b0b0d;
+      --panel: rgba(18,18,22,.72);
+      --panel2: rgba(20,20,24,.82);
+      --border: rgba(255,255,255,.14);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.70);
+      --yellow:#f2c94c;
+      --red:#ff4d4d;
+      --green:#39d98a;
+      --pill: rgba(25,25,29,.72);
+    }
 
-  /* ── top pills ─────────────────────────────── */
-  #topStack{
-    position:fixed;
-    left:var(--pad);
-    right:var(--pad);
-    top: calc(var(--safeTop) + 6px);
-    display:flex;
-    flex-direction:column;
-    gap:10px;
-    z-index:30;
-    pointer-events:none;
-  }
-  .pill{
-    height:54px;
-    border-radius:999px;
-    background:var(--pill);
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:0 18px;
-    font-weight:700;
-    letter-spacing:0.5px;
-    backdrop-filter: blur(10px);
-    box-shadow: 0 10px 30px rgba(0,0,0,.35);
-  }
-  #warnPill{
-    background:#ff5a5a33;
-    border:2px solid #ff5a5a;
-    color:#ffecec;
-    justify-content:flex-start;
-    gap:10px;
-    font-weight:800;
-  }
-  #warnPill.hide{display:none;}
-  .pill .label{color:#d9d9df; font-weight:800;}
-  .pill .value{color:var(--accent); font-size:20px;}
-  .pill .value.white{color:var(--text);}
-  .pill .unit{color:#d9d9df; margin-left:6px; font-weight:800;}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+      color: var(--text);
+      overflow:hidden;
+    }
 
-  /* ── ROI + shutter ─────────────────────────── */
-  #roiRow{
-    position:fixed;
-    left:var(--pad);
-    right:var(--pad);
-    top: calc(var(--safeTop) + 182px);
-    display:flex;
-    gap:12px;
-    align-items:center;
-    z-index:25;
-    pointer-events:none;
-  }
-  #roiBox{
-    flex: 1 1 auto;
-    height:92px;
-    border-radius:16px;
-    border:4px solid rgba(247,200,75,.95);
-    background: rgba(0,0,0,.06);
-    box-shadow: 0 10px 30px rgba(0,0,0,.25);
-    position:relative;
-    pointer-events:auto;
-  }
-  #roiBox.flash{
-    box-shadow: 0 0 0 6px rgba(41,209,125,.45), 0 18px 50px rgba(0,0,0,.35);
-    border-color: rgba(41,209,125,.95);
-  }
+    /* camera stage */
+    #stage{
+      position:fixed; inset:0;
+      overflow:hidden;
+      background:#000;
+    }
 
-  #shutterBtn{
-    width:64px; height:64px;
-    border-radius:999px;
-    background: rgba(255,255,255,.16);
-    border: 3px solid rgba(255,255,255,.55);
-    box-shadow: 0 14px 40px rgba(0,0,0,.35);
-    pointer-events:auto;
-    display:flex; align-items:center; justify-content:center;
-  }
-  #shutterBtn:active{transform: scale(.98);}
-  #shutterBtn .dot{
-    width:18px; height:18px; border-radius:999px;
-    background: rgba(255,255,255,.8);
-  }
+    #video{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      /* ★ミラー禁止（左右反転させない） */
+      transform:none;
+      background:#000;
+    }
 
-  /* ── bottom calculator panel ───────────────── */
-  #panel{
-    position:fixed;
-    left:var(--pad);
-    right:var(--pad);
-    bottom: calc(var(--safeBottom) + 104px);
-    background: var(--panel);
-    border-radius:22px;
-    padding:18px 18px 14px;
-    z-index:40;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 20px 60px rgba(0,0,0,.45);
-  }
-  .row{
-    display:flex; align-items:center; justify-content:space-between;
-    padding:12px 4px;
-    border-bottom: 1px solid rgba(255,255,255,.06);
-    font-size:20px;
-    font-weight:800;
-  }
-  .row:last-child{border-bottom:none;}
-  .row .rLabel{color:#dcdce2;}
-  .row .rVal{font-variant-numeric: tabular-nums;}
-  #valBase{color:var(--text); font-size:32px;}
-  #valTax{color:var(--warn); font-size:32px;}
-  #valTotal{color:var(--accent); font-size:44px;}
+    /* overlay (top bars + roi + shutter) */
+    #overlay{
+      position:absolute; inset:0;
+      pointer-events:none;
+    }
 
-  /* controls */
-  #controls{
-    margin-top:14px;
-    display:flex; gap:14px;
-  }
-  .btn{
-    flex:1;
-    height:78px;
-    border-radius:20px;
-    border:none;
-    background:#2b2c31;
-    color:var(--text);
-    font-size:22px;
-    font-weight:900;
-    letter-spacing:.5px;
-    box-shadow: 0 14px 40px rgba(0,0,0,.35);
-  }
-  .btn:active{transform: scale(.99);}
-  #btnAuto{
-    max-width:110px;
-    background: var(--accent);
-    color:#161616;
-    display:flex; flex-direction:column; justify-content:center;
-    line-height:1.0;
-  }
-  #btnAuto small{font-size:16px; font-weight:900; opacity:.95;}
-  #btnUndo{flex:1.2}
-  #btnRelease{flex:1}
+    /* top bars */
+    #topBars{
+      position:absolute;
+      left:14px; right:14px;
+      top: calc(env(safe-area-inset-top) + 8px);
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      pointer-events:none;
+    }
 
-  /* details bar */
-  #detailsBtn{
-    position:fixed;
-    left:var(--pad); right:var(--pad);
-    bottom: calc(var(--safeBottom) + 26px);
-    height:66px;
-    border-radius:999px;
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.10);
-    color:#e6e6eb;
-    font-size:20px;
-    font-weight:900;
-    z-index:40;
-    box-shadow: 0 14px 40px rgba(0,0,0,.35);
-  }
-  #detailsBtn:active{transform: scale(.99);}
+    .pill{
+      width:100%;
+      background: var(--pill);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: 12px 14px;
+      backdrop-filter: blur(10px);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      font-weight:900;
+      letter-spacing:.02em;
+    }
 
-  /* tiny debug */
-  #debug{
-    position:fixed;
-    left:0; right:0;
-    bottom: calc(var(--safeBottom) + 2px);
-    text-align:center;
-    color:rgba(255,255,255,.55);
-    font-size:14px;
-    z-index:50;
-    pointer-events:none;
-    text-shadow:0 2px 6px rgba(0,0,0,.55);
-  }
+    #statusPill{
+      background: rgba(255, 77, 77, .18);
+      border: 1px solid rgba(255, 77, 77, .35);
+      color: rgba(255,255,255,.92);
+      justify-content:flex-start;
+      gap:10px;
+      font-weight:900;
+    }
+    #statusPill.ok{
+      background: rgba(57, 217, 138, .16);
+      border: 1px solid rgba(57, 217, 138, .35);
+    }
+    #statusIcon{
+      width:22px; height:22px;
+      display:grid; place-items:center;
+      flex:0 0 auto;
+      font-size:16px;
+    }
+    #statusText{font-size:14px; font-weight:900}
 
-  /* start overlay */
-  #startOverlay{
-    position:fixed; inset:0;
-    display:flex; flex-direction:column;
-    align-items:center; justify-content:center;
-    background:rgba(0,0,0,.72);
-    z-index:200;
-  }
-  #startOverlay.hide{display:none;}
-  #startOverlay button{
-    height:56px; padding:0 20px;
-    border-radius:16px;
-    border:none;
-    background: var(--accent);
-    color:#121212;
-    font-size:18px;
-    font-weight:900;
-  }
-</style>
+    .k{color:var(--muted); font-weight:900}
+    .v{font-weight:1000; font-size:18px}
+    .yen{color:var(--yellow); font-weight:1100}
+
+    /* ROI row */
+    #roiRow{
+      position:absolute;
+      left:14px; right:14px;
+      /* topはJSで「上のバーと下パネルの間」に自動配置 */
+      top: 180px;
+      height: 86px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      pointer-events:none;
+    }
+
+    #roi{
+      flex: 1 1 auto;
+      height: 86px;
+      border: 4px solid rgba(242,201,76,.95);
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.30);
+      background: rgba(0,0,0,.06);
+      pointer-events:auto; /* 手動タップ用 */
+      position:relative;
+      overflow:hidden;
+    }
+
+    /* green flash */
+    #roi.flash{
+      border-color: rgba(57,217,138,.98);
+      box-shadow: 0 0 0 4px rgba(57,217,138,.28), 0 14px 40px rgba(0,0,0,.35);
+    }
+    #roi.flash::after{
+      content:"";
+      position:absolute; inset:0;
+      background: rgba(57,217,138,.18);
+    }
+
+    /* shutter button (right side) */
+    #shutterBtn{
+      width: 64px;
+      height: 64px;
+      border-radius: 999px;
+      border: 3px solid rgba(255,255,255,.80);
+      background: rgba(255,255,255,.16);
+      backdrop-filter: blur(10px);
+      display:grid;
+      place-items:center;
+      pointer-events:auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      position:relative;
+    }
+    #shutterBtn::before{
+      content:"";
+      width: 44px; height: 44px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.85);
+      opacity:.18;
+    }
+    #shutterBtn:active{transform:scale(.98)}
+
+    /* bottom panel */
+    #panel{
+      position:absolute;
+      left:10px; right:10px;
+      bottom: calc(env(safe-area-inset-bottom) + 10px);
+      background: var(--panel2);
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 22px;
+      backdrop-filter: blur(14px);
+      padding: 14px 14px 12px;
+      pointer-events:auto;
+    }
+
+    .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 14px 6px;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      font-weight:950;
+    }
+    .row:last-child{border-bottom:none}
+    .label{font-size:22px; letter-spacing:.01em}
+    .val{
+      font-size:42px;
+      font-weight:1200;
+      letter-spacing:.02em;
+    }
+    .val.small{font-size:36px}
+    .val.red{color: var(--red)}
+    .val.yellow{color: var(--yellow)}
+
+    #actions{
+      display:flex;
+      gap:12px;
+      margin-top:14px;
+    }
+    .btn{
+      border:none;
+      border-radius: 18px;
+      padding: 16px 14px;
+      font-weight:1100;
+      letter-spacing:.02em;
+      background: rgba(255,255,255,.10);
+      color: rgba(255,255,255,.92);
+      border:1px solid rgba(255,255,255,.12);
+      flex: 1 1 0;
+      font-size:20px;
+    }
+    .btn:active{transform:scale(.99)}
+    #btnAuto{
+      flex: 0 0 120px;
+      background: rgba(242,201,76,.95);
+      color:#111;
+      border:1px solid rgba(0,0,0,.10);
+      font-weight:1200;
+    }
+    #btnAuto.off{
+      background: rgba(242,201,76,.65);
+      color:#111;
+    }
+
+    #btnUndo{background: rgba(255,255,255,.10)}
+    #btnRelease{
+      flex: 0 0 120px;
+      background: rgba(255,255,255,.08);
+      font-size:28px;
+      font-weight:1200;
+    }
+
+    #detailsBtn{
+      width:100%;
+      margin-top:12px;
+      padding: 14px 14px;
+      border-radius: 18px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.10);
+      color: rgba(255,255,255,.88);
+      font-weight:1100;
+      font-size:20px;
+    }
+
+    #details{
+      display:none;
+      margin-top:12px;
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 12px;
+      max-height: 220px;
+      overflow:auto;
+    }
+    #details.show{display:block}
+    .logItem{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding: 10px 8px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      font-weight:900;
+    }
+    .logItem:last-child{border-bottom:none}
+    .logItem .t{color:rgba(255,255,255,.72); font-size:12px; font-weight:900}
+    .logItem .a{font-size:16px; font-weight:1100}
+    .hint{
+      margin-top:10px;
+      color: rgba(255,255,255,.55);
+      text-align:center;
+      font-size:13px;
+      font-weight:900;
+      letter-spacing:.02em;
+    }
+
+    /* debug line */
+    #debug{
+      position:absolute;
+      left:0; right:0;
+      bottom: calc(env(safe-area-inset-bottom) + 8px + 340px);
+      text-align:center;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:12px;
+      color: rgba(255,255,255,.55);
+      text-shadow: 0 2px 10px rgba(0,0,0,.35);
+      pointer-events:none;
+      opacity:.9;
+    }
+  </style>
 </head>
 <body>
-<div id="app">
-  <video id="video" playsinline muted></video>
+  <div id="stage">
+    <video id="video" autoplay playsinline muted></video>
 
-  <div id="topStack">
-    <div id="warnPill" class="pill"><span>⚠️ 枠に数字が見えていません</span></div>
-    <div class="pill">
-      <span class="label">請求書:</span>
-      <span><span id="invoiceCount" class="value white">0</span><span class="unit">枚</span></span>
-    </div>
-    <div class="pill">
-      <span class="label">総合計（税抜）:</span>
-      <span id="sumTotal" class="value">¥0</span>
-    </div>
-  </div>
+    <div id="overlay">
+      <div id="topBars">
+        <div id="statusPill" class="pill">
+          <div id="statusIcon">⚠️</div>
+          <div id="statusText">枠に数字が見えていません</div>
+        </div>
 
-  <div id="roiRow">
-    <div id="roiBox" aria-label="scan-area"></div>
-    <button id="shutterBtn" aria-label="shutter"><span class="dot"></span></button>
-  </div>
+        <div class="pill" id="countPill">
+          <div class="k">請求書:</div>
+          <div class="v"><span id="countVal">0</span></div>
+          <div class="k">枚</div>
+        </div>
 
-  <div id="panel">
-    <div class="row">
-      <div class="rLabel">税抜</div>
-      <div id="valBase" class="rVal">-</div>
-    </div>
-    <div class="row">
-      <div class="rLabel">消費税（10%・四捨五入）</div>
-      <div id="valTax" class="rVal">-</div>
-    </div>
-    <div class="row">
-      <div class="rLabel">合計（税込）</div>
-      <div id="valTotal" class="rVal">-</div>
-    </div>
-
-    <div id="controls">
-      <button id="btnAuto" class="btn"><div>AUTO</div><small>ON</small></button>
-      <button id="btnUndo" class="btn">↩︎ 直近</button>
-      <button id="btnRelease" class="btn">-</button>
-    </div>
-  </div>
-
-  <button id="detailsBtn">▼ 詳細（履歴・グラフ）を開く</button>
-  <div id="debug"></div>
-
-  <div id="startOverlay">
-    <div style="text-align:center; max-width:320px; padding:0 18px;">
-      <div style="font-size:20px; font-weight:900; margin-bottom:12px;">カメラを起動します</div>
-      <div style="color:rgba(255,255,255,.75); margin-bottom:18px; line-height:1.5;">
-        iPhoneで止まったら、左上の「aA」→「カメラ」許可を確認してね
+        <div class="pill" id="sumPill">
+          <div class="k">総合計（税抜）:</div>
+          <div class="v yen">¥<span id="sumVal">0</span></div>
+        </div>
       </div>
-      <button id="btnStart">開始</button>
+
+      <div id="roiRow">
+        <div id="roi" title="AUTO OFF時はタップで読み取り"></div>
+        <button id="shutterBtn" title="読み取り" aria-label="shutter"></button>
+      </div>
+
+      <div id="debug"></div>
+
+      <div id="panel">
+        <div class="row">
+          <div class="label">税抜</div>
+          <div class="val small">¥<span id="exclVal">0</span></div>
+        </div>
+        <div class="row">
+          <div class="label">消費税（10%・四捨五入）</div>
+          <div class="val small red">¥<span id="taxVal">0</span></div>
+        </div>
+        <div class="row">
+          <div class="label">合計（税込）</div>
+          <div class="val yellow">¥<span id="inclVal">0</span></div>
+        </div>
+
+        <div id="actions">
+          <button id="btnAuto" class="btn">AUTO<br><span id="autoState">ON</span></button>
+          <button id="btnUndo" class="btn">↩ 直近</button>
+          <button id="btnRelease" class="btn">−</button>
+        </div>
+
+        <button id="detailsBtn">▼ 詳細（履歴）を開く</button>
+        <div id="details"></div>
+
+        <div class="hint">※iPhoneで止まったら、左上の「aA」→「サイトの設定」→「カメラ：許可」</div>
+      </div>
     </div>
   </div>
-</div>
 
 <script>
 (() => {
-  const TAX_RATE = 0.10;
-  const SCAN_INTERVAL_MS = 650;
-
   const video = document.getElementById('video');
-  const startOverlay = document.getElementById('startOverlay');
-  const btnStart = document.getElementById('btnStart');
-
-  const warnPill = document.getElementById('warnPill');
-  const invoiceCountEl = document.getElementById('invoiceCount');
-  const sumTotalEl = document.getElementById('sumTotal');
-
-  const roiBox = document.getElementById('roiBox');
+  const roi = document.getElementById('roi');
   const shutterBtn = document.getElementById('shutterBtn');
 
-  const valBaseEl = document.getElementById('valBase');
-  const valTaxEl = document.getElementById('valTax');
-  const valTotalEl = document.getElementById('valTotal');
+  const statusPill = document.getElementById('statusPill');
+  const statusText = document.getElementById('statusText');
+  const countVal = document.getElementById('countVal');
+  const sumVal = document.getElementById('sumVal');
+
+  const exclVal = document.getElementById('exclVal');
+  const taxVal = document.getElementById('taxVal');
+  const inclVal = document.getElementById('inclVal');
 
   const btnAuto = document.getElementById('btnAuto');
+  const autoState = document.getElementById('autoState');
   const btnUndo = document.getElementById('btnUndo');
   const btnRelease = document.getElementById('btnRelease');
 
-  const debugEl = document.getElementById('debug');
+  const detailsBtn = document.getElementById('detailsBtn');
+  const details = document.getElementById('details');
 
+  const debug = document.getElementById('debug');
+
+  // ---- state
   let autoOn = true;
-  let scanning = false;
+  let busy = false;
 
-  let lastSeenNumber = null;
-  let lastCommittedNumber = null;
-  let requireBlank = false;
+  let invoiceCount = 0;
+  let totalExcl = 0;
 
-  const log = []; // {base, tax, total, ts}
+  // 履歴（Undo用）
+  const logs = [];
 
-  function yen(n){
-    if (typeof n !== 'number' || !isFinite(n)) return '-';
-    return '¥' + Math.round(n).toLocaleString('ja-JP');
-  }
-  function calcFromBase(base){
-    const tax = Math.round(base * TAX_RATE);
-    const total = base + tax;
-    return { base, tax, total };
-  }
-  function updatePanel(base){
-    if (!base || base <= 0){
-      valBaseEl.textContent = '-';
-      valTaxEl.textContent = '-';
-      valTotalEl.textContent = '-';
-      return;
-    }
-    const {tax, total} = calcFromBase(base);
-    valBaseEl.textContent = yen(base);
-    valTaxEl.textContent = yen(tax);
-    valTotalEl.textContent = yen(total);
-  }
-  function updateTop(){
-    invoiceCountEl.textContent = String(log.length);
-    const sumBase = log.reduce((a,x)=>a + (x.base||0), 0);
-    sumTotalEl.textContent = yen(sumBase);
+  // 無限加算防止：一度カウントしたら「0（未検出）」を挟むまで次をカウントしない
+  let waitingForClear = false;   // trueの間は「0が出るまで」カウント禁止
+  let lastAcceptedAt = 0;
+
+  // throttle
+  let nextAllowedScanAt = 0;
+
+  const TAX_RATE = 0.10;
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently:true });
+
+  function fmt(n){
+    return (n||0).toLocaleString('ja-JP');
   }
 
-  function flashGreen(){
-    roiBox.classList.add('flash');
-    setTimeout(()=>roiBox.classList.remove('flash'), 380);
+  function computeAndRender(){
+    const tax = Math.round(totalExcl * TAX_RATE);
+    const incl = totalExcl + tax;
+
+    countVal.textContent = invoiceCount;
+    sumVal.textContent = fmt(totalExcl);
+
+    exclVal.textContent = fmt(totalExcl);
+    taxVal.textContent = fmt(tax);
+    inclVal.textContent = fmt(incl);
+  }
+
+  function setStatus(ok, text){
+    statusPill.classList.toggle('ok', !!ok);
+    statusText.textContent = text;
+    document.getElementById('statusIcon').textContent = ok ? "✅" : "⚠️";
+  }
+
+  function flashSuccess(){
+    roi.classList.add('flash');
+    // 少し長め
+    setTimeout(() => roi.classList.remove('flash'), 650);
+
+    // 振動（iPhone Safariは環境により効かないことあり）
     try{
-      if (navigator.vibrate) navigator.vibrate(25);
+      if (navigator.vibrate) navigator.vibrate(35);
     }catch(e){}
   }
 
-  function setWarn(on){
-    warnPill.classList.toggle('hide', !on);
-  }
-
-  async function startCamera(){
-    const constraints = {
-      audio:false,
-      video:{
-        facingMode:{ideal:'environment'},
-        width:{ideal:1920},
-        height:{ideal:1080}
-      }
-    };
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    video.srcObject = stream;
-    await video.play();
-  }
-
-  function captureROI(){
-    const vw = video.videoWidth  || 1280;
-    const vh = video.videoHeight || 720;
-
-    const vr = video.getBoundingClientRect();
-    const rr = roiBox.getBoundingClientRect();
-
-    const x = (rr.left - vr.left) / vr.width  * vw;
-    const y = (rr.top  - vr.top ) / vr.height * vh;
-    const w = rr.width  / vr.width  * vw;
-    const h = rr.height / vr.height * vh;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(w));
-    canvas.height = Math.max(1, Math.round(h));
-    const ctx = canvas.getContext('2d', { willReadFrequently:true });
-
-    ctx.save();
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, x, y, w, h, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
-
-    return canvas.toDataURL('image/jpeg', 0.85);
-  }
-
-  function normalizeText(s){
-    return String(s||'')
-      .replace(/[￥¥]/g,'')
-      .replace(/[，,]/g, ',')
-      .replace(/[^0-9,]/g,'')
-      .trim();
-  }
-  function parseNumber(text){
-    const t = normalizeText(text);
-    if (!t) return 0;
-    const digits = t.replace(/,/g,'');
-    const n = Number(digits);
-    return Number.isFinite(n) ? n : 0;
-  }
-
-  async function callOCR(dataUrl){
-    const resp = await fetch('/api/scan', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ image: dataUrl })
-    });
-    const js = await resp.json().catch(()=> ({}));
-    return js;
-  }
-
-  function commitBase(base, rawText){
-    const {tax, total} = calcFromBase(base);
-    lastCommittedNumber = base;
-    requireBlank = true;
-
-    log.push({ base, tax, total, ts: Date.now(), raw: rawText||'' });
-    updateTop();
-    updatePanel(base);
-    flashGreen();
-  }
-
-  async function scanOnce(){
-    if (scanning) return;
-    scanning = true;
-    try{
-      const img = captureROI();
-      const js = await callOCR(img);
-      const rawText = js && (js.text ?? js.total ?? js.value ?? '');
-      const base = js && typeof js.total === 'number' ? js.total : parseNumber(rawText);
-
-      debugEl.textContent = `OCR: "${String(rawText).slice(0,32)}" → ${base}`;
-
-      if (!base || base <= 0){
-        setWarn(true);
-        lastSeenNumber = null;
-        requireBlank = false; // 空になったら次カウントOK
-        updatePanel(0);
-        return;
-      }
-
-      setWarn(false);
-      lastSeenNumber = base;
-      updatePanel(base);
-
-      // AUTO ON: 1回で即カウント（3/3なし）
-      // 無限増殖防止：一度カウントしたら「0/空」が入るまで次はカウントしない
-      if (autoOn && !requireBlank){
-        commitBase(base, rawText);
-      }
-    }catch(err){
-      debugEl.textContent = 'OCR error';
-      setWarn(true);
-    }finally{
-      scanning = false;
+  function renderLogs(){
+    if (!details.classList.contains('show')) return;
+    if (logs.length === 0){
+      details.innerHTML = `<div style="color:rgba(255,255,255,.65);font-weight:900;padding:8px;">履歴なし</div>`;
+      return;
     }
+    details.innerHTML = logs.slice().reverse().map(item => {
+      return `
+        <div class="logItem">
+          <div>
+            <div class="t">${item.time}</div>
+            <div class="a">¥${fmt(item.amount)}</div>
+          </div>
+          <div style="color:rgba(255,255,255,.55);font-weight:900;">#${item.index}</div>
+        </div>
+      `;
+    }).join('');
   }
 
-  let timer = null;
-  function startAutoLoop(){
-    if (timer) return;
-    timer = setInterval(() => {
-      if (!autoOn) return;
-      scanOnce();
-    }, SCAN_INTERVAL_MS);
+  function pushLog(amount){
+    const t = new Date();
+    const hh = String(t.getHours()).padStart(2,'0');
+    const mm = String(t.getMinutes()).padStart(2,'0');
+    const ss = String(t.getSeconds()).padStart(2,'0');
+    logs.push({
+      index: logs.length + 1,
+      amount,
+      time: `${hh}:${mm}:${ss}`,
+    });
+    renderLogs();
+  }
+
+  function acceptAmount(amount){
+    if (!Number.isFinite(amount) || amount <= 0) return;
+
+    invoiceCount += 1;
+    totalExcl += amount;
+    pushLog(amount);
+    computeAndRender();
+
+    flashSuccess();
+    setStatus(true, `確定：¥${fmt(amount)}（次で自動解除）`);
+
+    waitingForClear = true;
+    lastAcceptedAt = Date.now();
+    nextAllowedScanAt = Date.now() + 650; // 連続リクエスト抑制
+  }
+
+  function undoLast(){
+    if (logs.length === 0) return;
+    const last = logs.pop();
+    invoiceCount = Math.max(0, invoiceCount - 1);
+    totalExcl = Math.max(0, totalExcl - last.amount);
+    computeAndRender();
+    renderLogs();
+
+    // Undo直後はすぐ読めるようにロック解除
+    waitingForClear = false;
+    nextAllowedScanAt = Date.now() + 250;
+    setStatus(true, `直近を取消：¥${fmt(last.amount)}`);
+  }
+
+  function releaseHoldOnly(){
+    // 枚数・合計はそのまま。次の読み取りをすぐ通すためにロックだけ解除。
+    waitingForClear = false;
+    nextAllowedScanAt = Date.now() + 200;
+    setStatus(true, "解除しました");
   }
 
   function setAuto(on){
     autoOn = !!on;
-    btnAuto.querySelector('small').textContent = autoOn ? 'ON' : 'OFF';
-    btnAuto.style.opacity = autoOn ? '1' : '0.78';
-    if (autoOn) startAutoLoop();
+    autoState.textContent = autoOn ? "ON" : "OFF";
+    btnAuto.classList.toggle('off', !autoOn);
+
+    // AUTO OFFでも「タップ/シャッター」で手動読み取りできる
+    setStatus(false, autoOn ? "枠に数字が見えていません" : "手動：枠タップ or シャッターで読み取り");
   }
 
-  btnAuto.addEventListener('click', () => setAuto(!autoOn));
+  // ---- camera
+  async function startCamera(){
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+  }
 
-  // 直近：最後に追加した1件を取り消し
-  btnUndo.addEventListener('click', () => {
-    if (!log.length) return;
-    log.pop();
-    updateTop();
-    updatePanel(lastSeenNumber || 0);
-    requireBlank = false;
+  function placeRoiBetween(){
+    const topBars = document.getElementById('topBars');
+    const panel = document.getElementById('panel');
+    const roiRow = document.getElementById('roiRow');
+
+    const topRect = topBars.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+
+    const gapTop = topRect.bottom + 10;
+    const gapBottom = panelRect.top - 10;
+
+    // roiRow heightはCSSで86px。シャッター含めて置ける位置に
+    const desiredTop = Math.min(
+      Math.max(gapTop, 120),
+      Math.max(120, gapBottom - roiRow.offsetHeight)
+    );
+
+    roiRow.style.top = `${desiredTop}px`;
+
+    // 上の3バーを「もう少し上」へ（安全域内で）
+    // 必要ならここで微調整：topBarsのtopを少し詰める
+    topBars.style.top = `calc(env(safe-area-inset-top) + 6px)`;
+  }
+
+  window.addEventListener('resize', () => {
+    placeRoiBetween();
   });
 
-  // 「-」：ホールド解除（枚数/総合計はそのまま）
-  btnRelease.addEventListener('click', () => {
-    lastCommittedNumber = null;
-    requireBlank = false;
-    updatePanel(0);
-    setWarn(true);
-  });
+  // ---- capture ROI as JPEG base64
+  function captureRoiJpeg(){
+    const vRect = video.getBoundingClientRect();
+    const rRect = roi.getBoundingClientRect();
 
-  // manual scan: AUTO OFFでもOK（枠タップ or シャッター）
-  shutterBtn.addEventListener('click', () => scanOnce());
-  roiBox.addEventListener('click', () => {
-    if (!autoOn) scanOnce();
-  });
+    // videoの見え方(object-fit:cover)を逆算して、video座標へ変換
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return null;
 
-  btnStart.addEventListener('click', async () => {
-    try{
-      await startCamera();
-      startOverlay.classList.add('hide');
-      updateTop();
-      updatePanel(0);
-      setWarn(true);
-      setAuto(true);
-      startAutoLoop();
-    }catch(e){
-      alert('カメラ許可が必要です（Safariのサイト設定）');
+    const viewW = vRect.width;
+    const viewH = vRect.height;
+
+    const videoAspect = vw / vh;
+    const viewAspect = viewW / viewH;
+
+    let drawW, drawH, offsetX, offsetY;
+    if (videoAspect > viewAspect){
+      // 横がはみ出す
+      drawH = viewH;
+      drawW = viewH * videoAspect;
+      offsetX = (drawW - viewW) / 2;
+      offsetY = 0;
+    } else {
+      // 縦がはみ出す
+      drawW = viewW;
+      drawH = viewW / videoAspect;
+      offsetX = 0;
+      offsetY = (drawH - viewH) / 2;
     }
+
+    // ROIのview座標 -> draw座標
+    const xInView = rRect.left - vRect.left;
+    const yInView = rRect.top - vRect.top;
+
+    const xOnDraw = xInView + offsetX;
+    const yOnDraw = yInView + offsetY;
+
+    const scale = vw / drawW; // draw座標 -> 実videoピクセル
+    let sx = Math.round(xOnDraw * scale);
+    let sy = Math.round(yOnDraw * scale);
+    let sw = Math.round(rRect.width * scale);
+    let sh = Math.round(rRect.height * scale);
+
+    // clamp
+    sx = Math.max(0, Math.min(vw - 1, sx));
+    sy = Math.max(0, Math.min(vh - 1, sy));
+    sw = Math.max(1, Math.min(vw - sx, sw));
+    sh = Math.max(1, Math.min(vh - sy, sh));
+
+    // ちょい余白（数字を拾いやすく）
+    const padX = Math.round(sw * 0.06);
+    const padY = Math.round(sh * 0.20);
+    sx = Math.max(0, sx - padX);
+    sy = Math.max(0, sy - padY);
+    sw = Math.min(vw - sx, sw + padX*2);
+    sh = Math.min(vh - sy, sh + padY*2);
+
+    canvas.width = sw;
+    canvas.height = sh;
+
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  async function callOcr(dataUrl){
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'content-type':'application/json' },
+      body: JSON.stringify({ image: dataUrl })
+    });
+    if (!res.ok){
+      const t = await res.text().catch(()=> '');
+      throw new Error(`scan api error: ${res.status} ${t}`);
+    }
+    return res.json();
+  }
+
+  async function doScanOnce(source){
+    if (busy) return;
+    if (Date.now() < nextAllowedScanAt) return;
+
+    const img = captureRoiJpeg();
+    if (!img) return;
+
+    busy = true;
+    try{
+      const json = await callOcr(img);
+      const amount = Number(json?.total || 0);
+
+      debug.textContent = `OCR(${source}): ${JSON.stringify(json)} → ${amount}`;
+
+      if (!amount || amount <= 0){
+        // 未検出になったら「クリアした」扱い
+        if (waitingForClear) waitingForClear = false;
+        setStatus(false, autoOn ? "枠に数字が見えていません" : "手動：枠タップ or シャッターで読み取り");
+        return;
+      }
+
+      // 無限加算防止：一度カウントしたら0を挟むまでカウントしない
+      if (waitingForClear){
+        // ここはカウントしない。表示だけ更新しておく
+        setStatus(true, `検出：¥${fmt(amount)}（次を数えるには一度外す or −で解除）`);
+        nextAllowedScanAt = Date.now() + 400;
+        return;
+      }
+
+      acceptAmount(amount);
+
+    } catch(e){
+      debug.textContent = `OCR error: ${String(e)}`;
+      setStatus(false, "OCRエラー（API/モデル/キー確認）");
+      // エラー時は暴走しないよう少し待つ
+      nextAllowedScanAt = Date.now() + 1200;
+    } finally{
+      busy = false;
+    }
+  }
+
+  // auto loop
+  function loop(){
+    if (autoOn){
+      // 連続スキャン間隔（体感ちょうどよく）
+      if (!busy && Date.now() >= nextAllowedScanAt){
+        doScanOnce('auto');
+        nextAllowedScanAt = Date.now() + 900;
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ---- events
+  btnAuto.addEventListener('click', () => {
+    setAuto(!autoOn);
   });
+
+  btnUndo.addEventListener('click', () => undoLast());
+  btnRelease.addEventListener('click', () => releaseHoldOnly());
+
+  detailsBtn.addEventListener('click', () => {
+    details.classList.toggle('show');
+    detailsBtn.textContent = details.classList.contains('show')
+      ? "▲ 詳細（履歴）を閉じる"
+      : "▼ 詳細（履歴）を開く";
+    renderLogs();
+  });
+
+  // 手動：枠タップ or シャッター
+  roi.addEventListener('click', () => {
+    if (!autoOn) doScanOnce('tap');
+  });
+  shutterBtn.addEventListener('click', () => {
+    doScanOnce(autoOn ? 'shutter(auto)' : 'shutter(manual)');
+  });
+
+  // ---- init
+  (async () => {
+    computeAndRender();
+    setAuto(true);
+    await startCamera();
+    placeRoiBetween();
+    loop();
+  })();
+
 })();
 </script>
 </body>
