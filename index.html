@@ -19,13 +19,19 @@
       --radius2:22px;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
+
+      /* ここが「オレンジライン」相当：上バーを下げる量 */
+      --topbar-offset: 78px;
+
+      /* 黄色枠位置（赤枠の場所） */
+      --frame-top: 34%;
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     html,body{height:100%;margin:0;background:#000;color:var(--text);font-family:var(--sans);}
     #app{position:fixed;inset:0;overflow:hidden;background:#000;}
     #video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
 
-    /* 重要：overlay/panel の重なり順を制御 */
+    /* 重なり順 */
     #overlay{position:absolute;inset:0;pointer-events:none;z-index:20;}
     #panel{position:absolute;left:0;right:0;bottom:0;z-index:10;}
 
@@ -43,8 +49,11 @@
     .pill b{font-weight:900;}
     .pill .yen{color:var(--accent);font-weight:900;}
 
+    /* ✅ 上バーを全体的に下げた */
     #topBar{
-      position:absolute;top:14px;left:14px;right:14px;
+      position:absolute;
+      top: calc(env(safe-area-inset-top) + var(--topbar-offset));
+      left:14px;right:14px;
       display:flex;gap:10px;align-items:center;justify-content:space-between;
       flex-wrap:wrap;
       pointer-events:auto;
@@ -71,23 +80,23 @@
     .okBadge{background: rgba(49,208,125,.18);border: 1px solid rgba(49,208,125,.45);}
     .warnBadge{background: rgba(255,90,95,.18);border: 1px solid rgba(255,90,95,.45);}
 
-    /* ✅ 黄色枠：総合計の下〜税抜の上のスペースに寄せて上へ */
+    /* ✅ 黄色枠（赤枠位置へ移動） */
     #frame{
       position:absolute;left:50%;
-      top:44%;
+      top: var(--frame-top);
       transform:translate(-50%,-50%);
-      width:min(78vw,520px);
-      height:min(16vh,120px);
+      width:min(86vw,620px);
+      height:min(14vh,110px);
       border-radius:16px;
       border:4px solid rgba(242,193,79,.85);
       box-shadow: 0 0 0 2px rgba(0,0,0,.35) inset, 0 8px 28px rgba(0,0,0,.35);
       z-index:40;
-      /* ✅ 手動タップ用 */
-      pointer-events:auto;
+      pointer-events:auto; /* 手動タップ */
     }
+
     #hint{
       position:absolute;left:50%;
-      top:calc(44% - min(8vh,60px) - 18px);
+      top: calc(var(--frame-top) - min(8vh,60px) - 18px);
       transform:translateX(-50%);
       font-size:14px;color:rgba(255,255,255,.9);
       background:rgba(0,0,0,.35);
@@ -97,14 +106,19 @@
       z-index:40;
       pointer-events:none;
       user-select:none;
+      text-align:center;
+      max-width: min(92vw, 720px);
     }
 
     @media (max-width: 480px){
-      #frame{ top:41%; height:min(15vh,110px); }
-      #hint{ top:calc(41% - min(8vh,60px) - 18px); }
+      :root{
+        --frame-top: 33%;
+      }
+      #frame{ height:min(13vh,105px); }
+      #hint{ font-size:13px; }
     }
 
-    /* ✅ 確定合図：一瞬グリーン→黄色に戻る */
+    /* ✅ 確定フラッシュ：長めに */
     @keyframes frameSuccess {
       0% {
         border-color: rgba(242,193,79,.85);
@@ -112,13 +126,21 @@
           0 0 0 2px rgba(0,0,0,.35) inset,
           0 8px 28px rgba(0,0,0,.35);
       }
-      35% {
+      25% {
         border-color: rgba(49,208,125,1);
         box-shadow:
           0 0 0 2px rgba(0,0,0,.35) inset,
           0 8px 28px rgba(0,0,0,.35),
-          0 0 0 8px rgba(49,208,125,.35),
-          0 0 30px rgba(49,208,125,.8);
+          0 0 0 10px rgba(49,208,125,.35),
+          0 0 34px rgba(49,208,125,.85);
+      }
+      75% {
+        border-color: rgba(49,208,125,1);
+        box-shadow:
+          0 0 0 2px rgba(0,0,0,.35) inset,
+          0 8px 28px rgba(0,0,0,.35),
+          0 0 0 10px rgba(49,208,125,.30),
+          0 0 32px rgba(49,208,125,.75);
       }
       100% {
         border-color: rgba(242,193,79,.85);
@@ -128,11 +150,37 @@
       }
     }
     #frame.flash{
-      animation: frameSuccess 280ms ease-out 1;
+      animation: frameSuccess 620ms ease-out 1;
+    }
+
+    /* ✅ シャッター（赤丸位置）：黄色枠の右上あたり */
+    #shutter{
+      position:absolute;
+      left: calc(50% + min(86vw,620px)/2 - 56px);
+      top: calc(var(--frame-top) - min(14vh,110px)/2 - 8px);
+      width:56px;height:56px;
+      border-radius:999px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.16);
+      box-shadow: var(--shadow);
+      z-index:45;
+      pointer-events:auto;
+      display:grid;place-items:center;
+      cursor:pointer;
+      user-select:none;
+    }
+    #shutter:active{transform:scale(.98);opacity:.95}
+    #shutter .dot{
+      width:18px;height:18px;border-radius:999px;
+      background: rgba(255,255,255,.85);
+      box-shadow: 0 0 0 6px rgba(0,0,0,.25);
+    }
+    #shutter[disabled]{
+      opacity:.45;pointer-events:none;
     }
 
     #panel{
-      padding:14px 14px 18px;
+      padding:14px 14px calc(18px + env(safe-area-inset-bottom));
       background:linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 30%, rgba(0,0,0,.78) 100%);
       pointer-events:auto;
     }
@@ -157,46 +205,48 @@
     .row.total .label{color:var(--accent)}
     .row.total .val{color:var(--accent);font-size:40px}
 
+    /* ✅ 下ボタン：AUTOは左下固定枠に */
     #controls{
-      display:flex;gap:10px;align-items:center;
+      display:flex;gap:10px;align-items:stretch;
       margin-top:12px;
     }
+
     .btn{
       border:none;cursor:pointer;
-      background:var(--accent);
-      color:#111;
-      font-weight:900;
-      border-radius: 18px;
-      padding:16px 18px;
-      box-shadow: var(--shadow);
-      font-size:22px;
-      flex: 1;
-      min-width: 0;
-      user-select:none;
-    }
-    .btn:active{transform:scale(.99);opacity:.95}
-    .btn.ghost{
       background: rgba(255,255,255,.10);
       color: var(--text);
       border: 1px solid rgba(255,255,255,.10);
       font-weight:850;
-      flex: 0 0 auto;
-      width: 132px;
+      border-radius: 18px;
       padding:16px 14px;
+      box-shadow: var(--shadow);
       font-size:20px;
+      user-select:none;
+      min-width: 0;
+      flex: 1;
     }
+    .btn:active{transform:scale(.99);opacity:.95}
 
-    /* ✅ 手動シャッター */
-    .btn.shot{
+    /* ✅ AUTOボタン（オレンジ四角位置） */
+    #btnAuto{
       flex: 0 0 auto;
-      width: 72px;
-      padding: 16px 0;
-      background: rgba(255,255,255,.10);
-      color: var(--text);
-      border: 1px solid rgba(255,255,255,.12);
-      font-size: 22px;
+      width: 90px;
+      padding: 16px 10px;
+      background: var(--accent);
+      color: #111;
+      font-weight: 1000;
+      font-size: 18px;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap: 6px;
     }
-    .btn.shot:disabled{opacity:.45;cursor:not-allowed}
+    #btnAuto .mini{font-size:12px;opacity:.8;letter-spacing:.5px}
+
+    /* 直近/− */
+    #btnUndo{ flex: 1; }
+    #btnDash{ flex: 1; font-size:26px; }
 
     #detailsBtn{
       width: 100%;
@@ -237,8 +287,11 @@
         <div class="pill">総合計: <b class="yen">¥<span id="grandTotal">0</span></b></div>
       </div>
 
-      <div id="hint">黄色枠に「数字」を入れたらホールド（AUTO OFFは枠タップ/🔘）</div>
+      <div id="hint">黄色枠に「数字」を入れたらホールド（AUTO OFFは枠タップ / 🔘）</div>
       <div id="frame" title="AUTO OFFならタップで1回スキャン"></div>
+
+      <!-- ✅ 赤丸位置のシャッター -->
+      <div id="shutter" title="手動で1回スキャン"><div class="dot"></div></div>
     </div>
 
     <div id="panel">
@@ -257,10 +310,12 @@
         </div>
 
         <div id="controls">
-          <button id="btnAuto" class="btn" title="自動スキャン ON/OFF">AUTO: ON</button>
-          <button id="btnShot" class="btn shot" title="手動で1回スキャン">🔘</button>
-          <button id="btnUndo" class="btn ghost" title="直近の確定を取り消す（カウントに含めない）">↩︎ 直近</button>
-          <button id="btnDash" class="btn ghost" title="表示だけ - に戻す（枚数・総合計はそのまま）">−</button>
+          <button id="btnAuto" class="btn" title="自動スキャン ON/OFF">
+            <div>AUTO</div>
+            <div class="mini" id="autoState">ON</div>
+          </button>
+          <button id="btnUndo" class="btn" title="直近の確定を取り消す（カウントに含めない）">↩︎ 直近</button>
+          <button id="btnDash" class="btn" title="表示だけ - に戻す（枚数・総合計そのまま）">−</button>
         </div>
       </div>
 
@@ -283,9 +338,10 @@
     const ocrText = document.getElementById('ocrText');
 
     const frameEl = document.getElementById('frame');
+    const shutterEl = document.getElementById('shutter');
 
     const btnAuto = document.getElementById('btnAuto');
-    const btnShot = document.getElementById('btnShot');
+    const autoState = document.getElementById('autoState');
     const btnUndo = document.getElementById('btnUndo');
     const btnDash = document.getElementById('btnDash');
     const detailsBtn = document.getElementById('detailsBtn');
@@ -293,18 +349,18 @@
     // ====== 状態 ======
     let autoOn = true;
 
-    // ホールド/安定判定（AUTO用）
+    // AUTO用：安定判定
     let locked = false;
     let lastValue = null;
     let lastSeenAt = 0;
     let stableCount = 0;
 
     // 調整
-    const NEED_N = 3;             // AUTO確定に必要な連続一致回数
-    const MAX_GAP_MS = 1200;      // 連続一致の許容間隔
-    const LOOP_WAIT_MS = 220;     // OCR呼び出し間隔（負荷軽減）
+    const NEED_N = 3;
+    const MAX_GAP_MS = 1200;
+    const LOOP_WAIT_MS = 220;
 
-    // ====== 日付（今は今日固定でOK） ======
+    // ====== 日付（今日固定） ======
     function todayStr(){
       const d = new Date();
       const y = d.getFullYear();
@@ -314,11 +370,10 @@
     }
     const datePick = { get value(){ return todayStr(); } };
 
-    // ====== localStorage ログ ======
+    // ====== localStorage ======
     function loadLog(ds){
-      try{
-        return JSON.parse(localStorage.getItem(`taxscan:${ds}`) || '[]');
-      }catch(e){ return []; }
+      try{ return JSON.parse(localStorage.getItem(`taxscan:${ds}`) || '[]'); }
+      catch(e){ return []; }
     }
     function saveLog(ds, log){
       localStorage.setItem(`taxscan:${ds}`, JSON.stringify(log));
@@ -340,11 +395,13 @@
         statusPill.classList.add('warn','warnBadge');
       }
     }
+
     function setAuto(on){
       autoOn = on;
-      btnAuto.textContent = on ? 'AUTO: ON' : 'AUTO: OFF';
-      // 手動ボタンはOFF時に目立つようにしてもいいが、今回は常に押せる
+      autoState.textContent = on ? 'ON' : 'OFF';
+      setStatus('ok', on ? 'A: AUTOで監視中' : 'A: 手動モード（枠/🔘）');
     }
+
     function fmtYen(n){
       try{ return '¥' + Number(n).toLocaleString('ja-JP'); }catch(e){ return '¥' + n; }
     }
@@ -356,23 +413,33 @@
     function showResult(total){
       if(!total || total <= 0){ showDash(); return; }
       const gross = Number(total);
-      const net = Math.round(gross / 1.1);   // 四捨五入（要求どおり）
+      const net = Math.round(gross / 1.1);
       const tax = gross - net;
       netEl.textContent = fmtYen(net);
       taxEl.textContent = fmtYen(tax);
       grossEl.textContent = fmtYen(gross);
     }
 
-    function flashAndVibrate(){
-      if (frameEl) {
-        frameEl.classList.remove('flash');
-        void frameEl.offsetWidth;
-        frameEl.classList.add('flash');
-      }
-      if (navigator.vibrate) navigator.vibrate(40);
+    // ✅ フラッシュ（長め）
+    function flashFrame(){
+      frameEl.classList.remove('flash');
+      void frameEl.offsetWidth;
+      frameEl.classList.add('flash');
     }
 
-    // ====== 表示だけリセット（枚数・総合計・履歴は触らない） ======
+    // ✅ 振動（iPhoneは非対応が多いので、対応端末だけ）
+    function haptic(){
+      try{
+        if (navigator.vibrate) navigator.vibrate([60, 30, 60]);
+      }catch(e){}
+    }
+
+    function flashAndVibrate(){
+      flashFrame();
+      haptic();
+    }
+
+    // ====== 表示だけリセット（カウントは触らない） ======
     function clearToDash(){
       locked = false;
       stableCount = 0;
@@ -395,7 +462,6 @@
       saveLog(ds, log);
       setTopStatsForDate(ds);
 
-      // 次も読めるように解除（AUTO状態は維持）
       locked = false;
       stableCount = 0;
       lastValue = null;
@@ -404,7 +470,7 @@
       setStatus('ok','↩︎ 直近を取り消し（カウントから除外）');
     }
 
-    // ====== 確定（AUTO/手動 共通） ======
+    // ====== 確定 ======
     function commitTotal(total){
       locked = true;
 
@@ -419,13 +485,13 @@
       flashAndVibrate();
       setStatus('ok', `✅ 確定: ¥${Number(total).toLocaleString('ja-JP')}`);
 
-      // 次のスキャンへ戻す（AUTO連続）
+      // AUTO連続のため復帰
       setTimeout(()=>{
         locked = false;
         stableCount = 0;
         lastValue = null;
         lastSeenAt = 0;
-      }, 650);
+      }, 720);
     }
 
     // ====== カメラ ======
@@ -443,7 +509,7 @@
       }
     }
 
-    // ====== 枠部分を切り抜いて /api/scan ======
+    // ====== 切り抜き → /api/scan ======
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
@@ -480,14 +546,12 @@
       const sw = fw * drawW;
       const sh = fh * drawH;
 
-      // 少し拡大して送る（小さい文字に強くする）
       const SCALE = 3;
       const outW = Math.max(360, Math.round(sw * SCALE));
       const outH = Math.max(180, Math.round(sh * SCALE));
       canvas.width = outW;
       canvas.height = outH;
 
-      // くっきり化
       ctx.imageSmoothingEnabled = false;
       ctx.filter = "contrast(180%) brightness(120%)";
       ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
@@ -521,7 +585,7 @@
       }
     }
 
-    // ====== 手動スキャン（1回で即確定） ======
+    // ====== 手動スキャン（枠タップ/🔘） ======
     let manualBusy = false;
 
     async function manualScanOnce(){
@@ -529,7 +593,7 @@
       if (locked) return;
 
       manualBusy = true;
-      btnShot.disabled = true;
+      shutterEl.setAttribute('disabled','disabled');
 
       try{
         setStatus('ok','🔘 手動スキャン中…');
@@ -546,11 +610,11 @@
         setStatus('warn','❌ 手動スキャン失敗');
       }finally{
         manualBusy = false;
-        btnShot.disabled = false;
+        shutterEl.removeAttribute('disabled');
       }
     }
 
-    // ====== AUTOループ（監視） ======
+    // ====== AUTOループ ======
     let autoBusy = false;
     let lastLoopAt = 0;
 
@@ -575,8 +639,6 @@
           return;
         }
 
-        setStatus('ok',`A: 読み取り中 ¥${Number(total).toLocaleString('ja-JP')}（${stableCount+1}/${NEED_N}）`);
-
         const same = (lastValue === total);
         const withinGap = (now - lastSeenAt) < MAX_GAP_MS;
 
@@ -588,6 +650,8 @@
 
         lastValue = total;
         lastSeenAt = now;
+
+        setStatus('ok',`A: 読み取り中 ¥${Number(total).toLocaleString('ja-JP')}（${stableCount}/${NEED_N}）`);
 
         if(stableCount >= NEED_N){
           commitTotal(total);
@@ -607,20 +671,20 @@
     // ====== UIイベント ======
     btnAuto.addEventListener('click', ()=>{
       setAuto(!autoOn);
-      setStatus('ok', autoOn ? 'A: AUTOで監視中' : 'A: 手動モード（枠/🔘）');
     });
 
-    btnShot.addEventListener('click', ()=> manualScanOnce());
-
-    // AUTO OFF時：枠タップで1回スキャン
+    // 手動：枠タップ or 🔘
     frameEl.addEventListener('click', ()=>{
       if(!autoOn) manualScanOnce();
+    });
+    shutterEl.addEventListener('click', ()=>{
+      manualScanOnce();
     });
 
     btnUndo.addEventListener('click', ()=> undoLast());
     btnDash.addEventListener('click', ()=> clearToDash());
 
-    // カメラ再開用（iPhone対策）
+    // iPhone対策：止まったらここをタップで再開
     statusPill.addEventListener('click', ()=> startCamera());
 
     detailsBtn.addEventListener('click', ()=>{
