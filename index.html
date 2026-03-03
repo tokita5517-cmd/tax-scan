@@ -16,10 +16,10 @@
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     body{margin:0;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;overflow:hidden}
 
-    #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+    #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;transform:none}
     #cap{display:none}
 
-    /* ===== 上のバー（この配置を維持） ===== */
+    /* ===== 上のバー（理想の配置を維持） ===== */
     #topStack{
       position:fixed;
       top:12px; left:12px; right:12px;
@@ -56,19 +56,9 @@
       backdrop-filter:blur(16px);
       font-weight:900;
     }
-    .pillWide .left{
-      opacity:.92;
-      letter-spacing:.02em;
-      font-size:22px;
-    }
-    .pillWide .center{
-      font-size:26px;
-      opacity:.95;
-    }
-    .pillWide .right{
-      font-size:22px;
-      opacity:.92;
-    }
+    .pillWide .left{opacity:.92;letter-spacing:.02em;font-size:22px}
+    .pillWide .center{font-size:26px;opacity:.95}
+    .pillWide .right{font-size:22px;opacity:.92}
     .money{
       color:var(--accent);
       font-size:30px;
@@ -77,41 +67,40 @@
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
     }
 
-    /* ===== ROI（黄色枠）& シャッター ===== */
+    /* ===== ROI（黄色枠）& シャッター：理想配置固定 ===== */
     #roiWrap{
       position:fixed;
       left:12px; right:12px;
-      top:215px; /* ←この位置感（最後のスクショ）を維持。必要なら微調整可 */
+      top:215px;              /* ★理想スクショ位置 */
       z-index:55;
       display:flex;
       align-items:center;
       gap:14px;
-      pointer-events:none; /* 枠は見た目。タップは下の透明ボタンで拾う */
+      pointer-events:none;    /* 見た目だけ */
     }
     #roiBox{
       flex:1;
-      height:92px;
+      height:92px;            /* ★理想スクショ高さ */
       border:3px solid rgba(240,192,64,.80);
       border-radius:18px;
       box-shadow:0 0 0 9999px rgba(0,0,0,.10);
       background:rgba(0,0,0,.10);
       position:relative;
     }
-    /* 認識フラッシュ（少し長め） */
+    /* 認識フラッシュ（長め） */
     #roiBox.flash-ok{
       border-color:rgba(79,212,138,.95);
-      box-shadow:0 0 0 9999px rgba(79,212,138,.10);
-      animation:roiFlash 680ms ease-out;
+      box-shadow:0 0 0 9999px rgba(79,212,138,.12);
+      animation:roiFlash 820ms ease-out;
     }
     @keyframes roiFlash{
       0%{filter:brightness(1.0)}
-      40%{filter:brightness(1.35)}
+      40%{filter:brightness(1.45)}
       100%{filter:brightness(1.0)}
     }
 
     #shutter{
-      width:78px;
-      height:78px;
+      width:78px;height:78px;
       border-radius:999px;
       border:3px solid rgba(255,255,255,.55);
       background:rgba(255,255,255,.14);
@@ -126,17 +115,17 @@
       background:rgba(255,255,255,.22);
     }
 
-    /* タップ用（透明） */
+    /* タップ用（透明）※AUTO OFFでも必ず効く */
     #tapRoi, #tapShutter{
       position:fixed;
       z-index:56;
       background:transparent;
       border:none;
       padding:0;
+      pointer-events:auto;
     }
     #tapRoi{
-      left:12px;
-      right:12px;
+      left:12px; right:12px;
       top:215px;
       height:92px;
       border-radius:18px;
@@ -148,7 +137,7 @@
       border-radius:999px;
     }
 
-    /* ===== 下パネル（この配置を維持） ===== */
+    /* ===== 下パネル（理想配置を維持） ===== */
     #panel{
       position:fixed;
       left:0; right:0; bottom:0;
@@ -169,17 +158,8 @@
       border-bottom:1px solid rgba(255,255,255,.09);
     }
     .row:last-child{border-bottom:none}
-    .label{
-      font-size:26px;
-      font-weight:900;
-      opacity:.92;
-    }
-    .sub{
-      font-size:22px;
-      opacity:.80;
-      font-weight:900;
-      margin-left:6px;
-    }
+    .label{font-size:26px;font-weight:900;opacity:.92}
+    .sub{font-size:22px;opacity:.80;font-weight:900;margin-left:6px}
     .val{
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
       font-weight:1000;
@@ -205,28 +185,10 @@
       cursor:pointer;
       flex:1;
     }
-    #btnAuto{
-      max-width:160px;
-      background:var(--accent);
-      color:#000;
-    }
-    #btnAuto.off{
-      background:rgba(255,255,255,.10);
-      color:#fff;
-      border:1px solid var(--border);
-    }
-    #btnUndo{
-      background:rgba(255,255,255,.10);
-      color:#fff;
-      border:1px solid var(--border);
-    }
-    /* - ボタン（初期の空表示に戻す） */
-    #btnClear{
-      max-width:160px;
-      background:rgba(255,255,255,.10);
-      color:#fff;
-      border:1px solid var(--border);
-    }
+    #btnAuto{max-width:160px;background:var(--accent);color:#000}
+    #btnAuto.off{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
+    #btnUndo{background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
+    #btnClear{max-width:160px;background:rgba(255,255,255,.10);color:#fff;border:1px solid var(--border)}
 
     #btnDetails{
       width:100%;
@@ -258,10 +220,7 @@
       display:flex; justify-content:space-between; align-items:center;
       font-weight:900;
     }
-    #dateRow{
-      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-      margin-bottom:10px;
-    }
+    #dateRow{display:flex; gap:8px; align-items:center; flex-wrap:wrap;margin-bottom:10px}
     input[type="date"], input[type="month"]{
       background:rgba(255,255,255,.10);
       border:1px solid var(--border);
@@ -288,10 +247,7 @@
     }
     .logItem:first-child{border-top:none}
     .logLeft{display:flex; align-items:center; gap:10px}
-    .logRight{
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-      font-weight:1000
-    }
+    .logRight{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:1000}
     .logRight b{color:var(--accent)}
     #btnDeleteSelected{
       width:100%;
@@ -304,25 +260,16 @@
       font-weight:1000;
       font-size:16px;
     }
-
     #chartWrap{margin-top:10px}
     canvas{width:100%;height:180px;background:rgba(0,0,0,.18);border-radius:12px;border:1px solid rgba(255,255,255,.10)}
     .muted{color:rgba(255,255,255,.65);font-size:12px;margin:8px 0 0}
-
-    /* iPhone再開ヒント（小さく） */
-    #tinyHint{
-      margin-top:10px;
-      font-size:12px;
-      color:rgba(255,255,255,.72);
-      text-align:center;
-    }
+    #tinyHint{margin-top:10px;font-size:12px;color:rgba(255,255,255,.72);text-align:center}
   </style>
 </head>
 <body>
   <video id="video" autoplay muted playsinline></video>
   <canvas id="cap"></canvas>
 
-  <!-- 上 -->
   <div id="topStack">
     <div id="banner" class="banner dim">⚠️ 手動：枠タップ or シャッターで読み取り</div>
 
@@ -338,35 +285,26 @@
     </div>
   </div>
 
-  <!-- ROI + シャッター（見た目） -->
   <div id="roiWrap">
     <div id="roiBox"></div>
     <div id="shutter"></div>
   </div>
 
-  <!-- タップ用透明ボタン -->
   <button id="tapRoi" aria-label="枠タップで読み取り"></button>
   <button id="tapShutter" aria-label="シャッターで読み取り"></button>
 
-  <!-- 下 -->
   <div id="panel">
     <div class="card">
       <div class="row">
-        <div>
-          <span class="label">税抜</span>
-        </div>
+        <div><span class="label">税抜</span></div>
         <div class="val dim" id="baseVal">—</div>
       </div>
       <div class="row">
-        <div>
-          <span class="label">消費税</span><span class="sub">（10%・四捨五入）</span>
-        </div>
+        <div><span class="label">消費税</span><span class="sub">（10%・四捨五入）</span></div>
         <div class="val red" id="taxVal">—</div>
       </div>
       <div class="row">
-        <div>
-          <span class="label">合計</span><span class="sub">（税込）</span>
-        </div>
+        <div><span class="label">合計</span><span class="sub">（税込）</span></div>
         <div class="val gold" id="totalVal">—</div>
       </div>
     </div>
@@ -410,20 +348,22 @@
 
 <script>
 (() => {
-  // ===== 設定 =====
   const RATE = 0.10;
-  const TICK_MS = 350;           // AUTO時の周期
-  const COOLDOWN_MS = 900;       // 連打/同額暴走対策（短め）
-  const SAME_VALUE_GUARD_MS = 2200; // 同じ金額の連続カウント防止（同じ紙に止めても増えない）
 
-  // ROI（画面比）…「枠の中に数字」だけ読めばOK
-  // ※あなたの帳票に合わせて微調整しやすい値
+  // AUTOは「1回で確定」仕様（3秒維持なし）
+  const TICK_MS = 380;
+
+  // 連打ガード
+  const COOLDOWN_MS = 700;
+
+  // 同じ金額を“止めっぱ”で増やさない
+  const SAME_VALUE_GUARD_MS = 2200;
+
+  // ROI（黄色枠の中＝数字付近を狙う）
   const ROI = { x: 0.24, y: 0.56, w: 0.52, h: 0.18 };
 
-  // 画質強化（数字が小さい前提）
-  const SCALE = 3; // 2〜4。まず3が安定
+  const SCALE = 3;
 
-  // ===== DOM =====
   const video = document.getElementById('video');
   const cap = document.getElementById('cap');
   const ctx = cap.getContext('2d');
@@ -461,7 +401,6 @@
   const btnThisMonth = document.getElementById('btnThisMonth');
   const monthChart = document.getElementById('monthChart');
 
-  // ===== 状態 =====
   let stream = null;
   let cameraReady = false;
 
@@ -473,10 +412,8 @@
   let lastCountedValue = null;
   let lastCountedAt = 0;
 
-  // 表示は「直近1枚」だけ（加算しない）
   let currentBase = 0;
 
-  // ===== util =====
   const pad2 = (n) => String(n).padStart(2,'0');
   const todayStr = () => {
     const d = new Date();
@@ -496,16 +433,14 @@
   }
 
   function vibrateShort(){
-    try{
-      if (navigator.vibrate) navigator.vibrate(30);
-    }catch(_){}
+    try{ if (navigator.vibrate) navigator.vibrate(30); }catch(_){}
   }
 
   function roiFlashOk(){
     roiBox.classList.remove('flash-ok');
     void roiBox.offsetWidth;
     roiBox.classList.add('flash-ok');
-    setTimeout(() => roiBox.classList.remove('flash-ok'), 700);
+    setTimeout(() => roiBox.classList.remove('flash-ok'), 850);
   }
 
   function setAuto(on){
@@ -515,7 +450,6 @@
     setBanner('dim', on ? "✅ 自動：枠に数字を入れて読み取り" : "⚠️ 手動：枠タップ or シャッターで読み取り");
   }
 
-  // ===== 税計算（税抜→税→税込）=====
   function calcFromBase(base){
     const tax = Math.round(base * RATE);
     return { base, tax, total: base + tax };
@@ -537,13 +471,10 @@
   function clearCurrentKeepTotals(){
     currentBase = 0;
     showCurrent(0);
-    // 解除後に読み取りが渋くならないようリセット
     lastScanAt = 0;
-    // lastCountedValue は維持（同じ紙をすぐまた数える事故防止）
     setBanner('ok', "✅ 解除しました（枚数/総合計は保持）");
   }
 
-  // ===== 保存/集計（税抜で保存）=====
   function logKey(dateStr){ return `taxscan_log_${dateStr}`; }
   function loadLog(dateStr){
     try { return JSON.parse(localStorage.getItem(logKey(dateStr)) || "[]"); }
@@ -565,7 +496,6 @@
     dayInfo.textContent = `（${count}枚 / ${yen(sumBase)}）`;
   }
 
-  // ===== 履歴UI =====
   function renderLog(dateStr){
     const { log } = calcStats(dateStr);
     if(!log.length){
@@ -594,7 +524,6 @@
     [...document.querySelectorAll('.logChk')].forEach(c=>c.checked = checked);
   }
 
-  // ===== 月グラフ（税抜）=====
   function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
   function monthDailySummary(ym){
     const [Y,M] = ym.split('-').map(Number);
@@ -652,7 +581,6 @@
     });
   }
 
-  // ===== カメラ =====
   async function startCamera(){
     try{
       stream = await navigator.mediaDevices.getUserMedia({
@@ -681,9 +609,9 @@
     cap.width  = Math.floor(w * SCALE);
     cap.height = Math.floor(h * SCALE);
 
+    ctx.setTransform(1,0,0,1,0,0); // 念のため（鏡像防止）
     ctx.imageSmoothingEnabled = false;
     ctx.filter = "contrast(190%) brightness(118%)";
-    // ※反転しない（鏡像防止）
     ctx.drawImage(video, x, y, w, h, 0, 0, cap.width, cap.height);
     ctx.filter = "none";
 
@@ -698,36 +626,29 @@
       body: JSON.stringify({ image_base64 })
     });
     const data = await res.json().catch(()=>({}));
-    // サーバ側は基本200で返す設計。念のため。
     const base = Number(data?.total || 0);
     return Number.isFinite(base) ? base : 0;
   }
 
-  // ===== カウント確定 =====
   function countInvoice(base){
     const now = Date.now();
 
-    // 同額連続の暴走防止（同じ紙に止めても増えない）
     if (lastCountedValue === base && (now - lastCountedAt) < SAME_VALUE_GUARD_MS){
       return;
     }
 
-    // 表示（直近1枚のみ）
     currentBase = base;
     showCurrent(base);
 
-    // 保存（税抜として保存）
     const ds = datePick.value;
     const log = loadLog(ds);
     log.push({ base });
     saveLog(ds, log);
 
-    // 上の集計更新（税抜のみ）
     setTopStatsForDate(ds);
     renderLog(ds);
     drawMonthChart();
 
-    // フィードバック
     roiFlashOk();
     vibrateShort();
     setBanner('ok', `✅ 確定：${yen(base)}（税抜）`);
@@ -750,7 +671,6 @@
       if(base > 0){
         countInvoice(base);
       }else{
-        // エラーをでかく出さない（邪魔しない）
         setBanner('dim', autoOn ? "⚠️ 枠に数字が見えていません" : "⚠️ 手動：枠タップ or シャッターで読み取り");
         lastScanAt = now;
       }
@@ -763,19 +683,14 @@
     }
   }
 
-  async function tick(){
-    if(!autoOn) return;
-    await scanOnce();
-  }
   function startLoop(){
     stopLoop();
-    timer = setInterval(tick, TICK_MS);
+    timer = setInterval(() => { if(autoOn) scanOnce(); }, TICK_MS);
   }
   function stopLoop(){
     if(timer){ clearInterval(timer); timer = null; }
   }
 
-  // ===== 操作 =====
   function undoLast(){
     const ds = datePick.value;
     const log = loadLog(ds);
@@ -819,7 +734,6 @@
     renderLog(ds);
   }
 
-  // ===== init =====
   window.addEventListener('load', async () => {
     datePick.value = todayStr();
     monthPick.value = monthStr();
@@ -835,22 +749,13 @@
     startLoop();
   });
 
-  // ===== UI events =====
-  btnAuto.addEventListener('click', () => {
-    setAuto(!autoOn);
-    // AUTOを切ってもシャッター/枠タップは常に動く
-  });
-
+  btnAuto.addEventListener('click', () => setAuto(!autoOn));
   btnUndo.addEventListener('click', undoLast);
-
-  // - は「初期の空表示」に戻すだけ（枚数/総合計は保持）
   btnClear.addEventListener('click', clearCurrentKeepTotals);
 
+  // ★ AUTO OFFでも必ず効く
   tapShutter.addEventListener('click', scanOnce);
-  tapRoi.addEventListener('click', () => {
-    // AUTO OFF時の“枠タップ”は最優先で読める
-    scanOnce();
-  });
+  tapRoi.addEventListener('click', scanOnce);
 
   btnDeleteSelected.addEventListener('click', deleteSelected);
   btnSelectAll.addEventListener('click', () => selectAll(true));
