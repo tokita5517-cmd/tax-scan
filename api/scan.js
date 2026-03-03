@@ -1,8 +1,8 @@
-// api/scan.js
+// /api/scan.js
 export default async function handler(req, res) {
-  // GETで疎通確認
+  // GET: 動作確認用
   if (req.method === "GET") {
-    return res.status(200).json({ ok: true, hint: "POST { image_base64 } to scan" });
+    return res.status(200).json({ ok: true, hint: "POST { image_base64 }" });
   }
 
   if (req.method !== "POST") {
@@ -12,21 +12,20 @@ export default async function handler(req, res) {
   try {
     const { image_base64 } = req.body || {};
     if (!image_base64) {
-      return res.status(200).json({ total: 0, debug: { where: "input", message: "image_base64 required" } });
+      return res.status(200).json({ total: 0, debug: "image_base64 required" });
     }
 
     const key = process.env.ANTHROPIC_API_KEY;
     if (!key) {
-      return res.status(200).json({ total: 0, debug: { where: "env", message: "ANTHROPIC_API_KEY is missing" } });
+      return res.status(200).json({ total: 0, debug: "ANTHROPIC_API_KEY missing" });
     }
 
-    // タイムアウト
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
 
-    let j = {};
+    let r, j;
     try {
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
+      r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -34,10 +33,10 @@ export default async function handler(req, res) {
           "x-api-key": key,
           "anthropic-version": "2023-06-01",
         },
+        signal: controller.signal,
         body: JSON.stringify({
-          // ✅ 404回避で “表にあるモデル” を使う
-          // （あなたの画像の「Claude API ID / Alias」に合わせた）
-          model: "claude-haiku-4-5",
+          // ★ あなたのスクショに写ってた「Claude API ID」を使う（404防止）
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 80,
           temperature: 0,
           messages: [
@@ -55,19 +54,12 @@ export default async function handler(req, res) {
                 {
                   type: "text",
                   text:
-`あなたはOCRです。
-画像内の「数字（税抜金額）」を1つだけ返してください。
-- 枠内の数字だけを対象にする（他は無視）
-- カンマあり/なし両方OK
-- 3〜7桁を優先
-返答はJSONのみ。形式厳守：{"total":14850}
-見つからない場合：{"total":0}`,
+                    "画像の中にある金額（数字）を1つだけ選んで返してください。税抜金額が最優先。返答はJSONだけ。形式は厳守: {\"total\": 14850}。見つからなければ {\"total\": 0}。数字はカンマ無しの整数。",
                 },
               ],
             },
           ],
         }),
-        signal: controller.signal,
       });
 
       j = await r.json().catch(() => ({}));
@@ -86,6 +78,7 @@ export default async function handler(req, res) {
       clearTimeout(timeout);
     }
 
+    // 返答テキストを結合
     const text = (j.content || [])
       .filter((c) => c.type === "text")
       .map((c) => c.text)
@@ -93,9 +86,12 @@ export default async function handler(req, res) {
       .trim();
 
     const parsed = extractFirstJson(text);
-    const total = normalizeNumber(parsed?.total);
+    const raw = parsed?.total;
 
-    return res.status(200).json({ total: total });
+    // 数字化（"14,850" みたいなのも安全に処理）
+    const n = Number(String(raw ?? "").replace(/[^\d]/g, "")) || 0;
+
+    return res.status(200).json({ total: Number.isFinite(n) ? n : 0 });
   } catch (e) {
     return res.status(200).json({
       total: 0,
@@ -104,33 +100,21 @@ export default async function handler(req, res) {
   }
 }
 
-function normalizeNumber(v) {
-  if (v == null) return 0;
-  if (typeof v === "number") return Number.isFinite(v) ? Math.max(0, Math.trunc(v)) : 0;
-  if (typeof v === "string") {
-    const s = v.replace(/[^\d]/g, "");
-    if (!s) return 0;
-    const n = Number(s);
-    return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
-  }
-  return 0;
-}
-
 function extractFirstJson(s) {
   if (!s) return null;
 
-  // ```json ... ``` を剥がす
-  const fenced = s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenced && fenced[1]) s = fenced[1].trim();
+  try {
+    return JSON.parse(s);
+  } catch (_) {}
 
-  // そのままJSON
-  try { return JSON.parse(s); } catch (_) {}
-
-  // 最初の { ... } を抜く
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
   if (first === -1 || last === -1 || last <= first) return null;
 
   const chunk = s.slice(first, last + 1);
-  try { return JSON.parse(chunk); } catch (_) { return null; }
+  try {
+    return JSON.parse(chunk);
+  } catch (_) {
+    return null;
+  }
 }
