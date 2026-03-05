@@ -1,7 +1,8 @@
 // api/scan.js
 export default async function handler(req, res) {
+  // GETで疎通確認
   if (req.method === "GET") {
-    return res.status(200).json({ ok: true, hint: "POST { image_base64 }" });
+    return res.status(200).json({ ok: true, hint: "POST { image_base64 } to scan" });
   }
 
   if (req.method !== "POST") {
@@ -11,22 +12,24 @@ export default async function handler(req, res) {
   try {
     const { image_base64 } = req.body || {};
     if (!image_base64) {
-      return res.status(200).json({ total: 0 });
+      return res.status(200).json({ total: 0, debug: "image_base64 required" });
     }
 
     const key = process.env.ANTHROPIC_API_KEY;
     if (!key) {
-      return res.status(200).json({ total: 0 });
+      return res.status(200).json({ total: 0, debug: "ANTHROPIC_API_KEY is missing" });
     }
+
+    const model =
+      process.env.ANTHROPIC_MODEL ||
+      "claude-haiku-4-5"; // ←まずこれ。使えない場合は Vercel env で 20251001 の方に変更してOK
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
 
-    let r;
-    let j = {};
-
+    let j;
     try {
-      r = await fetch("https://api.anthropic.com/v1/messages", {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -35,8 +38,8 @@ export default async function handler(req, res) {
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-haiku-4-5",
-          max_tokens: 120,
+          model,
+          max_tokens: 80,
           temperature: 0,
           messages: [
             {
@@ -53,15 +56,7 @@ export default async function handler(req, res) {
                 {
                   type: "text",
                   text:
-                    [
-                      "画像には数字だけが入っています。",
-                      "見えている数字のうち、金額として最も自然な数字を1つだけ選んでください。",
-                      "カンマは無視して整数にしてください。",
-                      "2桁以下の小さすぎる数字は、他に3桁以上の数字があるなら採用しないでください。",
-                      "返答はJSONのみ。説明文は不要です。",
-                      '形式: {"total":810}',
-                      '見つからなければ {"total":0}'
-                    ].join(" "),
+                    "画像内の『数字』だけを読み取り、最もそれらしい金額を1つ選んでJSONのみで返して。形式は厳守: {\"total\":14850}。カンマは無視して数値化。見つからなければ {\"total\":0}。",
                 },
               ],
             },
@@ -71,12 +66,20 @@ export default async function handler(req, res) {
       });
 
       j = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        return res.status(200).json({
+          total: 0,
+          debug: {
+            where: "anthropic",
+            status: r.status,
+            message: j?.error?.message || j?.error || "anthropic error",
+            model,
+          },
+        });
+      }
     } finally {
       clearTimeout(timeout);
-    }
-
-    if (!r || !r.ok) {
-      return res.status(200).json({ total: 0 });
     }
 
     const text = (j.content || [])
@@ -86,46 +89,35 @@ export default async function handler(req, res) {
       .trim();
 
     const parsed = extractFirstJson(text);
-    const total = normalizeNumber(parsed?.total);
+    const n = sanitizeNumber(parsed?.total);
 
-    return res.status(200).json({
-      total: Number.isFinite(total) ? total : 0,
-    });
+    return res.status(200).json({ total: n });
   } catch (e) {
-    return res.status(200).json({ total: 0 });
+    return res.status(200).json({
+      total: 0,
+      debug: { where: "server", message: String(e?.message || e) },
+    });
   }
 }
 
 function extractFirstJson(s) {
   if (!s) return null;
-
-  try {
-    return JSON.parse(s);
-  } catch (_) {}
+  try { return JSON.parse(s); } catch (_) {}
 
   const first = s.indexOf("{");
   const last = s.lastIndexOf("}");
   if (first === -1 || last === -1 || last <= first) return null;
 
-  const chunk = s.slice(first, last + 1);
-
   try {
-    return JSON.parse(chunk);
+    return JSON.parse(s.slice(first, last + 1));
   } catch (_) {
     return null;
   }
 }
 
-function normalizeNumber(v) {
+function sanitizeNumber(v) {
   if (v == null) return 0;
-
-  if (typeof v === "number") return Math.floor(v);
-
-  const s = String(v).replace(/[^\d]/g, "");
-  if (!s) return 0;
-
-  const n = Number(s);
-  if (!Number.isFinite(n)) return 0;
-
-  return Math.floor(n);
+  const s = String(v).replace(/[^\d]/g, ""); // カンマ/空白/円など除去
+  const n = Number(s || 0);
+  return Number.isFinite(n) ? n : 0;
 }
