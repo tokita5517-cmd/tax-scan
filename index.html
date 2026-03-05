@@ -8,14 +8,16 @@
     :root{
       --accent:#f0c040;
       --red:#ff5f5f;
-      --border:rgba(255,255,255,.12);
-      --glass:rgba(0,0,0,.38);
-      --panel:rgba(10,10,10,.82);
+      --border:rgba(255,255,255,.14);
+      --surface:rgba(10,10,10,.82);
+      --glass:rgba(0,0,0,.65);
       --ok:#4fd48a;
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    html,body{
-      margin:0;padding:0;background:#000;color:#fff;
+    body{
+      margin:0;
+      background:#000;
+      color:#fff;
       font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;
       overflow:hidden;
     }
@@ -29,346 +31,326 @@
     }
     #cap{display:none}
 
-    /* ===== 上バー ===== */
+    /* ===== 上3本バー ===== */
     #topStack{
       position:fixed;
       top:12px; left:12px; right:12px;
       z-index:60;
       display:flex;
       flex-direction:column;
-      gap:8px;
-    }
-    .banner,.pill{
-      border-radius:999px;
-      backdrop-filter:blur(14px);
-      border:1px solid var(--border);
-      background:var(--glass);
-    }
-    .banner{
-      min-height:58px;
-      display:flex;
-      align-items:center;
       gap:10px;
-      padding:12px 16px;
-      font-size:17px;
-      font-weight:1000;
-      color:rgba(255,255,255,.96);
-      border-color:rgba(255,95,95,.24);
-      background:rgba(120,0,0,.32);
-    }
-    .banner.ok{
-      border-color:rgba(79,212,138,.28);
-      background:rgba(0,90,30,.26);
-    }
-    .banner.dim{
-      border-color:var(--border);
-      background:var(--glass);
-    }
-
-    .pill{
-      min-height:64px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:12px 18px;
-    }
-    .pill .left,.pill .mid,.pill .right{
-      line-height:1;
-      font-weight:1000;
-      color:rgba(255,255,255,.96);
-    }
-    .pill .left{font-size:20px}
-    .pill .mid{font-size:23px}
-    .pill .right{font-size:20px}
-    .money{
-      line-height:1;
-      font-size:28px;
-      font-weight:1000;
-      color:var(--accent);
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-    }
-
-    /* ===== 黄色枠 + シャッター ===== */
-    #roiBox{
-      position:fixed;
-      left:12px;
-      right:98px;     /* シャッターボタン分を空ける */
-      top:226px;      /* 上バーの下 */
-      height:62px;    /* 高さを少し狭く */
-      z-index:56;
-      border:3px solid rgba(240,192,64,.82);
-      border-radius:18px;
-      background:rgba(0,0,0,.03);
       pointer-events:none;
     }
-    #roiBox.flash-ok{
-      animation:roiFlash .72s ease-out;
+    .banner{
+      background:rgba(110,0,0,.45);
+      border:1px solid rgba(255,95,95,.35);
+      border-radius:999px;
+      padding:12px 16px;
+      font-weight:900;
+      font-size:20px;
+      letter-spacing:.01em;
+      backdrop-filter:blur(12px);
+      color:rgba(255,255,255,.94);
+      display:flex; align-items:center; gap:10px;
+      min-height:72px;
     }
-    @keyframes roiFlash{
-      0%{
-        border-color:rgba(79,212,138,.96);
-        background:rgba(79,212,138,.16);
-        box-shadow:0 0 18px rgba(79,212,138,.35);
-      }
-      100%{
-        border-color:rgba(240,192,64,.82);
-        background:rgba(0,0,0,.03);
-        box-shadow:none;
-      }
+    .banner.ok{
+      background:rgba(0,90,30,.40);
+      border-color:rgba(79,212,138,.38);
+    }
+    .banner.dim{
+      background:rgba(0,0,0,.30);
+      border-color:rgba(255,255,255,.12);
     }
 
-    #tapRoi{
+    .pillWide{
+      display:flex; align-items:center; justify-content:space-between;
+      background:rgba(0,0,0,.42);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:999px;
+      padding:14px 18px;
+      backdrop-filter:blur(16px);
+      min-height:72px;
+    }
+    .pillWide .left,
+    .pillWide .right{
+      font-size:22px;
+      font-weight:900;
+      opacity:.94;
+      white-space:nowrap;
+    }
+    .pillWide .center{
+      font-size:24px;
+      font-weight:1000;
+      opacity:.98;
+      white-space:nowrap;
+    }
+    .money{
+      color:var(--accent);
+      font-size:28px;
+      font-weight:1000;
+      letter-spacing:.01em;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      white-space:nowrap;
+    }
+
+    /* ===== ROI + シャッター ===== */
+    #roiWrap{
       position:fixed;
-      left:12px;
-      right:98px;
-      top:226px;
-      height:62px;
-      z-index:57;
-      border:none;
-      background:transparent;
+      left:12px; right:12px;
+      top:250px;
+      z-index:55;
+      display:flex;
+      align-items:center;
+      gap:14px;
+      pointer-events:none;
+    }
+    #roiBox{
+      flex:1;
+      height:72px;
+      border:3px solid rgba(240,192,64,.82);
       border-radius:18px;
-      padding:0;
-      margin:0;
-      cursor:pointer;
+      background:rgba(0,0,0,.08);
+      box-shadow:0 0 0 9999px rgba(0,0,0,.06);
+      transition:border-color .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    #roiBox.flash-ok{
+      border-color:rgba(79,212,138,.98);
+      background:rgba(79,212,138,.12);
+      box-shadow:0 0 0 9999px rgba(79,212,138,.08);
+      animation:roiFlash .55s ease-out;
+    }
+    @keyframes roiFlash{
+      0%{filter:brightness(1)}
+      35%{filter:brightness(1.25)}
+      100%{filter:brightness(1)}
     }
 
     #shutter{
-      position:fixed;
-      right:12px;
-      top:220px;
-      width:74px;
-      height:74px;
-      z-index:57;
+      width:78px; height:78px;
+      flex:0 0 78px;
       border-radius:999px;
-      border:3px solid rgba(255,255,255,.56);
-      background:rgba(255,255,255,.12);
-      box-shadow:0 8px 22px rgba(0,0,0,.28);
-      cursor:pointer;
-      padding:0;
+      border:3px solid rgba(255,255,255,.55);
+      background:rgba(255,255,255,.14);
+      box-shadow:0 12px 26px rgba(0,0,0,.35);
+      position:relative;
     }
     #shutter::after{
       content:"";
       position:absolute;
-      inset:0;
-      margin:auto;
-      width:40px;
-      height:40px;
+      inset:14px;
       border-radius:999px;
-      background:rgba(255,255,255,.20);
+      background:rgba(255,255,255,.22);
     }
-    #shutter:active{transform:scale(.97)}
+
+    /* タップ用 */
+    #tapRoi, #tapShutter{
+      position:fixed;
+      z-index:56;
+      background:transparent;
+      border:none;
+      padding:0;
+      margin:0;
+      cursor:pointer;
+    }
+    #tapRoi{
+      left:12px;
+      right:104px;   /* シャッター分を空ける */
+      top:250px;
+      height:72px;
+      border-radius:18px;
+    }
+    #tapShutter{
+      width:78px; height:78px;
+      right:12px;
+      top:247px;
+      border-radius:999px;
+    }
 
     /* ===== 下パネル ===== */
     #panel{
       position:fixed;
-      left:12px; right:12px;
-      top:304px;      /* 黄色枠の下から開始 */
-      bottom:88px;
+      left:12px; right:12px; bottom:12px;
       z-index:50;
-      display:flex;
-      flex-direction:column;
-      gap:12px;
     }
-
     .card{
-      flex:0 0 auto;
-      background:var(--panel);
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:18px;
+      background:rgba(10,10,10,.82);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:22px;
       overflow:hidden;
-      backdrop-filter:blur(16px);
+      backdrop-filter:blur(18px);
     }
     .row{
-      min-height:82px;
       display:flex;
-      align-items:center;
       justify-content:space-between;
+      align-items:center;
       gap:12px;
-      padding:12px 18px;
+      padding:18px 18px;
       border-bottom:1px solid rgba(255,255,255,.08);
+      min-height:88px;
     }
     .row:last-child{border-bottom:none}
+
     .label{
-      font-size:22px;
+      font-size:26px;
       font-weight:1000;
-      line-height:1.2;
-      color:rgba(255,255,255,.95);
+      line-height:1.1;
+      white-space:nowrap;
     }
     .sub{
-      font-size:16px;
+      font-size:20px;
       font-weight:900;
-      color:rgba(255,255,255,.82);
-      margin-left:6px;
+      opacity:.82;
+      margin-left:8px;
     }
     .val{
-      font-size:32px;
-      line-height:1;
-      font-weight:1000;
-      white-space:nowrap;
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-weight:1000;
+      font-size:38px;
+      line-height:1;
+      white-space:nowrap;
+      letter-spacing:.01em;
     }
-    .val.dim{color:rgba(255,255,255,.92)}
     .val.red{color:var(--red)}
     .val.gold{color:var(--accent)}
+    .val.dim{opacity:.88}
 
     .controls{
+      margin-top:12px;
       display:flex;
       gap:12px;
-      flex:0 0 auto;
+      align-items:stretch;
     }
     .btn{
-      min-height:82px;
       border:none;
       border-radius:18px;
-      font-size:22px;
+      padding:14px 10px;
       font-weight:1000;
+      font-size:24px;
       cursor:pointer;
-      flex:1;
+      min-height:104px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      line-height:1.15;
+      backdrop-filter:blur(14px);
     }
     #btnAuto{
-      max-width:150px;
+      width:160px;
+      flex:0 0 160px;
       background:var(--accent);
       color:#000;
-      line-height:1.05;
     }
     #btnAuto.off{
       background:rgba(255,255,255,.10);
       color:#fff;
-      border:1px solid rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.14);
     }
-    #btnUndo,#btnClear{
+    #btnUndo, #btnClear{
+      flex:1;
       background:rgba(255,255,255,.10);
       color:#fff;
-      border:1px solid rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.14);
     }
 
     #btnDetails{
-      min-height:68px;
       width:100%;
-      border:none;
-      border-radius:18px;
+      margin-top:12px;
       background:rgba(255,255,255,.08);
+      border:1px solid rgba(255,255,255,.12);
       color:#fff;
-      border:1px solid rgba(255,255,255,.10);
-      font-size:20px;
+      padding:18px 14px;
+      border-radius:18px;
       font-weight:1000;
-      cursor:pointer;
-      flex:0 0 auto;
+      font-size:24px;
+      min-height:80px;
     }
 
     #details{
       display:none;
-      flex:1 1 auto;
-      min-height:0;
-    }
-    #details.show{display:block}
-
-    .section{
-      height:100%;
-      overflow:auto;
-      background:rgba(10,10,10,.82);
+      margin-top:10px;
+      background:rgba(0,0,0,.55);
       border:1px solid rgba(255,255,255,.10);
       border-radius:18px;
       padding:12px;
       backdrop-filter:blur(12px);
+      max-height:34vh;
+      overflow:auto;
     }
-    .section h3{
-      margin:0 0 10px;
-      font-size:15px;
-      font-weight:1000;
-      color:rgba(255,255,255,.82);
+    #details.show{display:block}
+
+    .sectionTitle{
       display:flex;
-      align-items:center;
       justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      font-size:14px;
+      font-weight:900;
+      opacity:.85;
+      margin-bottom:10px;
     }
     #dateRow{
       display:flex;
       gap:8px;
-      flex-wrap:wrap;
       align-items:center;
+      flex-wrap:wrap;
       margin-bottom:10px;
     }
     input[type="date"]{
       background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.14);
       color:#fff;
-      border:1px solid rgba(255,255,255,.12);
       border-radius:12px;
-      padding:10px;
+      padding:10px 10px;
       font-weight:900;
     }
     .miniBtn{
-      border:none;
-      border-radius:12px;
       padding:10px 12px;
-      background:rgba(255,255,255,.10);
-      color:#fff;
-      border:1px solid rgba(255,255,255,.10);
       font-size:14px;
+      border-radius:12px;
+      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.14);
+      color:#fff;
       font-weight:1000;
       cursor:pointer;
     }
 
-    #logList{
-      max-height:220px;
-      overflow:auto;
-    }
+    #logList{max-height:180px;overflow:auto}
     .logItem{
       display:flex;
       align-items:center;
       justify-content:space-between;
       gap:10px;
-      padding:10px 6px;
+      padding:10px 4px;
       border-top:1px solid rgba(255,255,255,.08);
       font-size:15px;
     }
     .logItem:first-child{border-top:none}
-    .logLeft{display:flex;align-items:center;gap:8px}
+    .logLeft{display:flex;align-items:center;gap:10px}
     .logRight{
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
       font-weight:1000;
     }
     .logRight b{color:var(--accent)}
-
     #btnDeleteSelected{
-      margin-top:10px;
       width:100%;
-      min-height:48px;
-      border:none;
-      border-radius:14px;
+      margin-top:10px;
       background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.14);
       color:#fff;
-      border:1px solid rgba(255,255,255,.10);
-      font-size:15px;
+      padding:12px 12px;
+      border-radius:14px;
       font-weight:1000;
+      font-size:15px;
       cursor:pointer;
     }
 
     #tinyHint{
-      flex:0 0 auto;
-      font-size:12px;
+      margin-top:10px;
       text-align:center;
-      color:rgba(255,255,255,.72);
-    }
-
-    @media (max-height:760px){
-      #topStack{gap:7px}
-      .banner{min-height:54px;font-size:16px}
-      .pill{min-height:60px}
-      .pill .left,.pill .right{font-size:18px}
-      .pill .mid{font-size:21px}
-      .money{font-size:25px}
-
-      #roiBox,#tapRoi{top:214px;height:56px}
-      #shutter{top:208px;width:68px;height:68px}
-      #shutter::after{width:36px;height:36px}
-
-      #panel{top:282px}
-      .row{min-height:74px}
-      .label{font-size:20px}
-      .sub{font-size:14px}
-      .val{font-size:28px}
-      .btn{min-height:74px;font-size:20px}
-      #btnDetails{min-height:62px;font-size:18px}
+      font-size:12px;
+      color:rgba(255,255,255,.70);
     }
   </style>
 </head>
@@ -379,21 +361,25 @@
   <div id="topStack">
     <div id="banner" class="banner dim">⚠️ 枠に数字が見えていません</div>
 
-    <div class="pill">
+    <div class="pillWide">
       <div class="left">請求書：</div>
-      <div class="mid" id="invoiceCount">0</div>
+      <div class="center" id="invoiceCount">0</div>
       <div class="right">枚</div>
     </div>
 
-    <div class="pill">
+    <div class="pillWide">
       <div class="left">総合計（税抜）：</div>
       <div class="money" id="grandTotal">¥0</div>
     </div>
   </div>
 
-  <div id="roiBox"></div>
+  <div id="roiWrap">
+    <div id="roiBox"></div>
+    <div id="shutter"></div>
+  </div>
+
   <button id="tapRoi" aria-label="枠タップで読み取り"></button>
-  <button id="shutter" aria-label="シャッターで読み取り"></button>
+  <button id="tapShutter" aria-label="シャッターで読み取り"></button>
 
   <div id="panel">
     <div class="card">
@@ -420,18 +406,21 @@
     <button id="btnDetails">▼ 詳細（履歴）を開く</button>
 
     <div id="details">
-      <div class="section">
-        <h3>日付別（履歴・削除） <span id="dayInfo"></span></h3>
-        <div id="dateRow">
-          <button class="miniBtn" id="btnPrevDay">←</button>
-          <input type="date" id="datePick">
-          <button class="miniBtn" id="btnNextDay">→</button>
-          <button class="miniBtn" id="btnSelectAll">全選択</button>
-          <button class="miniBtn" id="btnClearSel">解除</button>
-        </div>
-        <div id="logList"></div>
-        <button id="btnDeleteSelected">☑ 選んで削除（重複・誤読）</button>
+      <div class="sectionTitle">
+        <div>日付別（履歴・削除）</div>
+        <div id="dayInfo"></div>
       </div>
+
+      <div id="dateRow">
+        <button class="miniBtn" id="btnPrevDay">←</button>
+        <input type="date" id="datePick">
+        <button class="miniBtn" id="btnNextDay">→</button>
+        <button class="miniBtn" id="btnSelectAll">全選択</button>
+        <button class="miniBtn" id="btnClearSel">解除</button>
+      </div>
+
+      <div id="logList"></div>
+      <button id="btnDeleteSelected">☑ 選んで削除（重複・誤読）</button>
     </div>
 
     <div id="tinyHint">※iPhoneで止まったら、Safariの「aA→サイトの設定→カメラ：許可」を確認</div>
@@ -440,9 +429,10 @@
 <script>
 (() => {
   const RATE = 0.10;
-  const TICK_MS = 420;
-  const COOLDOWN_MS = 900;
-  const SAME_VALUE_GUARD_MS = 2400;
+  const TICK_MS = 700;              // AUTO周期
+  const COOLDOWN_MS = 1200;         // 連打防止
+  const SAME_VALUE_GUARD_MS = 2600; // 同じ金額の連続誤加算防止
+  const SCALE = 4;                  // 小さい数字対策
 
   const video = document.getElementById('video');
   const cap = document.getElementById('cap');
@@ -452,9 +442,11 @@
   const invoiceCountEl = document.getElementById('invoiceCount');
   const grandTotalEl = document.getElementById('grandTotal');
 
+  const roiWrap = document.getElementById('roiWrap');
   const roiBox = document.getElementById('roiBox');
+
   const tapRoi = document.getElementById('tapRoi');
-  const shutter = document.getElementById('shutter');
+  const tapShutter = document.getElementById('tapShutter');
 
   const baseVal = document.getElementById('baseVal');
   const taxVal = document.getElementById('taxVal');
@@ -479,12 +471,13 @@
   let stream = null;
   let cameraReady = false;
   let autoOn = true;
-  let scanning = false;
   let timer = null;
+  let scanning = false;
+
+  let currentBase = 0;
   let lastScanAt = 0;
   let lastCountedValue = null;
   let lastCountedAt = 0;
-  let currentBase = 0;
 
   const pad2 = (n) => String(n).padStart(2,'0');
   const todayStr = () => {
@@ -493,22 +486,24 @@
   };
   const yen = (n) => `¥${Number(n || 0).toLocaleString('ja-JP')}`;
 
-  function setBanner(type, text){
+  function setBanner(kind, text){
     banner.classList.remove('ok','dim');
-    if (type === 'ok') banner.classList.add('ok');
+    if (kind === 'ok') banner.classList.add('ok');
     else banner.classList.add('dim');
     banner.textContent = text;
   }
 
   function vibrateShort(){
-    try { if (navigator.vibrate) navigator.vibrate(28); } catch(_) {}
+    try{
+      if (navigator.vibrate) navigator.vibrate(35);
+    }catch(_){}
   }
 
-  function flashROI(){
+  function roiFlashOk(){
     roiBox.classList.remove('flash-ok');
     void roiBox.offsetWidth;
     roiBox.classList.add('flash-ok');
-    setTimeout(() => roiBox.classList.remove('flash-ok'), 720);
+    setTimeout(() => roiBox.classList.remove('flash-ok'), 560);
   }
 
   function calcFromBase(base){
@@ -517,16 +512,23 @@
   }
 
   function showCurrent(base){
-    if (!base) {
-      baseVal.textContent = "—";
-      taxVal.textContent = "—";
-      totalVal.textContent = "—";
+    if (!base){
+      baseVal.textContent = '—';
+      taxVal.textContent = '—';
+      totalVal.textContent = '—';
       return;
     }
     const r = calcFromBase(base);
     baseVal.textContent = yen(r.base);
     taxVal.textContent = yen(r.tax);
     totalVal.textContent = yen(r.total);
+  }
+
+  function setAuto(on){
+    autoOn = on;
+    btnAuto.classList.toggle('off', !on);
+    btnAuto.innerHTML = on ? 'AUTO<br>ON' : 'AUTO<br>OFF';
+    setBanner('dim', on ? '⚠️ 枠に数字が見えていません' : '⚠️ 手動：枠タップ or シャッターで読み取り');
   }
 
   function clearCurrentKeepTotals(){
@@ -536,42 +538,32 @@
     setBanner('ok', '✅ 表示だけ解除しました');
   }
 
-  function setAuto(on){
-    autoOn = on;
-    btnAuto.classList.toggle('off', !on);
-    btnAuto.innerHTML = on ? 'AUTO<br>ON' : 'AUTO<br>OFF';
-    setBanner('dim', on ? '⚠️ 枠に数字が見えていません' : '⚠️ 手動：枠タップ or シャッター');
-  }
-
   function logKey(dateStr){ return `taxscan_log_${dateStr}`; }
-
   function loadLog(dateStr){
     try { return JSON.parse(localStorage.getItem(logKey(dateStr)) || '[]'); }
     catch(_) { return []; }
   }
-
   function saveLog(dateStr, arr){
     localStorage.setItem(logKey(dateStr), JSON.stringify(arr));
   }
-
   function calcStats(dateStr){
     const log = loadLog(dateStr);
     const count = log.length;
-    const sumBase = log.reduce((a, x) => a + (Number(x.base) || 0), 0);
+    const sumBase = log.reduce((a,x) => a + (Number(x.base) || 0), 0);
     return { count, sumBase, log };
   }
 
-  function setTopStats(dateStr){
+  function setTopStatsForDate(dateStr){
     const { count, sumBase } = calcStats(dateStr);
     invoiceCountEl.textContent = String(count);
     grandTotalEl.textContent = yen(sumBase);
-    dayInfo.textContent = `（${count}枚 / ${yen(sumBase)}）`;
+    dayInfo.textContent = `(${count}枚 / ${yen(sumBase)})`;
   }
 
   function renderLog(dateStr){
     const { log } = calcStats(dateStr);
-    if (!log.length) {
-      logList.innerHTML = '<div style="opacity:.7;font-size:14px;padding:4px 2px">履歴なし</div>';
+    if (!log.length){
+      logList.innerHTML = `<div style="opacity:.65;padding:6px 2px">履歴なし</div>`;
       return;
     }
 
@@ -599,12 +591,12 @@
       .filter(n => Number.isFinite(n));
   }
 
-  function selectAll(v){
-    [...document.querySelectorAll('.logChk')].forEach(c => c.checked = v);
+  function selectAll(checked){
+    [...document.querySelectorAll('.logChk')].forEach(c => c.checked = checked);
   }
 
   async function startCamera(){
-    try {
+    try{
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
@@ -616,54 +608,98 @@
       video.srcObject = stream;
       await video.play();
       cameraReady = true;
-    } catch (e) {
+    }catch(e){
       console.error(e);
       cameraReady = false;
-      setBanner('dim', '⚠️ カメラ許可が必要です');
+      setBanner('dim', '⚠️ カメラ許可が必要（aA→サイト設定→カメラ許可）');
     }
   }
 
+  function getDisplayToVideoMap(){
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const cw = window.innerWidth;
+    const ch = window.innerHeight;
+
+    if (!vw || !vh) return null;
+
+    const videoAspect = vw / vh;
+    const containerAspect = cw / ch;
+
+    let drawnW, drawnH, offsetX, offsetY;
+
+    if (videoAspect > containerAspect){
+      drawnH = ch;
+      drawnW = ch * videoAspect;
+      offsetX = (drawnW - cw) / 2;
+      offsetY = 0;
+    } else {
+      drawnW = cw;
+      drawnH = cw / videoAspect;
+      offsetX = 0;
+      offsetY = (drawnH - ch) / 2;
+    }
+
+    return {
+      vw, vh, cw, ch,
+      drawnW, drawnH,
+      offsetX, offsetY
+    };
+  }
+
   function captureROIBase64(){
-    const vr = video.getBoundingClientRect();
-    const rr = roiBox.getBoundingClientRect();
+    const map = getDisplayToVideoMap();
+    if (!map) return null;
 
-    const sx = Math.max(0, Math.round((rr.left - vr.left) / vr.width * video.videoWidth));
-    const sy = Math.max(0, Math.round((rr.top - vr.top) / vr.height * video.videoHeight));
-    const sw = Math.max(1, Math.round(rr.width / vr.width * video.videoWidth));
-    const sh = Math.max(1, Math.round(rr.height / vr.height * video.videoHeight));
+    const roiRect = tapRoi.getBoundingClientRect();
 
-    const SCALE = 3;
-    cap.width = Math.max(1, Math.round(sw * SCALE));
-    cap.height = Math.max(1, Math.round(sh * SCALE));
+    let sx = ((roiRect.left + map.offsetX) / map.drawnW) * map.vw;
+    let sy = ((roiRect.top + map.offsetY) / map.drawnH) * map.vh;
+    let sw = (roiRect.width / map.drawnW) * map.vw;
+    let sh = (roiRect.height / map.drawnH) * map.vh;
 
-    ctx.save();
+    sx = Math.max(0, Math.floor(sx));
+    sy = Math.max(0, Math.floor(sy));
+    sw = Math.max(1, Math.floor(sw));
+    sh = Math.max(1, Math.floor(sh));
+
+    cap.width = Math.max(1, Math.floor(sw * SCALE));
+    cap.height = Math.max(1, Math.floor(sh * SCALE));
+
     ctx.imageSmoothingEnabled = false;
-    ctx.filter = 'grayscale(1) contrast(210%) brightness(125%)';
     ctx.clearRect(0, 0, cap.width, cap.height);
-    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cap.width, cap.height);
-    ctx.restore();
 
-    return cap.toDataURL('image/jpeg', 0.95).split(',')[1];
+    ctx.filter = 'contrast(220%) brightness(122%) grayscale(100%)';
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, cap.width, cap.height);
+    ctx.filter = 'none';
+
+    return cap.toDataURL('image/jpeg', 0.96).split(',')[1];
   }
 
   async function callOCR(){
     const image_base64 = captureROIBase64();
+    if (!image_base64) return 0;
+
     const res = await fetch('/api/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64 })
     });
+
     const data = await res.json().catch(() => ({}));
-    return {
-      total: Number(data?.total || 0),
-      debug: data?.debug || ''
-    };
+
+    if (!res.ok) {
+      throw new Error(data?.error || 'scan failed');
+    }
+
+    const base = Number(data?.total || 0);
+    return Number.isFinite(base) ? base : 0;
   }
 
   function countInvoice(base){
     const now = Date.now();
 
-    if (lastCountedValue === base && (now - lastCountedAt) < SAME_VALUE_GUARD_MS) {
+    if (lastCountedValue === base && (now - lastCountedAt) < SAME_VALUE_GUARD_MS){
       return;
     }
 
@@ -675,10 +711,10 @@
     log.push({ base });
     saveLog(ds, log);
 
-    setTopStats(ds);
+    setTopStatsForDate(ds);
     renderLog(ds);
 
-    flashROI();
+    roiFlashOk();
     vibrateShort();
     setBanner('ok', `✅ 確定：${yen(base)}（税抜）`);
 
@@ -692,40 +728,37 @@
     if (!cameraReady) return;
 
     const now = Date.now();
-    if (now - lastScanAt < COOLDOWN_MS) return;
+    if ((now - lastScanAt) < COOLDOWN_MS) return;
 
     scanning = true;
-    try {
-      const { total, debug } = await callOCR();
+    try{
+      const base = await callOCR();
 
-      if (total > 0) {
-        countInvoice(total);
+      if (base > 0){
+        countInvoice(base);
       } else {
-        if (debug) console.log('OCR debug:', debug);
-        setBanner('dim', '⚠️ 枠に数字が見えていません');
+        setBanner('dim', autoOn ? '⚠️ 枠に数字が見えていません' : '⚠️ 手動：枠タップ or シャッターで読み取り');
         lastScanAt = now;
       }
-    } catch (e) {
+    }catch(e){
       console.error(e);
-      setBanner('dim', '⚠️ OCRエラー');
+      setBanner('dim', '⚠️ OCRエラー（API/モデル/キー確認）');
       lastScanAt = now;
-    } finally {
+    }finally{
       scanning = false;
     }
   }
 
-  async function tick(){
-    if (!autoOn) return;
-    await scanOnce();
-  }
-
   function startLoop(){
     stopLoop();
-    timer = setInterval(tick, TICK_MS);
+    timer = setInterval(() => {
+      if (!autoOn) return;
+      scanOnce();
+    }, TICK_MS);
   }
 
   function stopLoop(){
-    if (timer) {
+    if (timer){
       clearInterval(timer);
       timer = null;
     }
@@ -738,66 +771,75 @@
 
     log.pop();
     saveLog(ds, log);
-    setTopStats(ds);
+
+    setTopStatsForDate(ds);
     renderLog(ds);
+
     setBanner('ok', '↩︎ 直近1件を取り消しました');
   }
 
   function deleteSelected(){
     const ds = datePick.value;
-    const idxs = getSelectedIdx().sort((a,b) => b-a);
-    if (!idxs.length) {
+    const idxs = getSelectedIdx().sort((a,b) => b - a);
+    if (!idxs.length){
       setBanner('dim', '⚠️ 削除する項目を選んでね');
       return;
     }
 
     const log = loadLog(ds);
-    for (const i of idxs) {
+    for (const i of idxs){
       if (i >= 0 && i < log.length) log.splice(i, 1);
     }
     saveLog(ds, log);
-    setTopStats(ds);
+
+    setTopStatsForDate(ds);
     renderLog(ds);
-    setBanner('ok', `✅ ${idxs.length}件削除しました`);
+
+    setBanner('ok', `✅ 選択 ${idxs.length} 件を削除`);
   }
 
   function shiftDate(days){
     const d = new Date(datePick.value + 'T00:00:00');
     d.setDate(d.getDate() + days);
-    datePick.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const ds = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    datePick.value = ds;
     onDateChanged();
   }
 
   function onDateChanged(){
-    setTopStats(datePick.value);
+    setTopStatsForDate(datePick.value);
     renderLog(datePick.value);
   }
 
   window.addEventListener('load', async () => {
     datePick.value = todayStr();
-    showCurrent(0);
-    setTopStats(datePick.value);
+
+    setTopStatsForDate(datePick.value);
     renderLog(datePick.value);
+    showCurrent(0);
 
     await startCamera();
     setAuto(true);
     startLoop();
   });
 
-  btnAuto.addEventListener('click', () => setAuto(!autoOn));
+  btnAuto.addEventListener('click', () => {
+    setAuto(!autoOn);
+  });
+
   btnUndo.addEventListener('click', undoLast);
   btnClear.addEventListener('click', clearCurrentKeepTotals);
 
   tapRoi.addEventListener('click', scanOnce);
-  shutter.addEventListener('click', scanOnce);
-
-  btnSelectAll.addEventListener('click', () => selectAll(true));
-  btnClearSel.addEventListener('click', () => selectAll(false));
-  btnDeleteSelected.addEventListener('click', deleteSelected);
+  tapShutter.addEventListener('click', scanOnce);
 
   btnPrevDay.addEventListener('click', () => shiftDate(-1));
   btnNextDay.addEventListener('click', () => shiftDate(1));
   datePick.addEventListener('change', onDateChanged);
+
+  btnSelectAll.addEventListener('click', () => selectAll(true));
+  btnClearSel.addEventListener('click', () => selectAll(false));
+  btnDeleteSelected.addEventListener('click', deleteSelected);
 
   btnDetails.addEventListener('click', () => {
     const open = !details.classList.contains('show');
