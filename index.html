@@ -8,13 +8,14 @@
     :root{
       --accent:#f0c040;
       --red:#ff5f5f;
-      --border:rgba(255,255,255,.14);
-      --surface:rgba(10,10,10,.82);
+      --border:rgba(255,255,255,.12);
+      --glass:rgba(0,0,0,.38);
+      --panel:rgba(10,10,10,.82);
       --ok:#4fd48a;
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    body{
-      margin:0;background:#000;color:#fff;
+    html,body{
+      margin:0;padding:0;background:#000;color:#fff;
       font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;
       overflow:hidden;
     }
@@ -37,111 +38,109 @@
       flex-direction:column;
       gap:8px;
     }
-    .banner{
-      min-height:62px;
-      display:flex; align-items:center; gap:10px;
+    .banner,.pill{
       border-radius:999px;
-      padding:12px 18px;
+      backdrop-filter:blur(14px);
+      border:1px solid var(--border);
+      background:var(--glass);
+    }
+    .banner{
+      min-height:58px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:12px 16px;
+      font-size:17px;
       font-weight:1000;
-      font-size:18px;
-      color:rgba(255,255,255,.95);
-      border:1px solid rgba(255,95,95,.24);
-      background:rgba(120,0,0,.34);
-      backdrop-filter:blur(12px);
+      color:rgba(255,255,255,.96);
+      border-color:rgba(255,95,95,.24);
+      background:rgba(120,0,0,.32);
     }
     .banner.ok{
-      border-color:rgba(79,212,138,.26);
-      background:rgba(0,90,30,.28);
+      border-color:rgba(79,212,138,.28);
+      background:rgba(0,90,30,.26);
     }
     .banner.dim{
-      border-color:rgba(255,255,255,.10);
-      background:rgba(0,0,0,.28);
+      border-color:var(--border);
+      background:var(--glass);
     }
 
-    .pillWide{
-      min-height:68px;
+    .pill{
+      min-height:64px;
       display:flex;
       align-items:center;
       justify-content:space-between;
-      border-radius:999px;
       padding:12px 18px;
-      background:rgba(0,0,0,.38);
-      border:1px solid rgba(255,255,255,.10);
-      backdrop-filter:blur(14px);
     }
-    .pillWide .left,
-    .pillWide .center,
-    .pillWide .right{
-      font-weight:1000;
+    .pill .left,.pill .mid,.pill .right{
       line-height:1;
+      font-weight:1000;
       color:rgba(255,255,255,.96);
     }
-    .pillWide .left{font-size:21px}
-    .pillWide .center{font-size:24px}
-    .pillWide .right{font-size:21px}
+    .pill .left{font-size:20px}
+    .pill .mid{font-size:23px}
+    .pill .right{font-size:20px}
     .money{
-      color:var(--accent);
-      font-size:29px;
-      font-weight:1000;
       line-height:1;
+      font-size:28px;
+      font-weight:1000;
+      color:var(--accent);
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
     }
 
-    /* ===== 黄色枠（上バーとカードの間に固定） ===== */
+    /* ===== 黄色枠 + シャッター ===== */
     #roiBox{
       position:fixed;
       left:12px;
-      right:96px;     /* シャッター分を空ける */
-      top:248px;
-      height:74px;
+      right:98px;     /* シャッターボタン分を空ける */
+      top:226px;      /* 上バーの下 */
+      height:62px;    /* 高さを少し狭く */
       z-index:56;
       border:3px solid rgba(240,192,64,.82);
       border-radius:18px;
-      background:rgba(0,0,0,.04);
-      box-shadow:0 0 0 1px rgba(240,192,64,.08) inset;
+      background:rgba(0,0,0,.03);
       pointer-events:none;
     }
     #roiBox.flash-ok{
-      animation:flashOk 700ms ease-out;
+      animation:roiFlash .72s ease-out;
     }
-    @keyframes flashOk{
+    @keyframes roiFlash{
       0%{
-        border-color:rgba(79,212,138,.95);
+        border-color:rgba(79,212,138,.96);
         background:rgba(79,212,138,.16);
         box-shadow:0 0 18px rgba(79,212,138,.35);
       }
       100%{
         border-color:rgba(240,192,64,.82);
-        background:rgba(0,0,0,.04);
+        background:rgba(0,0,0,.03);
         box-shadow:none;
       }
     }
 
-    /* タップ領域 */
     #tapRoi{
       position:fixed;
       left:12px;
-      right:96px;
-      top:248px;
-      height:74px;
+      right:98px;
+      top:226px;
+      height:62px;
       z-index:57;
       border:none;
       background:transparent;
+      border-radius:18px;
       padding:0;
       margin:0;
-      border-radius:18px;
       cursor:pointer;
     }
 
-    /* シャッター */
     #shutter{
       position:fixed;
       right:12px;
-      top:246px;
-      width:74px; height:74px;
+      top:220px;
+      width:74px;
+      height:74px;
       z-index:57;
       border-radius:999px;
-      border:3px solid rgba(255,255,255,.55);
+      border:3px solid rgba(255,255,255,.56);
       background:rgba(255,255,255,.12);
       box-shadow:0 8px 22px rgba(0,0,0,.28);
       cursor:pointer;
@@ -152,69 +151,77 @@
       position:absolute;
       inset:0;
       margin:auto;
-      width:40px; height:40px;
+      width:40px;
+      height:40px;
       border-radius:999px;
       background:rgba(255,255,255,.20);
     }
-    #shutter:active{ transform:scale(.97); }
+    #shutter:active{transform:scale(.97)}
 
     /* ===== 下パネル ===== */
     #panel{
       position:fixed;
-      left:12px; right:12px; bottom:90px;
+      left:12px; right:12px;
+      top:304px;      /* 黄色枠の下から開始 */
+      bottom:88px;
       z-index:50;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
     }
+
     .card{
-      background:var(--surface);
+      flex:0 0 auto;
+      background:var(--panel);
       border:1px solid rgba(255,255,255,.10);
       border-radius:18px;
       overflow:hidden;
       backdrop-filter:blur(16px);
     }
     .row{
-      min-height:92px;
+      min-height:82px;
       display:flex;
-      justify-content:space-between;
       align-items:center;
+      justify-content:space-between;
       gap:12px;
-      padding:14px 22px;
+      padding:12px 18px;
       border-bottom:1px solid rgba(255,255,255,.08);
     }
     .row:last-child{border-bottom:none}
     .label{
-      font-size:25px;
+      font-size:22px;
       font-weight:1000;
-      line-height:1.15;
+      line-height:1.2;
       color:rgba(255,255,255,.95);
     }
     .sub{
-      font-size:17px;
+      font-size:16px;
       font-weight:900;
       color:rgba(255,255,255,.82);
       margin-left:6px;
     }
     .val{
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-      font-weight:1000;
-      font-size:36px;
+      font-size:32px;
       line-height:1;
+      font-weight:1000;
       white-space:nowrap;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
     }
+    .val.dim{color:rgba(255,255,255,.92)}
     .val.red{color:var(--red)}
     .val.gold{color:var(--accent)}
-    .val.dim{color:rgba(255,255,255,.92)}
 
     .controls{
-      margin-top:12px;
       display:flex;
       gap:12px;
+      flex:0 0 auto;
     }
     .btn{
-      min-height:92px;
+      min-height:82px;
       border:none;
       border-radius:18px;
+      font-size:22px;
       font-weight:1000;
-      font-size:24px;
       cursor:pointer;
       flex:1;
     }
@@ -236,26 +243,29 @@
     }
 
     #btnDetails{
+      min-height:68px;
       width:100%;
-      min-height:74px;
-      margin-top:12px;
       border:none;
       border-radius:18px;
       background:rgba(255,255,255,.08);
       color:#fff;
       border:1px solid rgba(255,255,255,.10);
-      font-size:22px;
+      font-size:20px;
       font-weight:1000;
       cursor:pointer;
+      flex:0 0 auto;
     }
 
     #details{
       display:none;
-      margin-top:10px;
+      flex:1 1 auto;
+      min-height:0;
     }
     #details.show{display:block}
 
     .section{
+      height:100%;
+      overflow:auto;
       background:rgba(10,10,10,.82);
       border:1px solid rgba(255,255,255,.10);
       border-radius:18px;
@@ -267,51 +277,61 @@
       font-size:15px;
       font-weight:1000;
       color:rgba(255,255,255,.82);
-      display:flex; justify-content:space-between; align-items:center;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
     }
     #dateRow{
-      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
       margin-bottom:10px;
     }
     input[type="date"]{
       background:rgba(255,255,255,.10);
-      border:1px solid rgba(255,255,255,.12);
       color:#fff;
+      border:1px solid rgba(255,255,255,.12);
       border-radius:12px;
       padding:10px;
       font-weight:900;
     }
     .miniBtn{
-      padding:10px 12px;
+      border:none;
       border-radius:12px;
-      border:1px solid rgba(255,255,255,.10);
+      padding:10px 12px;
       background:rgba(255,255,255,.10);
       color:#fff;
+      border:1px solid rgba(255,255,255,.10);
       font-size:14px;
       font-weight:1000;
       cursor:pointer;
     }
+
     #logList{
-      max-height:180px;
+      max-height:220px;
       overflow:auto;
     }
     .logItem{
-      display:flex; justify-content:space-between; align-items:center;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
       gap:10px;
       padding:10px 6px;
       border-top:1px solid rgba(255,255,255,.08);
       font-size:15px;
     }
     .logItem:first-child{border-top:none}
-    .logLeft{display:flex; align-items:center; gap:8px}
+    .logLeft{display:flex;align-items:center;gap:8px}
     .logRight{
       font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
       font-weight:1000;
     }
     .logRight b{color:var(--accent)}
+
     #btnDeleteSelected{
-      width:100%;
       margin-top:10px;
+      width:100%;
       min-height:48px;
       border:none;
       border-radius:14px;
@@ -324,22 +344,31 @@
     }
 
     #tinyHint{
-      margin-top:10px;
-      text-align:center;
+      flex:0 0 auto;
       font-size:12px;
+      text-align:center;
       color:rgba(255,255,255,.72);
     }
 
-    @media (max-height: 760px){
-      #roiBox,#tapRoi{ top:236px; height:68px; }
-      #shutter{ top:234px; width:68px; height:68px; }
-      #shutter::after{ width:36px; height:36px; }
-      .row{ min-height:84px; }
-      .label{ font-size:23px; }
-      .sub{ font-size:15px; }
-      .val{ font-size:32px; }
-      .btn{ min-height:84px; font-size:22px; }
-      #btnDetails{ min-height:68px; font-size:20px; }
+    @media (max-height:760px){
+      #topStack{gap:7px}
+      .banner{min-height:54px;font-size:16px}
+      .pill{min-height:60px}
+      .pill .left,.pill .right{font-size:18px}
+      .pill .mid{font-size:21px}
+      .money{font-size:25px}
+
+      #roiBox,#tapRoi{top:214px;height:56px}
+      #shutter{top:208px;width:68px;height:68px}
+      #shutter::after{width:36px;height:36px}
+
+      #panel{top:282px}
+      .row{min-height:74px}
+      .label{font-size:20px}
+      .sub{font-size:14px}
+      .val{font-size:28px}
+      .btn{min-height:74px;font-size:20px}
+      #btnDetails{min-height:62px;font-size:18px}
     }
   </style>
 </head>
@@ -350,13 +379,13 @@
   <div id="topStack">
     <div id="banner" class="banner dim">⚠️ 枠に数字が見えていません</div>
 
-    <div class="pillWide">
+    <div class="pill">
       <div class="left">請求書：</div>
-      <div class="center" id="invoiceCount">0</div>
+      <div class="mid" id="invoiceCount">0</div>
       <div class="right">枚</div>
     </div>
 
-    <div class="pillWide">
+    <div class="pill">
       <div class="left">総合計（税抜）：</div>
       <div class="money" id="grandTotal">¥0</div>
     </div>
@@ -594,7 +623,6 @@
     }
   }
 
-  // 画面上の黄色枠位置そのままを切り抜く
   function captureROIBase64(){
     const vr = video.getBoundingClientRect();
     const rr = roiBox.getBoundingClientRect();
@@ -620,13 +648,11 @@
 
   async function callOCR(){
     const image_base64 = captureROIBase64();
-
     const res = await fetch('/api/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image_base64 })
     });
-
     const data = await res.json().catch(() => ({}));
     return {
       total: Number(data?.total || 0),
