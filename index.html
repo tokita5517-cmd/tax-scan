@@ -1,748 +1,1463 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>請求書スキャン（税抜→税/税込）</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <title>G伝票専用スキャン + Excel/OneDrive同期</title>
   <style>
     :root{
-      --accent:#f0c040;
-      --red:#ff5f5f;
-      --border:rgba(255,255,255,.14);
-      --surface:rgba(10,10,10,.82);
-      --glass:rgba(0,0,0,.65);
-      --ok:#4fd48a;
+      --bg:#0b1017;
+      --panel:rgba(20,28,38,.88);
+      --line:rgba(255,255,255,.12);
+      --text:#f7fafc;
+      --muted:#9fb0c2;
+      --accent:#ffcc00;
+      --green:#30d158;
+      --red:#ff453a;
+      --blue:#0a84ff;
+      --orange:#ff9f0a;
+      --replace:#7dd3fc;
+      --shadow:0 12px 30px rgba(0,0,0,.35);
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-    body{margin:0;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",system-ui,sans-serif;overflow:hidden}
-
-    #video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
-    #cap{display:none}
-
-    /* ===== 上のバー（この配置を維持） ===== */
-    #topStack{
-      position:fixed;
-      top:12px; left:12px; right:12px;
-      z-index:60;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
+    html,body{
+      margin:0;padding:0;background:var(--bg);color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Hiragino Sans","Noto Sans JP",sans-serif;
+      height:100%;overflow:hidden;
     }
-    .banner{
-      background:rgba(110,0,0,.45);
-      border:1px solid rgba(255,95,95,.35);
-      border-radius:999px;
-      padding:12px 14px;
-      font-weight:900;
-      letter-spacing:.02em;
-      backdrop-filter:blur(12px);
-      display:flex; align-items:center; gap:10px;
-      color:rgba(255,255,255,.92);
-    }
-    .banner.ok{
-      background:rgba(0,90,30,.38);
-      border-color:rgba(79,212,138,.35);
-    }
-    .banner.dim{
-      background:rgba(0,0,0,.28);
-      border-color:rgba(255,255,255,.12);
-    }
-    .pillWide{
-      display:flex; align-items:center; justify-content:space-between;
-      background:rgba(0,0,0,.40);
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:999px;
-      padding:14px 18px;
-      backdrop-filter:blur(16px);
-      font-weight:900;
-    }
-    .pillWide .left{opacity:.92; letter-spacing:.02em; font-size:22px;}
-    .pillWide .center{font-size:26px; opacity:.95;}
-    .pillWide .right{font-size:22px; opacity:.92;}
-    .money{
-      color:var(--accent);
-      font-size:30px;
-      font-weight:1000;
-      letter-spacing:.02em;
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-    }
-
-    /* ===== ROI（黄色枠）& シャッター =====
-       ★重なり対策：少し上げる＋少し高さを縮める */
-    #roiWrap{
-      position:fixed;
-      left:12px; right:12px;
-      top:186px;              /* ←前より少し上（重なり解消） */
-      z-index:55;
-      display:flex;
-      align-items:center;
-      gap:14px;
-      pointer-events:none;
-    }
-    #roiBox{
-      flex:1;
-      height:78px;            /* ←少しだけ薄く（重なり解消） */
-      border:3px solid rgba(240,192,64,.80);
-      border-radius:18px;
-      box-shadow:0 0 0 9999px rgba(0,0,0,.10);
-      background:rgba(0,0,0,.10);
+    body{display:flex;justify-content:center;align-items:stretch}
+    .app{
+      width:min(100vw,520px);
+      height:100dvh;
       position:relative;
-    }
-    #roiBox.flash-ok{
-      border-color:rgba(79,212,138,.95);
-      box-shadow:0 0 0 9999px rgba(79,212,138,.10);
-      animation:roiFlash 680ms ease-out;
-    }
-    @keyframes roiFlash{
-      0%{filter:brightness(1.0)}
-      40%{filter:brightness(1.35)}
-      100%{filter:brightness(1.0)}
-    }
-
-    #shutter{
-      width:78px;
-      height:78px;
-      border-radius:999px;
-      border:3px solid rgba(255,255,255,.55);
-      background:rgba(255,255,255,.14);
-      box-shadow:0 12px 26px rgba(0,0,0,.35);
-    }
-    #shutter::after{
-      content:"";
-      display:block;
-      width:44px;height:44px;
-      margin:14px auto 0;
-      border-radius:999px;
-      background:rgba(255,255,255,.22);
-    }
-
-    /* タップ用（透明） */
-    #tapRoi, #tapShutter{
-      position:fixed;
-      z-index:56;
-      background:transparent;
-      border:none;
-      padding:0;
-    }
-    #tapRoi{
-      left:12px;
-      right:12px;
-      top:186px;             /* ←roiWrapと一致 */
-      height:78px;           /* ←roiBoxと一致 */
-      border-radius:18px;
-    }
-    #tapShutter{
-      width:78px;height:78px;
-      right:12px;
-      top:186px;             /* ←roiWrapと一致 */
-      border-radius:999px;
-    }
-
-    /* ===== 下パネル（この配置を維持） ===== */
-    #panel{
-      position:fixed;
-      left:0; right:0; bottom:0;
-      z-index:50;
-      padding:12px 12px 18px;
-      background:linear-gradient(to top, rgba(0,0,0,.92) 68%, rgba(0,0,0,.22));
-    }
-    .card{
-      background:var(--surface);
-      border:1px solid var(--border);
-      border-radius:18px;
       overflow:hidden;
+      background:linear-gradient(180deg,#0b1017 0%,#101925 100%);
+    }
+    .cameraWrap{position:absolute;inset:0;background:#000}
+    video{
+      position:absolute;inset:0;width:100%;height:100%;
+      object-fit:cover;background:#000;
+    }
+    canvas{display:none}
+
+    .topBar{
+      position:absolute;left:12px;right:12px;top:12px;z-index:20;
+      display:grid;grid-template-columns:1fr 132px;gap:8px;
+    }
+    .summary{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .box{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:20px;
+      padding:10px 12px;
+      min-height:64px;
+      box-shadow:var(--shadow);
       backdrop-filter:blur(18px);
     }
-    .row{
-      display:flex; justify-content:space-between; align-items:center;
-      padding:16px 16px;
-      border-bottom:1px solid rgba(255,255,255,.09);
+    .compact{padding:8px 10px;min-height:56px}
+    .label{font-size:11px;color:var(--muted);margin-bottom:3px;letter-spacing:.04em}
+    .value{
+      font-size:27px;font-weight:800;line-height:1.05;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      font-variant-numeric:tabular-nums;
     }
-    .row:last-child{border-bottom:none}
-    .label{font-size:26px; font-weight:900; opacity:.92;}
-    .sub{font-size:22px; opacity:.80; font-weight:900; margin-left:6px;}
-    .val{
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-      font-weight:1000;
-      font-size:52px;
-      letter-spacing:.02em;
+    .value.small{font-size:21px}
+    .sub{
+      font-size:12px;color:var(--muted);margin-top:2px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
-    .val.red{color:var(--red)}
-    .val.gold{color:var(--accent)}
-    .val.dim{opacity:.85}
+    .miniCol{display:flex;flex-direction:column;gap:8px}
 
-    .controls{
-      margin-top:12px;
-      display:flex;
-      gap:12px;
-      align-items:stretch;
+    .statusWrap{
+      position:absolute;left:12px;right:12px;top:152px;z-index:19;
+      display:grid;grid-template-columns:1fr 1fr;gap:8px;
     }
-    button.btn{
-      border:none;
+    .statusBox{
+      background:rgba(12,18,24,.82);
+      border:1px solid var(--line);
       border-radius:18px;
-      padding:16px 14px;
-      font-weight:1000;
-      font-size:26px;
-      cursor:pointer;
-      flex:1;
+      padding:8px 10px;
+      min-height:52px;
+      backdrop-filter:blur(16px);
     }
-    #btnAuto{
-      max-width:160px;
-      background:var(--accent);
-      color:#000;
+    .statusText{
+      font-size:13px;line-height:1.35;color:#e9eef5;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
-    #btnAuto.off{
-      background:rgba(255,255,255,.10);
-      color:#fff;
-      border:1px solid var(--border);
+    .ok{color:var(--green)}
+    .warn{color:var(--accent)}
+    .err{color:var(--red)}
+    .info{color:#91c5ff}
+
+    .guideArea{position:absolute;inset:0;z-index:12;pointer-events:none}
+    .target{
+      position:absolute;
+      border:3px solid rgba(255,204,0,.95);
+      border-radius:18px;
+      box-shadow:0 0 0 2px rgba(255,204,0,.18) inset,0 0 18px rgba(255,204,0,.25);
+      background:rgba(255,204,0,.06);
     }
-    #btnUndo{
-      background:rgba(255,255,255,.10);
-      color:#fff;
-      border:1px solid var(--border);
+    .target::before{
+      content:"";
+      position:absolute;left:50%;top:50%;
+      width:16px;height:16px;transform:translate(-50%,-50%);
+      border:2px solid rgba(255,255,255,.75);
+      border-radius:50%;
+      opacity:.75;
     }
-    #btnClear{
-      max-width:160px;
-      background:rgba(255,255,255,.10);
-      color:#fff;
-      border:1px solid var(--border);
+    .targetLabel{
+      position:absolute;left:50%;transform:translateX(-50%);
+      bottom:-30px;background:rgba(0,0,0,.48);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:999px;padding:6px 10px;
+      font-size:12px;color:#fff;white-space:nowrap;
+      backdrop-filter:blur(10px);
+    }
+    .target.invoice{left:62%;top:25.5%;width:28%;height:10%}
+    .target.amount{left:59%;top:63%;width:31%;height:10%}
+
+    .hint{
+      position:absolute;left:50%;transform:translateX(-50%);
+      top:77%;z-index:13;background:rgba(0,0,0,.42);
+      border:1px solid rgba(255,255,255,.12);color:#fff;
+      padding:8px 12px;border-radius:999px;font-size:12px;white-space:nowrap;
+      backdrop-filter:blur(10px);
+    }
+    .noteLeft{
+      position:absolute;left:12px;bottom:298px;z-index:20;max-width:58%;
+      background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);
+      padding:8px 10px;border-radius:14px;backdrop-filter:blur(10px);
+      font-size:11px;line-height:1.4;color:#dbe4ef;
+    }
+    .loading{
+      position:absolute;right:12px;bottom:298px;z-index:20;
+      display:none;align-items:center;gap:8px;
+      background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.08);
+      border-radius:999px;padding:8px 12px;font-size:12px;backdrop-filter:blur(10px);
+    }
+    .dot{
+      width:8px;height:8px;border-radius:50%;
+      background:#ffd400;box-shadow:0 0 8px #ffd400;
+      animation:blink 1s infinite ease-in-out;
+    }
+    @keyframes blink{
+      0%,100%{opacity:.4;transform:scale(.85)}
+      50%{opacity:1;transform:scale(1)}
     }
 
-    #btnDetails{
-      width:100%;
-      margin-top:12px;
-      background:rgba(255,255,255,.08);
-      border:1px solid rgba(255,255,255,.12);
-      color:#fff;
-      padding:16px 14px;
-      border-radius:18px;
-      font-weight:1000;
-      font-size:26px;
+    .bottom{
+      position:absolute;left:12px;right:12px;bottom:10px;z-index:20;
+      display:grid;grid-template-columns:1fr;gap:10px;
     }
-    #details{display:none;margin-top:10px}
-    #details.show{display:block}
+    .historyCard{
+      background:rgba(12,18,24,.84);border:1px solid var(--line);
+      border-radius:22px;padding:10px 12px;
+      backdrop-filter:blur(18px);box-shadow:var(--shadow);
+    }
+    .historyHeader{
+      display:flex;justify-content:space-between;align-items:center;
+      margin-bottom:6px;font-size:12px;color:var(--muted);gap:8px;
+    }
+    .pill{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:6px 10px;border-radius:999px;font-size:12px;color:#fff;
+      background:rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.1);
+      white-space:nowrap;
+    }
+    .historyList{max-height:128px;overflow:auto;padding-right:2px}
+    .historyItem{
+      display:grid;grid-template-columns:34px 1fr auto auto;
+      gap:8px;align-items:center;padding:7px 0;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      font-size:14px;font-variant-numeric:tabular-nums;
+    }
+    .historyItem:last-child{border-bottom:none}
+    .historyItem.replaced{color:var(--replace)}
+    .index{color:var(--muted);text-align:center}
+    .invoiceNo{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .amountVal{font-weight:800}
+    .badge{
+      font-size:11px;padding:3px 7px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.15);
+      background:rgba(255,255,255,.08);color:#fff;
+    }
+    .badge.replaced{
+      background:rgba(125,211,252,.18);
+      color:var(--replace);
+      border-color:rgba(125,211,252,.35);
+    }
+    .badge.synced{
+      background:rgba(48,209,88,.18);
+      color:var(--green);
+      border-color:rgba(48,209,88,.35);
+    }
+    .badge.unsynced{
+      background:rgba(255,204,0,.18);
+      color:var(--accent);
+      border-color:rgba(255,204,0,.35);
+    }
 
-    .section{
-      margin-top:10px;
-      background:rgba(0,0,0,.35);
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:18px;
-      padding:12px 12px 10px;
-      backdrop-filter:blur(12px);
+    .actions{display:grid;grid-template-columns:80px 1fr 80px 80px;gap:10px;align-items:center}
+    .actions2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .btn{
+      border:none;border-radius:22px;min-height:56px;color:#fff;background:var(--panel);
+      border:1px solid var(--line);font-size:15px;font-weight:700;
+      box-shadow:var(--shadow);backdrop-filter:blur(18px);
     }
-    .section h3{
-      margin:0 0 10px;
-      font-size:14px;
-      letter-spacing:.08em;
-      color:rgba(255,255,255,.78);
-      display:flex; justify-content:space-between; align-items:center;
-      font-weight:900;
+    .btn:active{transform:scale(.98)}
+    .btn.gray{background:rgba(255,255,255,.08)}
+    .btn.red{background:rgba(255,69,58,.18);border-color:rgba(255,69,58,.32)}
+    .btn.blue{background:rgba(10,132,255,.22);border-color:rgba(10,132,255,.35)}
+    .btn.green{background:rgba(48,209,88,.18);border-color:rgba(48,209,88,.32)}
+    .btn.orange{background:rgba(255,159,10,.18);border-color:rgba(255,159,10,.32)}
+
+    .shutterWrap{display:flex;justify-content:flex-start;padding-left:4px}
+    .shutter{
+      width:84px;height:84px;border-radius:50%;border:none;
+      background:linear-gradient(180deg,#fff,#d8dde4);
+      box-shadow:0 6px 20px rgba(0,0,0,.35), inset 0 0 0 9px #ffffff, inset 0 0 0 14px #d5dbe2;
     }
-    #dateRow{
-      display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    .shutter:active{transform:scale(.96)}
+
+    .modal{
+      position:absolute;inset:0;background:rgba(0,0,0,.52);
+      display:none;align-items:flex-end;z-index:40;
+    }
+    .modal.show{display:flex}
+    .sheet{
+      width:100%;background:#121922;border-radius:24px 24px 0 0;
+      border:1px solid rgba(255,255,255,.08);padding:14px 14px 24px;
+      min-height:340px;box-shadow:0 -20px 40px rgba(0,0,0,.35);
+    }
+    .sheetHead{
+      display:flex;justify-content:space-between;align-items:center;
       margin-bottom:10px;
     }
-    input[type="date"]{
-      background:rgba(255,255,255,.10);
-      border:1px solid var(--border);
-      color:#fff;
-      border-radius:12px;
-      padding:10px 10px;
-      font-weight:900;
+    .closeBtn{
+      border:none;background:rgba(255,255,255,.08);color:#fff;
+      width:42px;height:42px;border-radius:50%;font-size:18px;
     }
-    .miniBtn{
-      padding:10px 12px;
-      font-size:14px;
-      border-radius:12px;
-      background:rgba(255,255,255,.10);
-      border:1px solid var(--border);
-      color:#fff;
-      font-weight:1000;
+    .searchRow{display:grid;grid-template-columns:1fr 92px 92px;gap:8px;margin-bottom:10px}
+    .input{
+      width:100%;min-height:50px;border-radius:16px;
+      border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);
+      color:#fff;padding:0 14px;font-size:16px;outline:none;
     }
-    #logList{max-height:220px;overflow:auto}
-    .logItem{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      padding:10px 6px;
-      border-top:1px solid rgba(255,255,255,.08);
-      font-size:16px;
+    .resultList{
+      max-height:260px;overflow:auto;border-radius:18px;
+      border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);
+      padding:10px;
     }
-    .logItem:first-child{border-top:none}
-    .logLeft{display:flex; align-items:center; gap:10px}
-    .logRight{
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-      font-weight:1000
+    .resultItem{
+      padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.06);
+      font-size:14px;line-height:1.5;
     }
-    .logRight b{color:var(--accent)}
-    #btnDeleteSelected{
-      width:100%;
-      margin-top:10px;
-      background:rgba(255,255,255,.12);
-      border:1px solid var(--border);
-      color:#fff;
-      padding:14px 12px;
-      border-radius:14px;
-      font-weight:1000;
-      font-size:18px;
+    .resultItem:last-child{border-bottom:none}
+    .chartCanvas{
+      width:100%;height:220px;display:block;border-radius:18px;
+      border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);
+      margin-top:12px;
+    }
+    .sheetNote{color:var(--muted);font-size:12px;line-height:1.5;margin-top:10px}
+    .syncInfo{
+      margin-top:10px;padding:10px 12px;border-radius:16px;
+      border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);
+      font-size:13px;line-height:1.5;color:#e8eef6;
     }
 
-    .muted{color:rgba(255,255,255,.65);font-size:12px;margin:8px 0 0}
-    #tinyHint{
-      margin-top:10px;
-      font-size:12px;
-      color:rgba(255,255,255,.72);
-      text-align:center;
+    .dupOverlay{
+      position:absolute;inset:0;z-index:35;background:rgba(0,0,0,.55);
+      display:none;align-items:center;justify-content:center;padding:18px;
+    }
+    .dupCard{
+      width:100%;background:#131b25;border:1px solid rgba(255,255,255,.1);
+      border-radius:24px;padding:16px;box-shadow:0 20px 40px rgba(0,0,0,.35);
+    }
+    .dupTitle{font-size:20px;font-weight:800;margin-bottom:8px;color:#fff}
+    .dupBody{font-size:14px;line-height:1.65;color:#e6edf5;margin-bottom:12px}
+    .dupBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+    @media (max-width:390px){
+      .actions{grid-template-columns:72px 1fr 72px 72px}
+      .btn{min-height:52px;font-size:14px}
+      .shutter{width:76px;height:76px}
+      .value{font-size:23px}
+      .value.small{font-size:19px}
+      .targetLabel,.hint{font-size:11px}
     }
   </style>
 </head>
 <body>
-  <video id="video" autoplay muted playsinline></video>
-  <canvas id="cap"></canvas>
+  <div class="app">
+    <div class="cameraWrap">
+      <video id="video" autoplay playsinline muted></video>
 
-  <!-- 上 -->
-  <div id="topStack">
-    <div id="banner" class="banner dim">⚠️ 枠に数字が見えていません</div>
-
-    <div class="pillWide">
-      <div class="left">請求書：</div>
-      <div class="center" id="invoiceCount">0</div>
-      <div class="right">枚</div>
-    </div>
-
-    <div class="pillWide">
-      <div class="left">総合計（税抜）：</div>
-      <div class="money" id="grandTotal">¥0</div>
-    </div>
-  </div>
-
-  <!-- ROI + シャッター（見た目） -->
-  <div id="roiWrap">
-    <div id="roiBox"></div>
-    <div id="shutter"></div>
-  </div>
-
-  <!-- タップ用透明ボタン -->
-  <button id="tapRoi" aria-label="枠タップで読み取り"></button>
-  <button id="tapShutter" aria-label="シャッターで読み取り"></button>
-
-  <!-- 下 -->
-  <div id="panel">
-    <div class="card">
-      <div class="row">
-        <div><span class="label">税抜</span></div>
-        <div class="val dim" id="baseVal">—</div>
-      </div>
-      <div class="row">
-        <div><span class="label">消費税</span><span class="sub">（10%・四捨五入）</span></div>
-        <div class="val red" id="taxVal">—</div>
-      </div>
-      <div class="row">
-        <div><span class="label">合計</span><span class="sub">（税込）</span></div>
-        <div class="val gold" id="totalVal">—</div>
-      </div>
-    </div>
-
-    <div class="controls">
-      <button class="btn" id="btnAuto">AUTO<br>ON</button>
-      <button class="btn" id="btnUndo">↩︎ 直近</button>
-      <button class="btn" id="btnClear">-</button>
-    </div>
-
-    <button id="btnDetails">▼ 詳細（履歴）を開く</button>
-    <div id="details">
-      <div class="section">
-        <h3>日付別（履歴・削除） <span class="muted" id="dayInfo"></span></h3>
-        <div id="dateRow">
-          <button class="miniBtn" id="btnPrevDay">←</button>
-          <input type="date" id="datePick">
-          <button class="miniBtn" id="btnNextDay">→</button>
-          <button class="miniBtn" id="btnSelectAll">全選択</button>
-          <button class="miniBtn" id="btnClearSel">解除</button>
-        </div>
-        <div id="logList"></div>
-
-        <!-- ★これが「削除ボタン」 -->
-        <button id="btnDeleteSelected">🗑 選択を削除（重複・誤読）</button>
-      </div>
-    </div>
-
-    <div id="tinyHint">※iPhoneで止まったら、Safariの「aA→サイトの設定→カメラ：許可」を確認</div>
-  </div>
-
-<script>
-(() => {
-  // ===== 設定 =====
-  const RATE = 0.10;
-  const TICK_MS = 350;            // AUTO時の周期
-  const COOLDOWN_MS = 850;        // 連打防止
-  const SAME_VALUE_GUARD_MS = 2200; // 同じ金額の暴走防止
-
-  // ROI（画面比）…「枠の中に数字」だけ
-  // ※ここは“今うまく行ってる”値を崩さないよう、軽い調整だけ
-  const ROI = { x: 0.24, y: 0.56, w: 0.52, h: 0.18 };
-
-  // 画質強化（数字が小さい前提）
-  const SCALE = 3;
-
-  // ===== DOM =====
-  const video = document.getElementById('video');
-  const cap = document.getElementById('cap');
-  const ctx = cap.getContext('2d');
-
-  const banner = document.getElementById('banner');
-  const invoiceCountEl = document.getElementById('invoiceCount');
-  const grandTotalEl = document.getElementById('grandTotal');
-
-  const roiBox = document.getElementById('roiBox');
-
-  const baseVal = document.getElementById('baseVal');
-  const taxVal = document.getElementById('taxVal');
-  const totalVal = document.getElementById('totalVal');
-
-  const btnAuto = document.getElementById('btnAuto');
-  const btnUndo = document.getElementById('btnUndo');
-  const btnClear = document.getElementById('btnClear');
-
-  const tapRoi = document.getElementById('tapRoi');
-  const tapShutter = document.getElementById('tapShutter');
-
-  const btnDetails = document.getElementById('btnDetails');
-  const details = document.getElementById('details');
-
-  const datePick = document.getElementById('datePick');
-  const btnPrevDay = document.getElementById('btnPrevDay');
-  const btnNextDay = document.getElementById('btnNextDay');
-  const logList = document.getElementById('logList');
-  const btnDeleteSelected = document.getElementById('btnDeleteSelected');
-  const btnSelectAll = document.getElementById('btnSelectAll');
-  const btnClearSel = document.getElementById('btnClearSel');
-  const dayInfo = document.getElementById('dayInfo');
-
-  // ===== 状態 =====
-  let stream = null;
-  let cameraReady = false;
-
-  let autoOn = true;
-  let scanning = false;
-  let timer = null;
-
-  let lastScanAt = 0;
-  let lastCountedValue = null;
-  let lastCountedAt = 0;
-
-  // 表示は「直近1枚」だけ
-  let currentBase = 0;
-
-  // ===== util =====
-  const pad2 = (n) => String(n).padStart(2,'0');
-  const todayStr = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-  };
-  const yen = (n) => `¥${Number(n||0).toLocaleString('ja-JP')}`;
-
-  function setBanner(kind, text){
-    banner.classList.remove('ok','dim');
-    banner.classList.add(kind === 'ok' ? 'ok' : 'dim');
-    banner.textContent = text;
-  }
-
-  function vibrateShort(){
-    try{ if (navigator.vibrate) navigator.vibrate(30); }catch(_){}
-  }
-
-  function roiFlashOk(){
-    roiBox.classList.remove('flash-ok');
-    void roiBox.offsetWidth;
-    roiBox.classList.add('flash-ok');
-    setTimeout(() => roiBox.classList.remove('flash-ok'), 700);
-  }
-
-  function setAuto(on){
-    autoOn = on;
-    btnAuto.classList.toggle('off', !on);
-    btnAuto.innerHTML = on ? "AUTO<br>ON" : "AUTO<br>OFF";
-    // 表示は邪魔しない範囲
-    setBanner('dim', "⚠️ 枠に数字が見えていません");
-  }
-
-  // ===== 税計算（税抜→税→税込）=====
-  function calcFromBase(base){
-    const tax = Math.round(base * RATE);
-    return { base, tax, total: base + tax };
-  }
-
-  function showCurrent(base){
-    if(!base){
-      baseVal.textContent = "—";
-      taxVal.textContent  = "—";
-      totalVal.textContent= "—";
-      return;
-    }
-    const r = calcFromBase(base);
-    baseVal.textContent  = yen(r.base);
-    taxVal.textContent   = yen(r.tax);
-    totalVal.textContent = yen(r.total);
-  }
-
-  // - は「表示だけ初期化」（枚数/総合計は保持）
-  function clearCurrentKeepTotals(){
-    currentBase = 0;
-    showCurrent(0);
-    lastScanAt = 0; // 解除後の渋さ対策
-    setBanner('ok', "✅ 表示だけ解除しました");
-  }
-
-  // ===== 保存/集計（税抜で保存）=====
-  function logKey(dateStr){ return `taxscan_log_${dateStr}`; }
-  function loadLog(dateStr){
-    try { return JSON.parse(localStorage.getItem(logKey(dateStr)) || "[]"); }
-    catch(e){ return []; }
-  }
-  function saveLog(dateStr, arr){
-    localStorage.setItem(logKey(dateStr), JSON.stringify(arr));
-  }
-  function calcStats(dateStr){
-    const log = loadLog(dateStr);
-    const count = log.length;
-    const sumBase = log.reduce((a,x)=>a + (Number(x.base)||0), 0);
-    return { count, sumBase, log };
-  }
-  function setTopStatsForDate(dateStr){
-    const {count, sumBase} = calcStats(dateStr);
-    invoiceCountEl.textContent = String(count);
-    grandTotalEl.textContent = yen(sumBase);
-    dayInfo.textContent = `（${count}枚 / ${yen(sumBase)}）`;
-  }
-
-  // ===== 履歴UI =====
-  function renderLog(dateStr){
-    const { log } = calcStats(dateStr);
-    if(!log.length){
-      logList.innerHTML = `<div class="muted">履歴なし</div>`;
-      return;
-    }
-    const rows = [...log].reverse().map((x, idxFromTop) => {
-      const realIndex = log.length - 1 - idxFromTop;
-      const b = Number(x.base)||0;
-      return `
-        <div class="logItem">
-          <div class="logLeft">
-            <input type="checkbox" class="logChk" data-idx="${realIndex}">
-            <div>${realIndex+1}枚目</div>
+      <div class="topBar">
+        <div class="summary">
+          <div class="box">
+            <div class="label">総合計 / 総枚数</div>
+            <div class="value" id="totalAmount">0円</div>
+            <div class="sub" id="totalCount">0枚</div>
           </div>
-          <div class="logRight"><b>${yen(b)}</b></div>
-        </div>`;
-    }).join('');
-    logList.innerHTML = rows;
-  }
-  function getSelectedIdx(){
-    return [...document.querySelectorAll('.logChk')]
-      .filter(c=>c.checked)
-      .map(c=>Number(c.dataset.idx))
-      .filter(n=>Number.isFinite(n));
-  }
-  function selectAll(checked){
-    [...document.querySelectorAll('.logChk')].forEach(c=>c.checked = checked);
-  }
+          <div class="box compact">
+            <div class="label">税抜き / 消費税</div>
+            <div class="value small" id="taxBase">0円</div>
+            <div class="sub" id="taxAmount">消費税 0円</div>
+          </div>
+        </div>
 
-  // ===== カメラ =====
-  async function startCamera(){
-    try{
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal:'environment' }, width: { ideal: 1920 } },
-        audio:false
-      });
-      video.srcObject = stream;
-      await video.play();
-      cameraReady = true;
-    }catch(e){
-      console.error(e);
-      cameraReady = false;
-      setBanner('dim',"⚠️ カメラ許可が必要（aA→サイト設定→カメラ許可）");
-    }
-  }
+        <div class="miniCol">
+          <div class="box compact">
+            <div class="label">直近伝票</div>
+            <div class="sub" id="lastInvoice">-</div>
+          </div>
+          <div class="box compact">
+            <div class="label">認識状態</div>
+            <div class="sub" id="ocrState">待機中</div>
+          </div>
+        </div>
+      </div>
 
-  function captureROIBase64(){
-    const vw = video.videoWidth || 1280;
-    const vh = video.videoHeight || 720;
+      <div class="statusWrap">
+        <div class="statusBox">
+          <div class="label">スキャン結果</div>
+          <div class="statusText" id="scanStatus">まだ未認識</div>
+        </div>
+        <div class="statusBox">
+          <div class="label">重複 / 同期</div>
+          <div class="statusText" id="dupStatus">まだ未チェック</div>
+        </div>
+      </div>
 
-    const x = Math.max(0, Math.floor(ROI.x * vw));
-    const y = Math.max(0, Math.floor(ROI.y * vh));
-    const w = Math.max(1, Math.floor(ROI.w * vw));
-    const h = Math.max(1, Math.floor(ROI.h * vh));
+      <div class="guideArea">
+        <div class="target invoice" id="invoiceGuide">
+          <div class="targetLabel">伝票番号（G〜）</div>
+        </div>
+        <div class="target amount" id="amountGuide">
+          <div class="targetLabel">合計金額</div>
+        </div>
+      </div>
 
-    cap.width  = Math.floor(w * SCALE);
-    cap.height = Math.floor(h * SCALE);
+      <div class="hint">全体合わせ不要。右上と右下の2点だけ合わせる方式</div>
 
-    ctx.imageSmoothingEnabled = false;
-    ctx.filter = "contrast(195%) brightness(120%)";
-    ctx.drawImage(video, x, y, w, h, 0, 0, cap.width, cap.height);
-    ctx.filter = "none";
+      <div class="noteLeft">
+        自動認識後は3秒ホールド。<br>
+        重複時はスキップ / 金額差し替え。<br>
+        差し替え済みは色付き表示。<br>
+        未同期分はOneDriveへまとめて送信。
+      </div>
 
-    return cap.toDataURL('image/jpeg', 0.92).split(',')[1];
-  }
+      <div class="loading" id="loadingBadge">
+        <div class="dot"></div>
+        <div id="loadingText">OCR中…</div>
+      </div>
+    </div>
 
-  async function callOCR(){
-    const image_base64 = captureROIBase64();
-    const res = await fetch('/api/scan', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ image_base64 })
-    });
-    const data = await res.json().catch(()=>({}));
-    const base = Number(data?.total || 0);
-    return Number.isFinite(base) ? base : 0;
-  }
+    <canvas id="workCanvas"></canvas>
 
-  // ===== 確定 =====
-  function countInvoice(base){
-    const now = Date.now();
+    <div class="bottom">
+      <div class="historyCard">
+        <div class="historyHeader">
+          <span>履歴</span>
+          <span class="pill" id="holdBadge">ホールドなし</span>
+        </div>
+        <div class="historyList" id="historyList"></div>
+      </div>
 
-    // 同額暴走防止
-    if (lastCountedValue === base && (now - lastCountedAt) < SAME_VALUE_GUARD_MS){
-      return;
-    }
+      <div class="actions">
+        <button class="btn gray" id="searchBtn">検索</button>
+        <div class="shutterWrap">
+          <button class="shutter" id="scanBtn" aria-label="scan"></button>
+        </div>
+        <button class="btn red" id="todayBtn">今日</button>
+        <button class="btn blue" id="releaseBtn">解除</button>
+      </div>
 
-    // 直近表示（加算しない）
-    currentBase = base;
-    showCurrent(base);
+      <div class="actions2">
+        <button class="btn green" id="autoBtn">自動認識 ON</button>
+        <button class="btn orange" id="graphBtn">グラフ</button>
+      </div>
 
-    // 保存（税抜）
-    const ds = datePick.value;
-    const log = loadLog(ds);
-    log.push({ base });
-    saveLog(ds, log);
+      <div class="actions2">
+        <button class="btn blue" id="msLoginBtn">MSログイン</button>
+        <button class="btn green" id="syncBtn">OneDrive同期</button>
+      </div>
 
-    // 上の集計（税抜のみ）
-    setTopStatsForDate(ds);
-    renderLog(ds);
+      <div class="actions2">
+        <button class="btn gray" id="exportCsvBtn">CSV書き出し</button>
+        <button class="btn gray" id="syncSettingBtn">同期設定</button>
+      </div>
+    </div>
 
-    // フィードバック
-    roiFlashOk();
-    vibrateShort();
-    setBanner('ok', `✅ 確定：${yen(base)}（税抜）`);
+    <div class="modal" id="searchModal">
+      <div class="sheet">
+        <div class="sheetHead">
+          <div>
+            <div style="font-size:18px;font-weight:800;">伝票検索 / 同期情報</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px;">何日の何番か / 差し替え / 未同期確認</div>
+          </div>
+          <button class="closeBtn" id="closeSearch">×</button>
+        </div>
 
-    lastCountedValue = base;
-    lastCountedAt = now;
-    lastScanAt = now;
-  }
+        <div class="searchRow">
+          <input class="input" id="searchInput" placeholder="例: G01297282" />
+          <button class="btn blue" id="doSearchBtn">検索</button>
+          <button class="btn gray" id="showReplacedBtn">差替一覧</button>
+        </div>
 
-  async function scanOnce(){
-    if(scanning) return;
-    if(!cameraReady) return;
+        <div class="resultList" id="searchResults">
+          <div style="color:var(--muted);font-size:13px;">まだ検索していません</div>
+        </div>
 
-    const now = Date.now();
-    if ((now - lastScanAt) < COOLDOWN_MS) return;
+        <div class="syncInfo" id="syncInfo">
+          Microsoft未ログイン
+        </div>
 
-    scanning = true;
-    try{
-      const base = await callOCR();
-      if(base > 0){
-        countInvoice(base);
-      }else{
-        setBanner('dim', "⚠️ 枠に数字が見えていません");
-        lastScanAt = now;
+        <canvas id="modalGraphCanvas" class="chartCanvas" width="480" height="220"></canvas>
+        <div class="sheetNote">
+          OneDrive同期は、未同期分だけExcelテーブルへまとめて送信。<br>
+          使う前に clientId / fileId / tableName を設定してね。
+        </div>
+      </div>
+    </div>
+
+    <div class="dupOverlay" id="dupOverlay">
+      <div class="dupCard">
+        <div class="dupTitle">重複しています</div>
+        <div class="dupBody" id="dupBody"></div>
+        <div class="dupBtns">
+          <button class="btn gray" id="skipDupBtn">スキップ</button>
+          <button class="btn orange" id="replaceAmountBtn">金額だけ差し替え</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"></script>
+  <script>
+    // ========= 基本設定 =========
+    const TAX_RATE = 0.10;
+    const STORAGE_KEY = 'g-invoice-special-onedrive-v1';
+    const SYNC_STORAGE_KEY = 'g-invoice-sync-setting-v1';
+    const AUTO_INTERVAL_MS = 1400;
+    const HOLD_MS = 3000;
+
+    // Microsoft Entra で取得した値を入れる
+    const MSAL_CONFIG = {
+      auth: {
+        clientId: "YOUR_CLIENT_ID_HERE",
+        authority: "https://login.microsoftonline.com/common",
+        redirectUri: window.location.origin + window.location.pathname
+      },
+      cache: {
+        cacheLocation: "localStorage",
+        storeAuthStateInCookie: false
       }
-    }catch(e){
-      console.error(e);
-      setBanner('dim', "⚠️ OCRエラー（API/モデル/キー確認）");
-      lastScanAt = now;
-    }finally{
-      scanning = false;
+    };
+    const GRAPH_SCOPES = ["User.Read", "Files.ReadWrite"];
+
+    // 2点ガイドの周辺自動検索
+    const SEARCH_OFFSETS = [
+      {x:0,y:0},
+      {x:-0.03,y:0},
+      {x:0.03,y:0},
+      {x:0,y:-0.03},
+      {x:0,y:0.03},
+      {x:-0.02,y:-0.02},
+      {x:0.02,y:-0.02},
+      {x:-0.02,y:0.02},
+      {x:0.02,y:0.02}
+    ];
+
+    const state = {
+      stream:null,
+      worker:null,
+      workerReady:false,
+      ocrRunning:false,
+      autoMode:true,
+      autoTimer:null,
+      holdUntil:0,
+      holdCurrent:null,
+      todayKey:makeDateKey(),
+      scans:[],
+      allScans:[],
+      pendingDuplicate:null,
+      sync:{
+        account:null,
+        fileId:"",
+        tableName:"InvoiceTable",
+        lastSyncAt:null,
+        syncing:false
+      }
+    };
+
+    const $ = id => document.getElementById(id);
+    const video = $('video');
+    const workCanvas = $('workCanvas');
+
+    const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
+
+    function makeDateKey(d=new Date()){
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
     }
-  }
 
-  async function tick(){
-    if(!autoOn) return;
-    await scanOnce();
-  }
-  function startLoop(){
-    stopLoop();
-    timer = setInterval(tick, TICK_MS);
-  }
-  function stopLoop(){
-    if(timer){ clearInterval(timer); timer = null; }
-  }
-
-  // ===== 操作 =====
-  function undoLast(){
-    const ds = datePick.value;
-    const log = loadLog(ds);
-    if(!log.length) return;
-    log.pop();
-    saveLog(ds, log);
-    setTopStatsForDate(ds);
-    renderLog(ds);
-    setBanner('ok','↩︎ 直近1件を取り消しました');
-  }
-
-  function deleteSelected(){
-    const ds = datePick.value;
-    const idxs = getSelectedIdx().sort((a,b)=>b-a);
-    if(!idxs.length){
-      setBanner('dim','⚠️ 削除する項目を選んでね');
-      return;
+    function fmtDate(iso){
+      const d = new Date(iso);
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}/${m}/${day}`;
     }
-    const log = loadLog(ds);
-    for(const i of idxs){
-      if(i>=0 && i<log.length) log.splice(i,1);
+
+    function fmtDateTime(iso){
+      if(!iso) return "-";
+      const d = new Date(iso);
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mm = String(d.getMinutes()).padStart(2,'0');
+      return `${y}/${m}/${day} ${hh}:${mm}`;
     }
-    saveLog(ds, log);
-    setTopStatsForDate(ds);
-    renderLog(ds);
-    setBanner('ok',`✅ 選択 ${idxs.length} 件を削除`);
-  }
 
-  function shiftDate(days){
-    const d = new Date(datePick.value + "T00:00:00");
-    d.setDate(d.getDate() + days);
-    const ds = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-    datePick.value = ds;
-    onDateChanged();
-  }
-  function onDateChanged(){
-    const ds = datePick.value;
-    setTopStatsForDate(ds);
-    renderLog(ds);
-  }
+    function yen(n){
+      return `${Number(n||0).toLocaleString('ja-JP')}円`;
+    }
 
-  // ===== init =====
-  window.addEventListener('load', async () => {
-    datePick.value = todayStr();
+    function escapeHtml(str=''){
+      return str
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#39;");
+    }
 
-    setTopStatsForDate(datePick.value);
-    renderLog(datePick.value);
+    function setLoading(flag, text='OCR中…'){
+      $('loadingBadge').style.display = flag ? 'flex' : 'none';
+      $('loadingText').textContent = text;
+    }
 
-    showCurrent(0);
+    function setText(id, text, cls=''){
+      const el = $(id);
+      el.textContent = text;
+      if(id === 'scanStatus' || id === 'dupStatus'){
+        el.className = `statusText ${cls}`.trim();
+      }else{
+        el.className = `sub ${cls}`.trim();
+      }
+    }
 
-    await startCamera();
-    setAuto(true);
-    startLoop();
-  });
+    function saveState(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        todayKey: state.todayKey,
+        scans: state.scans,
+        allScans: state.allScans,
+        holdCurrent: state.holdCurrent
+      }));
+    }
 
-  // ===== UI events =====
-  btnAuto.addEventListener('click', () => setAuto(!autoOn));
-  btnUndo.addEventListener('click', undoLast);
-  btnClear.addEventListener('click', clearCurrentKeepTotals);
+    function loadState(){
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return;
+      try{
+        const data = JSON.parse(raw);
+        state.todayKey = data.todayKey || makeDateKey();
+        state.scans = Array.isArray(data.scans) ? data.scans : [];
+        state.allScans = Array.isArray(data.allScans) ? data.allScans : [];
+        state.holdCurrent = data.holdCurrent || null;
 
-  // ★AUTO OFFでも必ず動く
-  tapShutter.addEventListener('click', scanOnce);
-  tapRoi.addEventListener('click', scanOnce);
+        if(state.todayKey !== makeDateKey()){
+          state.todayKey = makeDateKey();
+          state.scans = [];
+          state.holdCurrent = null;
+          saveState();
+        }
 
-  btnDeleteSelected.addEventListener('click', deleteSelected);
-  btnSelectAll.addEventListener('click', () => selectAll(true));
-  btnClearSel.addEventListener('click', () => selectAll(false));
+        // 旧データ互換
+        for(const arr of [state.scans, state.allScans]){
+          arr.forEach(item => {
+            if(typeof item.synced !== "boolean") item.synced = false;
+            if(!("syncAt" in item)) item.syncAt = null;
+            if(!("syncError" in item)) item.syncError = null;
+            if(!("replacedFromAmount" in item)) item.replacedFromAmount = null;
+            if(!("originalAmount" in item)) item.originalAmount = item.amount;
+            if(!("isReplaced" in item)) item.isReplaced = false;
+          });
+        }
+      }catch(e){
+        console.error(e);
+      }
+    }
 
-  datePick.addEventListener('change', onDateChanged);
-  btnPrevDay.addEventListener('click', () => shiftDate(-1));
-  btnNextDay.addEventListener('click', () => shiftDate(1));
+    function saveSyncSettings(){
+      localStorage.setItem(SYNC_STORAGE_KEY, JSON.stringify({
+        fileId: state.sync.fileId,
+        tableName: state.sync.tableName,
+        lastSyncAt: state.sync.lastSyncAt
+      }));
+    }
 
-  btnDetails.addEventListener('click', () => {
-    const open = !details.classList.contains('show');
-    details.classList.toggle('show', open);
-    btnDetails.textContent = open ? "▲ 詳細（履歴）を閉じる" : "▼ 詳細（履歴）を開く";
-  });
-})();
-</script>
+    function loadSyncSettings(){
+      const raw = localStorage.getItem(SYNC_STORAGE_KEY);
+      if(!raw) return;
+      try{
+        const data = JSON.parse(raw);
+        state.sync.fileId = data.fileId || "";
+        state.sync.tableName = data.tableName || "InvoiceTable";
+        state.sync.lastSyncAt = data.lastSyncAt || null;
+      }catch(e){
+        console.error(e);
+      }
+    }
+
+    async function initCamera(){
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio:false,
+          video:{
+            facingMode:{ideal:'environment'},
+            width:{ideal:1920},
+            height:{ideal:1080}
+          }
+        });
+        state.stream = stream;
+        video.srcObject = stream;
+        await video.play();
+        setText('ocrState','カメラ起動OK','ok');
+      }catch(err){
+        console.error(err);
+        setText('ocrState','カメラ起動失敗','err');
+        setText('scanStatus','カメラ許可を確認','err');
+      }
+    }
+
+    async function initWorker(){
+      try{
+        setLoading(true,'OCR初期化中…');
+        state.worker = await Tesseract.createWorker('jpn+eng');
+        state.workerReady = true;
+        setLoading(false);
+        setText('ocrState','OCR準備完了','ok');
+      }catch(err){
+        console.error(err);
+        setLoading(false);
+        setText('ocrState','OCR準備失敗','err');
+        setText('scanStatus','OCR読込失敗','err');
+      }
+    }
+
+    async function initMsalAccount(){
+      try{
+        const result = await msalInstance.handleRedirectPromise();
+        if(result?.account){
+          msalInstance.setActiveAccount(result.account);
+          state.sync.account = result.account;
+        }else{
+          const accounts = msalInstance.getAllAccounts();
+          if(accounts.length){
+            msalInstance.setActiveAccount(accounts[0]);
+            state.sync.account = accounts[0];
+          }
+        }
+      }catch(e){
+        console.error(e);
+        setText('dupStatus','Microsoft認証初期化エラー','err');
+      }
+    }
+
+    async function signInMicrosoft(){
+      try{
+        const result = await msalInstance.loginPopup({
+          scopes: GRAPH_SCOPES,
+          prompt: "select_account"
+        });
+        msalInstance.setActiveAccount(result.account);
+        state.sync.account = result.account;
+        updateSyncInfo();
+        setText('dupStatus', `ログイン: ${result.account.username}`, 'ok');
+      }catch(e){
+        console.error(e);
+        setText('dupStatus', 'Microsoftログイン失敗', 'err');
+      }
+    }
+
+    async function getGraphAccessToken(){
+      const account = msalInstance.getActiveAccount();
+      if(!account) throw new Error("Microsoft未ログイン");
+
+      try{
+        const token = await msalInstance.acquireTokenSilent({
+          account,
+          scopes: GRAPH_SCOPES
+        });
+        return token.accessToken;
+      }catch(e){
+        const token = await msalInstance.acquireTokenPopup({
+          account,
+          scopes: GRAPH_SCOPES
+        });
+        return token.accessToken;
+      }
+    }
+
+    function getGuideRectPixels(el){
+      const vr = video.getBoundingClientRect();
+      const gr = el.getBoundingClientRect();
+      const scaleX = video.videoWidth / vr.width;
+      const scaleY = video.videoHeight / vr.height;
+
+      return {
+        x: (gr.left - vr.left) * scaleX,
+        y: (gr.top - vr.top) * scaleY,
+        w: gr.width * scaleX,
+        h: gr.height * scaleY
+      };
+    }
+
+    function cropVideoRegion(rect){
+      const x = Math.max(0, Math.round(rect.x));
+      const y = Math.max(0, Math.round(rect.y));
+      const w = Math.max(10, Math.round(rect.w));
+      const h = Math.max(10, Math.round(rect.h));
+
+      workCanvas.width = w;
+      workCanvas.height = h;
+      const ctx = workCanvas.getContext('2d', {willReadFrequently:true});
+      ctx.drawImage(video, x, y, w, h, 0, 0, w, h);
+
+      const img = ctx.getImageData(0,0,w,h);
+      const d = img.data;
+      for(let i=0;i<d.length;i+=4){
+        const gray = d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
+        const boosted = gray > 155 ? 255 : gray < 105 ? 0 : gray * 1.16;
+        d[i]=d[i+1]=d[i+2]=Math.max(0,Math.min(255,boosted));
+      }
+      ctx.putImageData(img,0,0);
+      return workCanvas;
+    }
+
+    function normalizeText(text){
+      return (text || '')
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0)-0xFEE0))
+        .replace(/[￥¥]/g,'¥')
+        .replace(/[，、]/g,',')
+        .replace(/[．]/g,'.')
+        .replace(/[ー―‐]/g,'-')
+        .replace(/\s+/g,' ')
+        .trim();
+    }
+
+    function extractInvoiceNo(text){
+      const t = normalizeText(text).toUpperCase();
+      const m1 = t.match(/G[0-9OIZSB]{5,15}/);
+      if(m1) return fixInvoiceCandidate(m1[0]);
+      const m2 = t.match(/G\s*[0-9OIZSB]{5,15}/);
+      if(m2) return fixInvoiceCandidate(m2[0].replace(/\s+/g,''));
+      return null;
+    }
+
+    function fixInvoiceCandidate(v){
+      let s = v.toUpperCase().replace(/[^A-Z0-9]/g,'');
+      if(!s.startsWith('G')) return null;
+      let rest = s.slice(1)
+        .replace(/O/g,'0')
+        .replace(/I/g,'1')
+        .replace(/Z/g,'2')
+        .replace(/S/g,'5')
+        .replace(/B/g,'8')
+        .replace(/[^0-9]/g,'');
+      if(rest.length < 5) return null;
+      return 'G' + rest;
+    }
+
+    function extractAmount(text){
+      const t = normalizeText(text);
+      let nums = [...t.matchAll(/(?:¥\s*)?(\d{1,3}(?:,\d{3})+|\d{3,7})(?:\s*円)?/g)]
+        .map(m => parseInt(m[1].replace(/,/g,''),10))
+        .filter(n => n >= 50 && n <= 999999);
+
+      if(!nums.length) return null;
+      nums.sort((a,b)=>b-a);
+      return nums[0];
+    }
+
+    function scoreInvoice(candidate){
+      if(!candidate) return -1;
+      let score = 0;
+      if(/^G\d+$/.test(candidate)) score += 100;
+      if(candidate.length >= 7 && candidate.length <= 12) score += 30;
+      if(candidate.startsWith('G0')) score += 10;
+      return score;
+    }
+
+    function scoreAmount(amount){
+      if(!amount) return -1;
+      let score = 0;
+      if(amount >= 100 && amount <= 999999) score += 100;
+      if(amount >= 1000) score += 10;
+      return score;
+    }
+
+    async function scanBestInvoiceNo(){
+      const base = getGuideRectPixels($('invoiceGuide'));
+      let best = {value:null, score:-1};
+
+      for(const off of SEARCH_OFFSETS){
+        const rect = {x: base.x + base.w*off.x, y: base.y + base.h*off.y, w: base.w, h: base.h};
+        const canvas = cropVideoRegion(rect);
+        const { data } = await state.worker.recognize(canvas);
+        const candidate = extractInvoiceNo(data?.text || '');
+        const score = scoreInvoice(candidate);
+        if(score > best.score) best = {value:candidate, score};
+      }
+      return best;
+    }
+
+    async function scanBestAmount(){
+      const base = getGuideRectPixels($('amountGuide'));
+      let best = {value:null, score:-1};
+
+      for(const off of SEARCH_OFFSETS){
+        const rect = {x: base.x + base.w*off.x, y: base.y + base.h*off.y, w: base.w, h: base.h};
+        const canvas = cropVideoRegion(rect);
+        const { data } = await state.worker.recognize(canvas);
+        const candidate = extractAmount(data?.text || '');
+        const score = scoreAmount(candidate);
+        if(score > best.score) best = {value:candidate, score};
+      }
+      return best;
+    }
+
+    function getTodayNextIndex(){
+      return state.scans.length + 1;
+    }
+
+    function getDayOrderText(item){
+      return `${fmtDate(item.scannedAt)} の ${item.dayIndex}番目`;
+    }
+
+    function findDuplicate(invoiceNo, amount){
+      return state.allScans.find(v => v.invoiceNo === invoiceNo && Number(v.amount) === Number(amount)) || null;
+    }
+
+    function addScan(invoiceNo, amount){
+      const now = new Date().toISOString();
+      const item = {
+        id: crypto.randomUUID(),
+        invoiceNo,
+        amount:Number(amount),
+        originalAmount:Number(amount),
+        isReplaced:false,
+        replacedAt:null,
+        replacedFromAmount:null,
+        scannedAt:now,
+        dateKey:makeDateKey(new Date(now)),
+        dayIndex:getTodayNextIndex(),
+        synced:false,
+        syncAt:null,
+        syncError:null
+      };
+      state.scans.unshift(item);
+      state.allScans.unshift(item);
+      state.holdCurrent = item;
+      state.holdUntil = Date.now() + HOLD_MS;
+      saveState();
+      render();
+      return item;
+    }
+
+    function replaceAmountOnly(targetId, newAmount){
+      const item1 = state.scans.find(v => v.id === targetId);
+      const item2 = state.allScans.find(v => v.id === targetId);
+      if(!item1 || !item2) return;
+
+      const prevAmount = item1.amount;
+      const replacedAt = new Date().toISOString();
+
+      item1.amount = Number(newAmount);
+      item2.amount = Number(newAmount);
+      item1.isReplaced = true;
+      item2.isReplaced = true;
+      item1.replacedAt = replacedAt;
+      item2.replacedAt = replacedAt;
+      item1.replacedFromAmount = prevAmount;
+      item2.replacedFromAmount = prevAmount;
+      item1.synced = false;
+      item2.synced = false;
+      item1.syncAt = null;
+      item2.syncAt = null;
+      item1.syncError = null;
+      item2.syncError = null;
+
+      state.holdCurrent = item1;
+      state.holdUntil = Date.now() + HOLD_MS;
+
+      saveState();
+      render();
+    }
+
+    function undoCurrentHoldOnly(){
+      if(!state.holdCurrent) return;
+      const id = state.holdCurrent.id;
+      state.scans = state.scans.filter(v => v.id !== id);
+      state.allScans = state.allScans.filter(v => v.id !== id);
+      state.holdCurrent = null;
+      state.holdUntil = 0;
+      saveState();
+      setText('scanStatus','今ホールド中の1件だけ取り消し','warn');
+      setText('dupStatus','再スキャン可能','info');
+      render();
+    }
+
+    function releaseHoldOnly(){
+      state.holdUntil = 0;
+      state.holdCurrent = null;
+      saveState();
+      setText('scanStatus','ホールド解除。合計は維持','info');
+      setText('dupStatus','再スキャン可能','info');
+      render();
+    }
+
+    function totals(){
+      const total = state.scans.reduce((sum,v)=>sum + Number(v.amount||0),0);
+      const base = Math.round(total / (1 + TAX_RATE));
+      const tax = total - base;
+      return {total, count:state.scans.length, base, tax};
+    }
+
+    function getUnsyncedCount(){
+      return state.allScans.filter(v => !v.synced).length;
+    }
+
+    function render(){
+      const t = totals();
+      $('totalAmount').textContent = yen(t.total);
+      $('totalCount').textContent = `${t.count}枚`;
+      $('taxBase').textContent = yen(t.base);
+      $('taxAmount').textContent = `消費税 ${yen(t.tax)}`;
+      $('lastInvoice').textContent = state.scans[0] ? state.scans[0].invoiceNo : '-';
+
+      const list = $('historyList');
+      list.innerHTML = '';
+      if(!state.scans.length){
+        list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0;">まだ履歴がありません</div>';
+      }else{
+        state.scans.forEach((item, idx) => {
+          const syncedBadge = item.synced
+            ? '<span class="badge synced">同</span>'
+            : '<span class="badge unsynced">未</span>';
+          const replacedBadge = item.isReplaced
+            ? '<span class="badge replaced">差</span>'
+            : '';
+
+          const row = document.createElement('div');
+          row.className = `historyItem ${item.isReplaced ? 'replaced' : ''}`;
+          row.innerHTML = `
+            <div class="index">${idx + 1}</div>
+            <div class="invoiceNo">${escapeHtml(item.invoiceNo)}</div>
+            <div class="amountVal">${yen(item.amount)}</div>
+            <div style="display:flex;gap:4px;justify-content:flex-end;">${replacedBadge}${syncedBadge}</div>
+          `;
+          list.appendChild(row);
+        });
+      }
+
+      if(state.holdCurrent && Date.now() < state.holdUntil){
+        const sec = Math.max(0, Math.ceil((state.holdUntil - Date.now()) / 1000));
+        $('holdBadge').textContent = `ホールド中 ${sec}s / ${state.holdCurrent.invoiceNo}`;
+      }else{
+        $('holdBadge').textContent = state.holdCurrent ? `直近 ${state.holdCurrent.invoiceNo}` : 'ホールドなし';
+      }
+
+      $('autoBtn').textContent = `自動認識 ${state.autoMode ? 'ON' : 'OFF'}`;
+      drawGraph($('modalGraphCanvas'), state.scans);
+      updateSyncInfo();
+    }
+
+    async function recognizeOnce(source='manual'){
+      if(!state.workerReady || state.ocrRunning) return;
+      if(Date.now() < state.holdUntil){
+        const sec = Math.max(0, Math.ceil((state.holdUntil - Date.now()) / 1000));
+        setText('scanStatus',`ホールド中 ${sec}秒`,'warn');
+        return;
+      }
+      if(video.readyState < 2){
+        setText('scanStatus','カメラ準備待ち','warn');
+        return;
+      }
+
+      state.ocrRunning = true;
+      setLoading(true, source === 'auto' ? '自動OCR中…' : 'OCR中…');
+      setText('ocrState','認識中','warn');
+
+      try{
+        const invoiceRes = await scanBestInvoiceNo();
+        const amountRes = await scanBestAmount();
+
+        const invoiceNo = invoiceRes.value;
+        const amount = amountRes.value;
+
+        if(!invoiceNo || !amount){
+          setText('scanStatus','伝票番号または金額を取得できず','err');
+          setText('dupStatus','位置を少し調整して再スキャン','warn');
+          setText('ocrState','認識失敗','err');
+          return;
+        }
+
+        const dup = findDuplicate(invoiceNo, amount);
+        if(dup){
+          state.pendingDuplicate = {invoiceNo, amount, existing:dup};
+          showDuplicateModal(state.pendingDuplicate);
+          setText('scanStatus',`重複: ${invoiceNo} / ${yen(amount)}`,'err');
+          setText('dupStatus',`${getDayOrderText(dup)} で登録済み`,'err');
+          setText('ocrState','重複検出','err');
+          return;
+        }
+
+        const item = addScan(invoiceNo, amount);
+        setText('scanStatus',`OK: ${item.invoiceNo} / ${yen(item.amount)}`,'ok');
+        setText('dupStatus','新規スキャン（未同期）','ok');
+        setText('ocrState','認識成功','ok');
+      }catch(err){
+        console.error(err);
+        setText('scanStatus','OCRエラー','err');
+        setText('dupStatus','再試行してください','warn');
+        setText('ocrState','認識失敗','err');
+      }finally{
+        state.ocrRunning = false;
+        setLoading(false);
+      }
+    }
+
+    function showDuplicateModal(data){
+      const {invoiceNo, amount, existing} = data;
+      $('dupBody').innerHTML = `
+        伝票番号: <b>${escapeHtml(invoiceNo)}</b><br>
+        金額: <b>${yen(amount)}</b><br><br>
+        登録済み: <b>${fmtDateTime(existing.scannedAt)}</b><br>
+        その日の位置: <b>${existing.dayIndex}番目</b><br>
+        現在金額: <b>${yen(existing.amount)}</b><br>
+        ${existing.isReplaced ? `差し替え済み: <b>${fmtDateTime(existing.replacedAt)}</b><br>` : ''}
+      `;
+      $('dupOverlay').style.display = 'flex';
+    }
+
+    function hideDuplicateModal(){
+      $('dupOverlay').style.display = 'none';
+    }
+
+    function searchByInvoiceNo(keyword){
+      const q = normalizeText(keyword).toUpperCase().replace(/\s+/g,'');
+      if(!q) return [];
+      return state.allScans
+        .filter(v => v.invoiceNo.includes(q))
+        .sort((a,b) => new Date(b.scannedAt) - new Date(a.scannedAt));
+    }
+
+    function searchReplacedOnly(){
+      return state.allScans
+        .filter(v => v.isReplaced)
+        .sort((a,b) => new Date(b.replacedAt || b.scannedAt) - new Date(a.replacedAt || a.scannedAt));
+    }
+
+    function renderSearchResults(items){
+      const box = $('searchResults');
+      if(!items.length){
+        box.innerHTML = `<div style="color:var(--muted);font-size:13px;">該当なし</div>`;
+        return;
+      }
+
+      box.innerHTML = items.map(item => `
+        <div class="resultItem">
+          <div><b>${escapeHtml(item.invoiceNo)}</b>
+            ${item.isReplaced ? '<span class="badge replaced">差</span>' : ''}
+            ${item.synced ? '<span class="badge synced">同期済</span>' : '<span class="badge unsynced">未同期</span>'}
+          </div>
+          <div>${getDayOrderText(item)} / ${fmtDateTime(item.scannedAt)}</div>
+          <div>金額: <b>${yen(item.amount)}</b></div>
+          ${item.isReplaced ? `<div>旧金額: <b>${yen(item.replacedFromAmount)}</b> / 差し替え日時: <b>${fmtDateTime(item.replacedAt)}</b></div>` : ''}
+          <div>同期日時: <b>${fmtDateTime(item.syncAt)}</b></div>
+          ${item.syncError ? `<div style="color:#ff9f9f">同期エラー: ${escapeHtml(item.syncError)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function drawGraph(canvas, items){
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0,0,w,h);
+      ctx.fillStyle = 'rgba(255,255,255,.04)';
+      ctx.fillRect(0,0,w,h);
+
+      const data = [...items].slice(0,10).reverse();
+      if(!data.length){
+        ctx.fillStyle = 'rgba(255,255,255,.6)';
+        ctx.font = '14px sans-serif';
+        ctx.fillText('履歴がありません', 20, 34);
+        return;
+      }
+
+      const pad = 24;
+      const baseY = h - 28;
+      const maxVal = Math.max(...data.map(v => Number(v.amount || 0)), 1);
+      const step = (w - pad * 2) / data.length;
+      const barW = Math.max(16, step - 10);
+
+      ctx.strokeStyle = 'rgba(255,255,255,.12)';
+      ctx.lineWidth = 1;
+      for(let i=0;i<4;i++){
+        const y = pad + i * ((baseY - pad)/3);
+        ctx.beginPath();
+        ctx.moveTo(pad, y);
+        ctx.lineTo(w-pad, y);
+        ctx.stroke();
+      }
+
+      data.forEach((item, idx) => {
+        const x = pad + idx * step + 5;
+        const barH = ((baseY - pad) * item.amount / maxVal);
+        const y = baseY - barH;
+
+        ctx.fillStyle = item.isReplaced ? 'rgba(125,211,252,.78)' : 'rgba(10,132,255,.75)';
+        roundRect(ctx, x, y, barW, barH, 10, true, false);
+
+        ctx.fillStyle = '#e5edf6';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(idx+1), x + barW/2, h - 10);
+
+        ctx.save();
+        ctx.translate(x + barW/2, y - 4);
+        ctx.rotate(-0.34);
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(formatCompact(item.amount), 0, 0);
+        ctx.restore();
+      });
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(255,255,255,.65)';
+      ctx.font = '11px sans-serif';
+      ctx.fillText(`最大 ${yen(maxVal)}`, pad, 16);
+    }
+
+    function roundRect(ctx, x, y, width, height, radius, fill, stroke){
+      if(width < 2 * radius) radius = width / 2;
+      if(height < 2 * radius) radius = height / 2;
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + width, y, x + width, y + height, radius);
+      ctx.arcTo(x + width, y + height, x, y + height, radius);
+      ctx.arcTo(x, y + height, x, y, radius);
+      ctx.arcTo(x, y, x + width, y, radius);
+      ctx.closePath();
+      if(fill) ctx.fill();
+      if(stroke) ctx.stroke();
+    }
+
+    function formatCompact(n){
+      const num = Number(n||0);
+      if(num >= 10000) return `${(num/10000).toFixed(num % 10000 === 0 ? 0 : 1)}万`;
+      return `${num}`;
+    }
+
+    function getUnsyncedItems(){
+      return state.allScans.filter(v => !v.synced);
+    }
+
+    function buildExcelRows(items){
+      return items.map(item => [
+        item.invoiceNo,
+        Number(item.amount),
+        item.scannedAt,
+        fmtDate(item.scannedAt),
+        Number(item.dayIndex),
+        item.isReplaced ? true : false,
+        item.replacedFromAmount ?? "",
+        item.replacedAt ?? "",
+        new Date().toISOString()
+      ]);
+    }
+
+    async function syncUnsyncedToOneDrive(){
+      if(state.sync.syncing) return;
+      if(!state.sync.fileId){
+        setText('dupStatus','fileId未設定', 'err');
+        return;
+      }
+      if(!state.sync.tableName){
+        setText('dupStatus','tableName未設定', 'err');
+        return;
+      }
+
+      const unsynced = getUnsyncedItems();
+      if(!unsynced.length){
+        setText('dupStatus','未同期データなし', 'info');
+        return;
+      }
+
+      state.sync.syncing = true;
+      setLoading(true, 'OneDrive同期中…');
+      setText('dupStatus', `未同期 ${unsynced.length}件を送信中`, 'warn');
+
+      try{
+        const token = await getGraphAccessToken();
+        const rows = buildExcelRows(unsynced);
+
+        const url = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(state.sync.fileId)}/workbook/tables/${encodeURIComponent(state.sync.tableName)}/rows/add`;
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ values: rows })
+        });
+
+        if(!res.ok){
+          const txt = await res.text();
+          throw new Error(`Graph error ${res.status}: ${txt}`);
+        }
+
+        const syncAt = new Date().toISOString();
+        unsynced.forEach(item => {
+          item.synced = true;
+          item.syncAt = syncAt;
+          item.syncError = null;
+        });
+
+        // state.scans 側も同期
+        state.scans.forEach(item => {
+          const hit = unsynced.find(v => v.id === item.id);
+          if(hit){
+            item.synced = true;
+            item.syncAt = syncAt;
+            item.syncError = null;
+          }
+        });
+
+        state.sync.lastSyncAt = syncAt;
+        saveState();
+        saveSyncSettings();
+        setText('dupStatus', `${unsynced.length}件同期完了`, 'ok');
+      }catch(e){
+        console.error(e);
+        const msg = String(e.message || e);
+        getUnsyncedItems().forEach(item => {
+          item.syncError = msg;
+        });
+        state.scans.forEach(item => {
+          if(!item.synced) item.syncError = msg;
+        });
+        saveState();
+        setText('dupStatus', '同期失敗', 'err');
+      }finally{
+        state.sync.syncing = false;
+        setLoading(false);
+        render();
+      }
+    }
+
+    function exportCsv(){
+      const header = [
+        "伝票番号","金額","スキャン日時","日付","その日の何番目",
+        "差し替え済み","旧金額","差し替え日時","同期済み","同期日時"
+      ];
+
+      const rows = state.allScans.map(item => [
+        item.invoiceNo,
+        item.amount,
+        item.scannedAt,
+        fmtDate(item.scannedAt),
+        item.dayIndex,
+        item.isReplaced ? "TRUE" : "FALSE",
+        item.replacedFromAmount ?? "",
+        item.replacedAt ?? "",
+        item.synced ? "TRUE" : "FALSE",
+        item.syncAt ?? ""
+      ]);
+
+      const csv = [header, ...rows]
+        .map(r => r.map(v => `"${String(v ?? "").replaceAll('"','""')}"`).join(","))
+        .join("\r\n");
+
+      const blob = new Blob(["\uFEFF" + csv], {type:"text/csv;charset=utf-8;"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `伝票台帳_${makeDateKey()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setText('dupStatus', 'CSV書き出し完了', 'ok');
+    }
+
+    function openSyncSettingPrompt(){
+      const fileId = prompt("OneDrive上のExcelファイルIDを入力", state.sync.fileId || "");
+      if(fileId === null) return;
+      const tableName = prompt("Excelのテーブル名を入力", state.sync.tableName || "InvoiceTable");
+      if(tableName === null) return;
+
+      state.sync.fileId = fileId.trim();
+      state.sync.tableName = tableName.trim() || "InvoiceTable";
+      saveSyncSettings();
+      updateSyncInfo();
+      setText('dupStatus', '同期設定保存', 'ok');
+    }
+
+    function updateSyncInfo(){
+      const accountName = state.sync.account?.username || "未ログイン";
+      const unsynced = getUnsyncedCount();
+      $('syncInfo').innerHTML = `
+        Microsoft: <b>${escapeHtml(accountName)}</b><br>
+        fileId: <b>${escapeHtml(state.sync.fileId || "未設定")}</b><br>
+        tableName: <b>${escapeHtml(state.sync.tableName || "未設定")}</b><br>
+        未同期件数: <b>${unsynced}件</b><br>
+        最終同期: <b>${fmtDateTime(state.sync.lastSyncAt)}</b>
+      `;
+    }
+
+    function startAutoLoop(){
+      stopAutoLoop();
+      state.autoTimer = setInterval(() => {
+        if(state.autoMode && !state.ocrRunning && $('dupOverlay').style.display !== 'flex'){
+          recognizeOnce('auto');
+        }
+        render();
+      }, AUTO_INTERVAL_MS);
+    }
+
+    function stopAutoLoop(){
+      if(state.autoTimer){
+        clearInterval(state.autoTimer);
+        state.autoTimer = null;
+      }
+    }
+
+    function bindEvents(){
+      $('scanBtn').addEventListener('click', () => recognizeOnce('manual'));
+
+      $('todayBtn').addEventListener('click', () => {
+        if(!state.holdCurrent || Date.now() >= state.holdUntil){
+          setText('scanStatus','今ホールド中の取り消し対象なし','warn');
+          return;
+        }
+        undoCurrentHoldOnly();
+      });
+
+      $('releaseBtn').addEventListener('click', () => releaseHoldOnly());
+
+      $('autoBtn').addEventListener('click', () => {
+        state.autoMode = !state.autoMode;
+        setText('ocrState', state.autoMode ? '自動認識ON' : '自動認識OFF', state.autoMode ? 'ok' : 'info');
+        render();
+      });
+
+      $('graphBtn').addEventListener('click', () => {
+        $('searchModal').classList.add('show');
+        $('searchResults').innerHTML = '<div style="color:var(--muted);font-size:13px;">グラフ表示中</div>';
+        drawGraph($('modalGraphCanvas'), state.scans);
+      });
+
+      $('searchBtn').addEventListener('click', () => {
+        $('searchModal').classList.add('show');
+        $('searchInput').focus();
+        drawGraph($('modalGraphCanvas'), state.scans);
+        updateSyncInfo();
+      });
+
+      $('closeSearch').addEventListener('click', () => {
+        $('searchModal').classList.remove('show');
+      });
+
+      $('searchModal').addEventListener('click', (e) => {
+        if(e.target.id === 'searchModal') $('searchModal').classList.remove('show');
+      });
+
+      $('doSearchBtn').addEventListener('click', () => {
+        renderSearchResults(searchByInvoiceNo($('searchInput').value));
+      });
+
+      $('showReplacedBtn').addEventListener('click', () => {
+        renderSearchResults(searchReplacedOnly());
+      });
+
+      $('searchInput').addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') $('doSearchBtn').click();
+      });
+
+      $('skipDupBtn').addEventListener('click', () => {
+        hideDuplicateModal();
+        state.pendingDuplicate = null;
+        state.holdUntil = Date.now() + HOLD_MS;
+        setText('scanStatus','重複のためスキップ','warn');
+        setText('dupStatus','再スキャン可能','info');
+        render();
+      });
+
+      $('replaceAmountBtn').addEventListener('click', () => {
+        if(!state.pendingDuplicate) return;
+        const { existing, amount, invoiceNo } = state.pendingDuplicate;
+        replaceAmountOnly(existing.id, amount);
+        hideDuplicateModal();
+        setText('scanStatus', `差し替え完了: ${invoiceNo} / ${yen(amount)}`, 'ok');
+        setText('dupStatus', `${getDayOrderText(existing)} の金額を更新（未同期）`, 'ok');
+        setText('ocrState', '差し替え成功', 'ok');
+        state.pendingDuplicate = null;
+      });
+
+      $('msLoginBtn').addEventListener('click', async () => {
+        await signInMicrosoft();
+        render();
+      });
+
+      $('syncBtn').addEventListener('click', async () => {
+        await syncUnsyncedToOneDrive();
+      });
+
+      $('exportCsvBtn').addEventListener('click', () => exportCsv());
+      $('syncSettingBtn').addEventListener('click', () => openSyncSettingPrompt());
+
+      document.addEventListener('visibilitychange', () => {
+        if(document.hidden){
+          stopAutoLoop();
+        }else{
+          startAutoLoop();
+        }
+      });
+    }
+
+    async function boot(){
+      loadState();
+      loadSyncSettings();
+      await initMsalAccount();
+      render();
+      bindEvents();
+      await initCamera();
+      await initWorker();
+      startAutoLoop();
+
+      setInterval(() => {
+        render();
+      }, 500);
+    }
+
+    boot();
+
+    window.addEventListener('beforeunload', async () => {
+      try{
+        stopAutoLoop();
+        if(state.worker) await state.worker.terminate();
+        if(state.stream) state.stream.getTracks().forEach(t => t.stop());
+      }catch(e){}
+    });
+  </script>
 </body>
 </html>
