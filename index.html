@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>G伝票専用スキャン 最適化版</title>
+  <title>G伝票専用スキャン</title>
   <style>
     :root{
       --bg:#070b11;
@@ -41,10 +41,9 @@
     }
     canvas{display:none}
 
-    /* 上 */
     .topArea{
       position:absolute;left:10px;right:10px;top:10px;z-index:20;
-      display:grid;grid-template-columns:1fr 140px;gap:8px;
+      display:grid;grid-template-columns:1fr 138px;gap:8px;
     }
     .triple{
       display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;
@@ -75,10 +74,9 @@
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
 
-    /* 状態 */
     .statusWrap{
       position:absolute;left:10px;top:98px;z-index:20;
-      width:58%;
+      width:56%;
       display:grid;grid-template-columns:1fr;gap:8px;
     }
     .statusBox{
@@ -98,7 +96,6 @@
     .err{color:var(--red)}
     .info{color:#91c5ff}
 
-    /* 読取枠 */
     .guideArea{
       position:absolute;inset:0;z-index:12;pointer-events:none;
     }
@@ -130,20 +127,18 @@
       backdrop-filter:blur(8px);
     }
 
-    /* 右上の伝票番号 */
+    /* 右側を広く空ける前提 */
     .target.invoice{
-      left:60%;
-      top:18.8%;
-      width:30%;
-      height:8.2%;
+      left:60.8%;
+      top:18.6%;
+      width:29.5%;
+      height:6.6%;
     }
-
-    /* 右下の合計 */
     .target.amount{
-      left:58%;
-      top:72.0%;
-      width:24%;
-      height:7.2%;
+      left:61.2%;
+      top:72.4%;
+      width:20.0%;
+      height:5.8%;
     }
 
     .hint{
@@ -191,11 +186,10 @@
       50%{opacity:1;transform:scale(1)}
     }
 
-    /* 左下操作 */
     .controlPanel{
       position:absolute;
       left:10px;
-      bottom:166px;
+      bottom:168px;
       width:52%;
       z-index:21;
       display:grid;
@@ -213,6 +207,16 @@
       gap:10px;
       align-items:center;
     }
+    .sideActions{
+      position:absolute;
+      right:10px;
+      bottom:174px;
+      width:31%;
+      z-index:21;
+      display:grid;
+      gap:10px;
+    }
+
     .btn{
       border:none;border-radius:20px;min-height:52px;
       color:#fff;background:var(--panel);
@@ -229,9 +233,7 @@
     .btn.orange{background:rgba(255,159,10,.18);border-color:rgba(255,159,10,.32)}
     .btn.delete{background:rgba(255,69,58,.14);border-color:rgba(255,69,58,.28)}
 
-    .shutterWrap{
-      display:flex;justify-content:flex-start;
-    }
+    .shutterWrap{display:flex;justify-content:flex-start}
     .shutter{
       width:82px;height:82px;border-radius:50%;
       border:none;
@@ -243,19 +245,6 @@
     }
     .shutter:active{transform:scale(.96)}
 
-    /* 右下補助 */
-    .sideActions{
-      position:absolute;
-      right:10px;
-      bottom:172px;
-      width:32%;
-      z-index:21;
-      display:grid;
-      grid-template-columns:1fr;
-      gap:10px;
-    }
-
-    /* 履歴 */
     .historyCard{
       position:absolute;
       left:10px;right:10px;bottom:10px;
@@ -441,18 +430,18 @@
 
       <div class="guideArea">
         <div class="target invoice" id="invoiceGuide">
-          <div class="targetLabel">伝票番号（G〜）</div>
+          <div class="targetLabel">伝票番号（G＋8桁）</div>
         </div>
         <div class="target amount" id="amountGuide">
-          <div class="targetLabel">合計金額</div>
+          <div class="targetLabel">合計数字だけ</div>
         </div>
       </div>
 
-      <div class="hint">右上の伝票番号と右下の合計だけ合わせる</div>
+      <div class="hint">右上は番号だけ、右下は数字だけ合わせる</div>
 
       <div class="smallNote">
-        自動認識後は3秒ホールド。<br>
-        履歴をタップで選択、削除できる。
+        伝票番号は G + 8桁固定。<br>
+        合計は「合計⇨」を含めず数字だけ。
       </div>
 
       <div class="loading" id="loadingBadge">
@@ -527,27 +516,31 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
     const TAX_RATE = 0.10;
-    const STORAGE_KEY = 'g-invoice-special-final-lite-v1';
-    const AUTO_INTERVAL_MS = 1700;
+    const STORAGE_KEY = 'g-invoice-special-final-v2';
+    const AUTO_INTERVAL_MS = 1900;
     const HOLD_MS = 3000;
-    const FAIL_COOLDOWN_MS = 1400;
+    const FAIL_COOLDOWN_MS = 1800;
 
-    // 認識を少し厳しめ
     const MIN_AMOUNT = 1000;
     const MAX_AMOUNT = 999999;
 
-    const SEARCH_OFFSETS = [
+    // 合計枠はより狭く、番号枠も高さを抑える
+    const SEARCH_OFFSETS_INVOICE = [
       {x:0,y:0},
-      {x:-0.03,y:0},
-      {x:0.03,y:0},
-      {x:0,y:-0.02},
-      {x:0,y:0.02},
-      {x:-0.02,y:-0.02},
-      {x:0.02,y:-0.02},
-      {x:-0.02,y:0.02},
-      {x:0.02,y:0.02},
-      {x:-0.04,y:0},
-      {x:0.04,y:0}
+      {x:-0.015,y:0},
+      {x:0.015,y:0},
+      {x:0,y:-0.015},
+      {x:0,y:0.015},
+      {x:-0.02,y:0},
+      {x:0.02,y:0}
+    ];
+
+    const SEARCH_OFFSETS_AMOUNT = [
+      {x:0,y:0},
+      {x:-0.01,y:0},
+      {x:0.01,y:0},
+      {x:0,y:-0.01},
+      {x:0,y:0.01}
     ];
 
     const state = {
@@ -703,7 +696,6 @@
       const gr = el.getBoundingClientRect();
       const scaleX = video.videoWidth / vr.width;
       const scaleY = video.videoHeight / vr.height;
-
       return {
         x: (gr.left - vr.left) * scaleX,
         y: (gr.top - vr.top) * scaleY,
@@ -727,7 +719,7 @@
       const d = img.data;
       for(let i=0;i<d.length;i+=4){
         const gray = d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
-        const boosted = gray > 160 ? 255 : gray < 110 ? 0 : gray * 1.18;
+        const boosted = gray > 168 ? 255 : gray < 118 ? 0 : gray * 1.2;
         d[i]=d[i+1]=d[i+2]=Math.max(0,Math.min(255,boosted));
       }
       ctx.putImageData(img,0,0);
@@ -745,21 +737,6 @@
         .trim();
     }
 
-    function extractInvoiceNo(text){
-      const t = normalizeText(text).toUpperCase();
-
-      // 8桁前後を強く優先
-      const candidates = [
-        ...t.matchAll(/G[0-9OIZSB]{7,10}/g),
-        ...t.matchAll(/G\s*[0-9OIZSB]{7,10}/g)
-      ].map(m => fixInvoiceCandidate(m[0].replace(/\s+/g,''))).filter(Boolean);
-
-      if(!candidates.length) return null;
-
-      candidates.sort((a,b) => scoreInvoice(b) - scoreInvoice(a));
-      return candidates[0];
-    }
-
     function fixInvoiceCandidate(v){
       let s = v.toUpperCase().replace(/[^A-Z0-9]/g,'');
       if(!s.startsWith('G')) return null;
@@ -772,23 +749,35 @@
         .replace(/B/g,'8')
         .replace(/[^0-9]/g,'');
 
-      if(rest.length < 7) return null;
-
-      // 長すぎるときは先頭8桁優先
-      if(rest.length > 8) rest = rest.slice(0,8);
-
+      if(rest.length < 8) return null;
+      rest = rest.slice(0,8);
       return 'G' + rest;
     }
 
-    function extractAmount(text){
-      const t = normalizeText(text);
+    function extractInvoiceNo(text){
+      const t = normalizeText(text).toUpperCase();
 
-      let nums = [...t.matchAll(/(?:¥\s*)?(\d{1,3}(?:,\d{3})+|\d{4,7})(?:\s*円)?/g)]
+      const hits = [
+        ...t.matchAll(/G[0-9OIZSB]{8,10}/g),
+        ...t.matchAll(/G\s*[0-9OIZSB]{8,10}/g)
+      ].map(m => fixInvoiceCandidate(m[0].replace(/\s+/g,''))).filter(Boolean);
+
+      if(!hits.length) return null;
+
+      hits.sort((a,b)=>scoreInvoice(b)-scoreInvoice(a));
+      return hits[0];
+    }
+
+    function extractAmount(text){
+      const t = normalizeText(text)
+        .replace(/合計/g,' ')
+        .replace(/[⇨→]/g,' ');
+
+      const nums = [...t.matchAll(/(\d{1,3}(?:,\d{3})+|\d{4,7})/g)]
         .map(m => parseInt(m[1].replace(/,/g,''),10))
         .filter(n => n >= MIN_AMOUNT && n <= MAX_AMOUNT);
 
       if(!nums.length) return null;
-
       nums.sort((a,b)=>b-a);
       return nums[0];
     }
@@ -796,10 +785,8 @@
     function scoreInvoice(candidate){
       if(!candidate) return -1;
       let score = 0;
-      if(/^G\d+$/.test(candidate)) score += 100;
-      if(candidate.length === 9) score += 45; // G + 8桁
-      if(candidate.length === 8 || candidate.length === 10) score += 20;
-      if(candidate.startsWith('G0')) score += 10;
+      if(/^G\d{8}$/.test(candidate)) score += 140;
+      if(candidate.startsWith('G0')) score += 8;
       return score;
     }
 
@@ -807,7 +794,7 @@
       if(!amount) return -1;
       let score = 0;
       if(amount >= MIN_AMOUNT && amount <= MAX_AMOUNT) score += 100;
-      if(amount >= 5000) score += 15;
+      if(amount >= 5000) score += 10;
       return score;
     }
 
@@ -815,7 +802,7 @@
       const base = getGuideRectPixels($('invoiceGuide'));
       let best = {value:null, score:-1};
 
-      for(const off of SEARCH_OFFSETS){
+      for(const off of SEARCH_OFFSETS_INVOICE){
         const rect = {
           x: base.x + base.w*off.x,
           y: base.y + base.h*off.y,
@@ -835,7 +822,7 @@
       const base = getGuideRectPixels($('amountGuide'));
       let best = {value:null, score:-1};
 
-      for(const off of SEARCH_OFFSETS){
+      for(const off of SEARCH_OFFSETS_AMOUNT){
         const rect = {
           x: base.x + base.w*off.x,
           y: base.y + base.h*off.y,
@@ -914,7 +901,7 @@
 
     function deleteSelectedHistory(){
       if(!state.selectedHistoryId){
-        setText('dupStatus','削除する履歴を選択', 'warn');
+        setText('dupStatus','削除する履歴を選択','warn');
         return;
       }
 
@@ -939,7 +926,7 @@
       state.selectedHistoryId = null;
       saveState();
       render();
-      setText('dupStatus','履歴を削除しました', 'ok');
+      setText('dupStatus','履歴を削除しました','ok');
     }
 
     function undoCurrentHoldOnly(){
@@ -986,10 +973,7 @@
         list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0;">まだ履歴がありません</div>';
       }else{
         state.scans.forEach((item, idx) => {
-          const replacedBadge = item.isReplaced
-            ? '<span class="badge replaced">差</span>'
-            : '';
-
+          const replacedBadge = item.isReplaced ? '<span class="badge replaced">差</span>' : '';
           const row = document.createElement('div');
           row.className = `historyItem ${item.isReplaced ? 'replaced' : ''} ${state.selectedHistoryId === item.id ? 'selected' : ''}`;
           row.innerHTML = `
@@ -1018,17 +1002,14 @@
 
     async function recognizeOnce(source='manual'){
       if(!state.workerReady || state.ocrRunning) return;
-
       if(Date.now() < state.holdUntil){
         const sec = Math.max(0, Math.ceil((state.holdUntil - Date.now()) / 1000));
         setText('scanStatus', `ホールド中 ${sec}秒`, 'warn');
         return;
       }
-
       if(Date.now() < state.lastFailUntil){
         return;
       }
-
       if(video.readyState < 2){
         setText('scanStatus', 'カメラ準備待ち', 'warn');
         return;
@@ -1039,13 +1020,15 @@
       setText('ocrState', '認識中', 'warn');
 
       try{
-        const invoiceRes = await scanBestInvoiceNo();
-        const amountRes = await scanBestAmount();
+        const [invoiceRes, amountRes] = await Promise.all([
+          scanBestInvoiceNo(),
+          scanBestAmount()
+        ]);
 
         const invoiceNo = invoiceRes.value;
         const amount = amountRes.value;
 
-        const invoiceOk = invoiceNo && scoreInvoice(invoiceNo) >= 120;
+        const invoiceOk = invoiceNo && scoreInvoice(invoiceNo) >= 140;
         const amountOk = amount && scoreAmount(amount) >= 100;
 
         if(!invoiceOk || !amountOk){
