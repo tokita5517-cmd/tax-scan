@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>G伝票専用スキャン</title>
+  <title>G伝票専用スキャン UI再構成版</title>
   <style>
     :root{
       --bg:#070b11;
@@ -40,16 +40,34 @@
     }
     canvas{display:none}
 
-    .topArea{
-      position:absolute;left:10px;right:10px;top:10px;z-index:20;
-      display:grid;grid-template-columns:1fr 138px;gap:8px;
+    /* 左上: 総合計/枚数 */
+    .topLeft{
+      position:absolute;
+      left:10px; top:10px;
+      width:128px;
+      z-index:20;
     }
-    .triple{
-      display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;
+
+    /* 真ん中上: 税抜/消費税/税込 */
+    .topCenter{
+      position:absolute;
+      left:148px; top:10px;
+      width:138px;
+      z-index:20;
+      display:grid;
+      gap:8px;
     }
-    .rightInfo{
-      display:grid;grid-template-columns:1fr;gap:8px;
+
+    /* 右上: 直近/認識状態 */
+    .topRight{
+      position:absolute;
+      right:10px; top:10px;
+      width:148px;
+      z-index:20;
+      display:grid;
+      gap:8px;
     }
+
     .box{
       background:var(--panel);
       border:1px solid var(--line);
@@ -57,14 +75,14 @@
       padding:8px 10px;
       box-shadow:var(--shadow);
       backdrop-filter:blur(16px);
-      min-height:60px;
+      min-height:58px;
     }
-    .box.small{min-height:56px}
+    .box.tall{min-height:118px}
     .label{
       font-size:11px;color:var(--muted);letter-spacing:.04em;margin-bottom:2px;
     }
     .value{
-      font-size:22px;font-weight:800;line-height:1.05;
+      font-size:21px;font-weight:800;line-height:1.05;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
       font-variant-numeric:tabular-nums;
     }
@@ -73,17 +91,21 @@
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
 
+    /* 状態 */
     .statusWrap{
-      position:absolute;left:10px;top:98px;z-index:20;
-      width:57%;
-      display:grid;grid-template-columns:1fr;gap:8px;
+      position:absolute;
+      left:10px; right:10px; top:138px;
+      z-index:20;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
     }
     .statusBox{
       background:rgba(12,18,24,.84);
       border:1px solid var(--line);
       border-radius:16px;
       padding:8px 10px;
-      min-height:52px;
+      min-height:58px;
       backdrop-filter:blur(16px);
     }
     .statusText{
@@ -95,6 +117,7 @@
     .err{color:var(--red)}
     .info{color:#91c5ff}
 
+    /* ガイド */
     .guideArea{
       position:absolute;inset:0;z-index:12;pointer-events:none;
     }
@@ -126,17 +149,19 @@
       backdrop-filter:blur(8px);
     }
 
-    /* ユーザーが合わせるのは上だけ */
+    /* 上だけ基準枠 */
     .target.invoice{
-      left:60.5%;
-      top:19.0%;
-      width:29.5%;
-      height:7.2%;
+      left:58%;
+      top:18.2%;
+      width:36%;
+      height:10%;
     }
 
+    /* 説明文 */
     .hint{
-      position:absolute;left:50%;transform:translateX(-50%);
-      top:60%;
+      position:absolute;
+      left:50%; transform:translateX(-50%);
+      top:56%;
       z-index:13;
       background:rgba(0,0,0,.42);
       border:1px solid rgba(255,255,255,.12);
@@ -147,10 +172,11 @@
       white-space:nowrap;
       backdrop-filter:blur(8px);
     }
-
     .smallNote{
-      position:absolute;left:10px;bottom:220px;z-index:20;
-      width:44%;
+      position:absolute;
+      left:18px; top:63%;
+      z-index:13;
+      max-width:44%;
       background:rgba(0,0,0,.35);
       border:1px solid rgba(255,255,255,.08);
       padding:8px 10px;
@@ -160,7 +186,8 @@
     }
 
     .loading{
-      position:absolute;right:10px;bottom:220px;z-index:20;
+      position:absolute;right:10px;top:63%;
+      z-index:20;
       display:none;align-items:center;gap:8px;
       background:rgba(0,0,0,.42);
       border:1px solid rgba(255,255,255,.08);
@@ -179,34 +206,60 @@
       50%{opacity:1;transform:scale(1)}
     }
 
-    .controlPanel{
+    /* 真ん中左の小さい丸シャッター */
+    .shutterWrap{
       position:absolute;
-      left:10px;
-      bottom:168px;
-      width:54%;
+      left:16px;
+      top:66%;
+      z-index:21;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      width:84px;
+      height:84px;
+    }
+    .shutter{
+      width:82px;height:82px;border-radius:50%;
+      border:none;
+      background:linear-gradient(180deg,#fff,#d8dde4);
+      box-shadow:
+        0 6px 20px rgba(0,0,0,.35),
+        inset 0 0 0 9px #ffffff,
+        inset 0 0 0 14px #d5dbe2;
+    }
+    .shutter:active{transform:scale(.96)}
+
+    /* 中央操作 */
+    .centerActions{
+      position:absolute;
+      left:110px;
+      top:66.5%;
+      width:160px;
       z-index:21;
       display:grid;
       gap:10px;
     }
-    .controlRow1{
-      display:grid;
-      grid-template-columns:92px 1fr;
-      gap:10px;
-      align-items:center;
-    }
-    .controlRow2{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      align-items:center;
-    }
-    .sideActions{
+
+    /* 右操作 */
+    .rightActions{
       position:absolute;
       right:10px;
-      bottom:174px;
-      width:30%;
+      top:66.5%;
+      width:150px;
       z-index:21;
       display:grid;
+      gap:10px;
+    }
+
+    /* 下段操作 */
+    .bottomActions{
+      position:absolute;
+      left:10px;
+      right:10px;
+      top:76.5%;
+      z-index:21;
+      display:grid;
+      grid-template-columns:1fr 1fr;
       gap:10px;
     }
 
@@ -225,18 +278,7 @@
     .btn.green{background:rgba(48,209,88,.18);border-color:rgba(48,209,88,.30)}
     .btn.delete{background:rgba(255,69,58,.14);border-color:rgba(255,69,58,.28)}
 
-    .shutterWrap{display:flex;justify-content:flex-start}
-    .shutter{
-      width:82px;height:82px;border-radius:50%;
-      border:none;
-      background:linear-gradient(180deg,#fff,#d8dde4);
-      box-shadow:
-        0 6px 20px rgba(0,0,0,.35),
-        inset 0 0 0 9px #ffffff,
-        inset 0 0 0 14px #d5dbe2;
-    }
-    .shutter:active{transform:scale(.96)}
-
+    /* 履歴を広げる */
     .historyCard{
       position:absolute;
       left:10px;right:10px;bottom:10px;
@@ -247,10 +289,11 @@
       padding:10px 12px;
       backdrop-filter:blur(18px);
       box-shadow:var(--shadow);
+      min-height:170px;
     }
     .historyHeader{
       display:flex;justify-content:space-between;align-items:center;
-      margin-bottom:6px;
+      margin-bottom:8px;
       font-size:12px;color:var(--muted);gap:8px;
     }
     .pill{
@@ -262,7 +305,7 @@
       white-space:nowrap;
     }
     .historyList{
-      max-height:132px;
+      max-height:118px;
       overflow:auto;
       padding-right:2px;
     }
@@ -366,12 +409,10 @@
     }
 
     @media (max-width:390px){
-      .topArea{grid-template-columns:1fr 132px}
+      .topCenter{left:142px;width:128px}
+      .topRight{width:138px}
       .value{font-size:20px}
-      .controlPanel{width:56%}
-      .sideActions{width:30%}
-      .btn{font-size:14px}
-      .targetLabel,.hint{font-size:11px}
+      .hint,.smallNote,.targetLabel{font-size:11px}
     }
   </style>
 </head>
@@ -380,32 +421,37 @@
     <div class="cameraWrap">
       <video id="video" autoplay playsinline muted></video>
 
-      <div class="topArea">
-        <div class="triple">
-          <div class="box">
-            <div class="label">税抜き</div>
-            <div class="value" id="taxBase">0円</div>
-          </div>
-          <div class="box">
-            <div class="label">消費税</div>
-            <div class="value" id="taxAmountOnly">0円</div>
-          </div>
-          <div class="box">
-            <div class="label">総計</div>
-            <div class="value" id="totalAmount">0円</div>
-            <div class="sub" id="totalCount">0枚</div>
-          </div>
+      <div class="topLeft">
+        <div class="box tall">
+          <div class="label">総合計 / 枚数</div>
+          <div class="value" id="totalAmount">0円</div>
+          <div class="sub" id="totalCount">0枚</div>
         </div>
+      </div>
 
-        <div class="rightInfo">
-          <div class="box small">
-            <div class="label">直近伝票</div>
-            <div class="sub" id="lastInvoice">-</div>
-          </div>
-          <div class="box small">
-            <div class="label">認識状態</div>
-            <div class="sub" id="ocrState">待機中</div>
-          </div>
+      <div class="topCenter">
+        <div class="box">
+          <div class="label">税抜</div>
+          <div class="value" id="taxBase">0円</div>
+        </div>
+        <div class="box">
+          <div class="label">消費税</div>
+          <div class="value" id="taxAmountOnly">0円</div>
+        </div>
+        <div class="box">
+          <div class="label">税込</div>
+          <div class="value" id="grossAmount">0円</div>
+        </div>
+      </div>
+
+      <div class="topRight">
+        <div class="box small">
+          <div class="label">直近伝票</div>
+          <div class="sub" id="lastInvoice">-</div>
+        </div>
+        <div class="box small">
+          <div class="label">認識状態</div>
+          <div class="sub" id="ocrState">待機中</div>
         </div>
       </div>
 
@@ -422,15 +468,15 @@
 
       <div class="guideArea">
         <div class="target invoice" id="invoiceGuide">
-          <div class="targetLabel">ここだけ合わせる（番号基準）</div>
+          <div class="targetLabel">ここだけ合わせる（伝票番号〜1頁）</div>
         </div>
       </div>
 
       <div class="hint">上だけ合わせる。下の合計は内部で広めに読む</div>
 
       <div class="smallNote">
-        上は伝票番号の行。<br>
-        下の合計は内部で広めにスキャン。
+        上は「伝票番号」と「1頁」が入るくらい。<br>
+        シャッターは左の丸。音あり。
       </div>
 
       <div class="loading" id="loadingBadge">
@@ -441,23 +487,23 @@
 
     <canvas id="workCanvas"></canvas>
 
-    <div class="controlPanel">
-      <div class="controlRow1">
-        <div class="shutterWrap">
-          <button class="shutter" id="scanBtn" aria-label="scan"></button>
-        </div>
-        <button class="btn gray" id="searchBtn">検索</button>
-      </div>
-
-      <div class="controlRow2">
-        <button class="btn green" id="autoBtn">自動認識 ON</button>
-        <button class="btn delete" id="deleteBtn">削除</button>
-      </div>
+    <div class="shutterWrap">
+      <button class="shutter" id="scanBtn" aria-label="scan"></button>
     </div>
 
-    <div class="sideActions">
+    <div class="centerActions">
+      <button class="btn gray" id="searchBtn">検索</button>
+      <button class="btn delete" id="deleteBtn">削除</button>
+    </div>
+
+    <div class="rightActions">
       <button class="btn red" id="todayBtn">今日</button>
       <button class="btn blue" id="releaseBtn">解除</button>
+    </div>
+
+    <div class="bottomActions">
+      <button class="btn green" id="autoBtn">自動認識 ON</button>
+      <button class="btn gray" id="dummyBtn" disabled>履歴下に表示</button>
     </div>
 
     <div class="historyCard">
@@ -505,7 +551,7 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
     const TAX_RATE = 0.10;
-    const STORAGE_KEY = 'g-invoice-top-guide-v1';
+    const STORAGE_KEY = 'g-invoice-ui-remake-v1';
     const AUTO_INTERVAL_MS = 2100;
     const HOLD_MS = 3000;
     const FAIL_COOLDOWN_MS = 1800;
@@ -513,28 +559,28 @@
     const MIN_AMOUNT = 1000;
     const MAX_AMOUNT = 999999;
 
-    // 上だけ表示、下は内部で広めに読む
     const SEARCH_OFFSETS_INVOICE = [
       {x:0,y:0},
-      {x:-0.012,y:0},
-      {x:0.012,y:0},
-      {x:0,y:-0.01},
-      {x:0,y:0.01}
+      {x:-0.015,y:0},
+      {x:0.015,y:0},
+      {x:0,y:-0.012},
+      {x:0,y:0.012},
+      {x:-0.02,y:0.01},
+      {x:0.02,y:-0.01}
     ];
 
-    // 合計は内部で広めにスキャン
     const SEARCH_OFFSETS_AMOUNT = [
       {x:0,y:0},
-      {x:-0.04,y:0},
-      {x:0.04,y:0},
-      {x:-0.02,y:0},
-      {x:0.02,y:0},
-      {x:0,y:-0.03},
-      {x:0,y:0.03},
-      {x:-0.03,y:-0.02},
-      {x:-0.03,y:0.02},
-      {x:0.03,y:-0.02},
-      {x:0.03,y:0.02}
+      {x:-0.06,y:0},
+      {x:0.06,y:0},
+      {x:-0.03,y:0},
+      {x:0.03,y:0},
+      {x:0,y:-0.05},
+      {x:0,y:0.05},
+      {x:-0.04,y:-0.03},
+      {x:-0.04,y:0.03},
+      {x:0.04,y:-0.03},
+      {x:0.04,y:0.03}
     ];
 
     const state = {
@@ -685,6 +731,24 @@
       }
     }
 
+    function playShutterSound(){
+      try{
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1200, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(700, ctx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.13);
+      }catch(e){}
+    }
+
     function getGuideRectPixels(el){
       const vr = video.getBoundingClientRect();
       const gr = el.getBoundingClientRect();
@@ -699,13 +763,11 @@
     }
 
     function getInternalAmountRectFromInvoiceRect(invoiceRect){
-      // 上の枠から相対位置で下の合計数字欄を推定
-      // 画面表示はしないが、内部では上下左右広めに読む
       return {
-        x: invoiceRect.x + invoiceRect.w * 0.12,
-        y: invoiceRect.y + invoiceRect.h * 10.2,
-        w: invoiceRect.w * 0.78,
-        h: invoiceRect.h * 1.45
+        x: invoiceRect.x - invoiceRect.w * 1.55,
+        y: invoiceRect.y + invoiceRect.h * 8.45,
+        w: invoiceRect.w * 1.95,
+        h: invoiceRect.h * 2.00
       };
     }
 
@@ -762,8 +824,8 @@
     function extractInvoiceNo(text){
       const t = normalizeText(text).toUpperCase();
       const hits = [
-        ...t.matchAll(/G[0-9OIZSB]{8,9}/g),
-        ...t.matchAll(/G\s*[0-9OIZSB]{8,9}/g)
+        ...t.matchAll(/G[0-9OIZSB]{8,10}/g),
+        ...t.matchAll(/G\s*[0-9OIZSB]{8,10}/g)
       ].map(m => fixInvoiceCandidate(m[0].replace(/\s+/g,''))).filter(Boolean);
 
       if(!hits.length) return null;
@@ -782,11 +844,8 @@
         .filter(n => n >= MIN_AMOUNT && n <= MAX_AMOUNT);
     }
 
-    function extractAmount(text){
-      const nums = extractAmountCandidates(text);
+    function chooseBestAmount(nums){
       if(!nums.length) return null;
-
-      // 今回は周りに数字が少ない前提なので最大値採用に戻す
       nums.sort((a,b)=>b-a);
       return nums[0];
     }
@@ -840,7 +899,8 @@
         };
         const canvas = cropVideoRegion(rect);
         const { data } = await state.worker.recognize(canvas);
-        const candidate = extractAmount(data?.text || '');
+        const nums = extractAmountCandidates(data?.text || '');
+        const candidate = chooseBestAmount(nums);
         const score = scoreAmount(candidate);
         if(score > best.score) best = {value:candidate, score};
       }
@@ -970,9 +1030,10 @@
 
     function render(){
       const t = totals();
+      $('totalAmount').textContent = yen(t.total);
+      $('grossAmount').textContent = yen(t.total);
       $('taxBase').textContent = yen(t.base);
       $('taxAmountOnly').textContent = yen(t.tax);
-      $('totalAmount').textContent = yen(t.total);
       $('totalCount').textContent = `${t.count}枚`;
       $('lastInvoice').textContent = state.scans[0] ? state.scans[0].invoiceNo : '-';
 
@@ -1021,6 +1082,8 @@
         setText('scanStatus', 'カメラ準備待ち', 'warn');
         return;
       }
+
+      playShutterSound();
 
       state.ocrRunning = true;
       setLoading(true, source === 'auto' ? '自動OCR中…' : 'OCR中…');
@@ -1177,8 +1240,8 @@
         hideDuplicateModal();
         state.pendingDuplicate = null;
         state.holdUntil = Date.now() + HOLD_MS;
-        setText('scanStatus','重複のためスキップ','warn');
-        setText('dupStatus','再スキャン可能','info');
+        setText('scanStatus', '重複のためスキップ', 'warn');
+        setText('dupStatus', '再スキャン可能', 'info');
         render();
       });
 
