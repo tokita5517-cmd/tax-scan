@@ -15,7 +15,6 @@
       --green:#30d158;
       --red:#ff453a;
       --blue:#0a84ff;
-      --orange:#ff9f0a;
       --replace:#7dd3fc;
       --shadow:0 10px 28px rgba(0,0,0,.34);
     }
@@ -127,20 +126,12 @@
       backdrop-filter:blur(8px);
     }
 
-    /* 伝票番号は番号だけの行を薄く取る */
+    /* ユーザーが合わせるのは上だけ */
     .target.invoice{
-      left:60.7%;
+      left:60.5%;
       top:19.0%;
-      width:29.2%;
-      height:5.8%;
-    }
-
-    /* 合計は数字だけ。合計→ を含めない */
-    .target.amount{
-      left:65.8%;
-      top:74.4%;
-      width:13.2%;
-      height:4.6%;
+      width:29.5%;
+      height:7.2%;
     }
 
     .hint{
@@ -159,7 +150,7 @@
 
     .smallNote{
       position:absolute;left:10px;bottom:220px;z-index:20;
-      width:43%;
+      width:44%;
       background:rgba(0,0,0,.35);
       border:1px solid rgba(255,255,255,.08);
       padding:8px 10px;
@@ -188,7 +179,6 @@
       50%{opacity:1;transform:scale(1)}
     }
 
-    /* 左のもったいないゾーンを活用 */
     .controlPanel{
       position:absolute;
       left:10px;
@@ -432,18 +422,15 @@
 
       <div class="guideArea">
         <div class="target invoice" id="invoiceGuide">
-          <div class="targetLabel">伝票番号（G+8桁）</div>
-        </div>
-        <div class="target amount" id="amountGuide">
-          <div class="targetLabel">合計数字だけ</div>
+          <div class="targetLabel">ここだけ合わせる（番号基準）</div>
         </div>
       </div>
 
-      <div class="hint">右上は番号だけ、右下は数字だけ合わせる</div>
+      <div class="hint">上だけ合わせる。下の合計は内部で広めに読む</div>
 
       <div class="smallNote">
-        伝票番号は G + 8桁固定。<br>
-        合計は数字だけ読む。
+        上は伝票番号の行。<br>
+        下の合計は内部で広めにスキャン。
       </div>
 
       <div class="loading" id="loadingBadge">
@@ -509,7 +496,7 @@
         <div class="dupBody" id="dupBody"></div>
         <div class="dupBtns">
           <button class="btn gray" id="skipDupBtn">スキップ</button>
-          <button class="btn orange" id="replaceAmountBtn">金額だけ差し替え</button>
+          <button class="btn blue" id="replaceAmountBtn">金額だけ差し替え</button>
         </div>
       </div>
     </div>
@@ -518,7 +505,7 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
     const TAX_RATE = 0.10;
-    const STORAGE_KEY = 'g-invoice-special-final-v3';
+    const STORAGE_KEY = 'g-invoice-top-guide-v1';
     const AUTO_INTERVAL_MS = 2100;
     const HOLD_MS = 3000;
     const FAIL_COOLDOWN_MS = 1800;
@@ -526,20 +513,28 @@
     const MIN_AMOUNT = 1000;
     const MAX_AMOUNT = 999999;
 
+    // 上だけ表示、下は内部で広めに読む
     const SEARCH_OFFSETS_INVOICE = [
       {x:0,y:0},
-      {x:-0.01,y:0},
-      {x:0.01,y:0},
+      {x:-0.012,y:0},
+      {x:0.012,y:0},
       {x:0,y:-0.01},
       {x:0,y:0.01}
     ];
 
+    // 合計は内部で広めにスキャン
     const SEARCH_OFFSETS_AMOUNT = [
       {x:0,y:0},
-      {x:-0.006,y:0},
-      {x:0.006,y:0},
-      {x:0,y:-0.006},
-      {x:0,y:0.006}
+      {x:-0.04,y:0},
+      {x:0.04,y:0},
+      {x:-0.02,y:0},
+      {x:0.02,y:0},
+      {x:0,y:-0.03},
+      {x:0,y:0.03},
+      {x:-0.03,y:-0.02},
+      {x:-0.03,y:0.02},
+      {x:0.03,y:-0.02},
+      {x:0.03,y:0.02}
     ];
 
     const state = {
@@ -703,6 +698,17 @@
       };
     }
 
+    function getInternalAmountRectFromInvoiceRect(invoiceRect){
+      // 上の枠から相対位置で下の合計数字欄を推定
+      // 画面表示はしないが、内部では上下左右広めに読む
+      return {
+        x: invoiceRect.x + invoiceRect.w * 0.12,
+        y: invoiceRect.y + invoiceRect.h * 10.2,
+        w: invoiceRect.w * 0.78,
+        h: invoiceRect.h * 1.45
+      };
+    }
+
     function cropVideoRegion(rect){
       const x = Math.max(0, Math.round(rect.x));
       const y = Math.max(0, Math.round(rect.y));
@@ -778,15 +784,11 @@
 
     function extractAmount(text){
       const nums = extractAmountCandidates(text);
-
-      // 候補が0なら失敗
       if(!nums.length) return null;
 
-      // 候補が複数なら最大値ではなく、右下数字専用前提で失敗寄り
-      const unique = [...new Set(nums)];
-      if(unique.length > 1) return null;
-
-      return unique[0];
+      // 今回は周りに数字が少ない前提なので最大値採用に戻す
+      nums.sort((a,b)=>b-a);
+      return nums[0];
     }
 
     function scoreInvoice(candidate){
@@ -807,7 +809,7 @@
 
     async function scanBestInvoiceNo(){
       const base = getGuideRectPixels($('invoiceGuide'));
-      let best = {value:null, score:-1};
+      let best = {value:null, score:-1, rect:base};
 
       for(const off of SEARCH_OFFSETS_INVOICE){
         const rect = {
@@ -820,13 +822,13 @@
         const { data } = await state.worker.recognize(canvas);
         const candidate = extractInvoiceNo(data?.text || '');
         const score = scoreInvoice(candidate);
-        if(score > best.score) best = {value:candidate, score};
+        if(score > best.score) best = {value:candidate, score, rect};
       }
       return best;
     }
 
-    async function scanBestAmount(){
-      const base = getGuideRectPixels($('amountGuide'));
+    async function scanBestAmount(invoiceRect){
+      const base = getInternalAmountRectFromInvoiceRect(invoiceRect);
       let best = {value:null, score:-1};
 
       for(const off of SEARCH_OFFSETS_AMOUNT){
@@ -1025,18 +1027,23 @@
       setText('ocrState', '認識中', 'warn');
 
       try{
-        const [invoiceRes, amountRes] = await Promise.all([
-          scanBestInvoiceNo(),
-          scanBestAmount()
-        ]);
-
+        const invoiceRes = await scanBestInvoiceNo();
         const invoiceNo = invoiceRes.value;
-        const amount = amountRes.value;
-
         const invoiceOk = invoiceNo && scoreInvoice(invoiceNo) >= 150;
+
+        if(!invoiceOk){
+          state.lastFailUntil = Date.now() + FAIL_COOLDOWN_MS;
+          setText('scanStatus', '伝票番号または金額を取得できず', 'err');
+          setText('dupStatus', '位置を少し調整して再スキャン', 'warn');
+          setText('ocrState', '認識失敗', 'err');
+          return;
+        }
+
+        const amountRes = await scanBestAmount(invoiceRes.rect);
+        const amount = amountRes.value;
         const amountOk = amount && scoreAmount(amount) >= 100;
 
-        if(!invoiceOk || !amountOk){
+        if(!amountOk){
           state.lastFailUntil = Date.now() + FAIL_COOLDOWN_MS;
           setText('scanStatus', '伝票番号または金額を取得できず', 'err');
           setText('dupStatus', '位置を少し調整して再スキャン', 'warn');
