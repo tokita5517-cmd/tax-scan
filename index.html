@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>G伝票専用スキャン + Excel/OneDrive同期</title>
+  <title>G伝票専用スキャン B版</title>
   <style>
     :root{
-      --bg:#0b1017;
-      --panel:rgba(20,28,38,.88);
-      --line:rgba(255,255,255,.12);
+      --bg:#070b11;
+      --panel:rgba(12,20,30,.88);
+      --panel2:rgba(255,255,255,.06);
+      --line:rgba(255,255,255,.11);
       --text:#f7fafc;
       --muted:#9fb0c2;
       --accent:#ffcc00;
@@ -17,11 +18,11 @@
       --blue:#0a84ff;
       --orange:#ff9f0a;
       --replace:#7dd3fc;
-      --shadow:0 12px 30px rgba(0,0,0,.35);
+      --shadow:0 10px 28px rgba(0,0,0,.34);
     }
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     html,body{
-      margin:0;padding:0;background:var(--bg);color:var(--text);
+      margin:0;padding:0;background:#000;color:var(--text);
       font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Hiragino Sans","Noto Sans JP",sans-serif;
       height:100%;overflow:hidden;
     }
@@ -31,53 +32,74 @@
       height:100dvh;
       position:relative;
       overflow:hidden;
-      background:linear-gradient(180deg,#0b1017 0%,#101925 100%);
+      background:linear-gradient(180deg,#070b11 0%, #0d1621 100%);
     }
-    .cameraWrap{position:absolute;inset:0;background:#000}
+
+    .cameraWrap{
+      position:absolute;inset:0;background:#000;
+    }
     video{
       position:absolute;inset:0;width:100%;height:100%;
       object-fit:cover;background:#000;
     }
     canvas{display:none}
 
-    .topBar{
+    /* 上部情報 */
+    .topArea{
       position:absolute;left:12px;right:12px;top:12px;z-index:20;
-      display:grid;grid-template-columns:1fr 132px;gap:8px;
+      display:grid;grid-template-columns:1fr 160px;gap:10px;
     }
-    .summary{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .leftInfo{
+      display:grid;grid-template-columns:1fr;gap:8px;
+    }
+    .rightInfo{
+      display:grid;grid-template-columns:1fr;gap:8px;
+    }
     .box{
       background:var(--panel);
       border:1px solid var(--line);
       border-radius:20px;
-      padding:10px 12px;
-      min-height:64px;
+      padding:8px 12px;
       box-shadow:var(--shadow);
-      backdrop-filter:blur(18px);
+      backdrop-filter:blur(16px);
+      min-height:54px;
     }
-    .compact{padding:8px 10px;min-height:56px}
-    .label{font-size:11px;color:var(--muted);margin-bottom:3px;letter-spacing:.04em}
+    .label{
+      font-size:11px;color:var(--muted);letter-spacing:.04em;margin-bottom:2px;
+    }
     .value{
-      font-size:27px;font-weight:800;line-height:1.05;
+      font-size:26px;font-weight:800;line-height:1.05;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
       font-variant-numeric:tabular-nums;
     }
-    .value.small{font-size:21px}
     .sub{
       font-size:12px;color:var(--muted);margin-top:2px;
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
-    .miniCol{display:flex;flex-direction:column;gap:8px}
+
+    .triple{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:8px;
+    }
+    .triple .box{
+      min-height:66px;
+      padding:8px 10px;
+    }
+    .triple .value{
+      font-size:22px;
+    }
 
     .statusWrap{
-      position:absolute;left:12px;right:12px;top:152px;z-index:19;
+      position:absolute;left:12px;right:12px;top:108px;z-index:20;
       display:grid;grid-template-columns:1fr 1fr;gap:8px;
     }
     .statusBox{
-      background:rgba(12,18,24,.82);
+      background:rgba(12,18,24,.84);
       border:1px solid var(--line);
       border-radius:18px;
       padding:8px 10px;
-      min-height:52px;
+      min-height:54px;
       backdrop-filter:blur(16px);
     }
     .statusText{
@@ -89,51 +111,86 @@
     .err{color:var(--red)}
     .info{color:#91c5ff}
 
-    .guideArea{position:absolute;inset:0;z-index:12;pointer-events:none}
+    /* ガイド */
+    .guideArea{
+      position:absolute;inset:0;z-index:12;pointer-events:none;
+    }
     .target{
       position:absolute;
       border:3px solid rgba(255,204,0,.95);
-      border-radius:18px;
-      box-shadow:0 0 0 2px rgba(255,204,0,.18) inset,0 0 18px rgba(255,204,0,.25);
-      background:rgba(255,204,0,.06);
+      border-radius:20px;
+      box-shadow:
+        0 0 0 2px rgba(255,204,0,.18) inset,
+        0 0 18px rgba(255,204,0,.22);
+      background:rgba(255,204,0,.05);
     }
     .target::before{
       content:"";
       position:absolute;left:50%;top:50%;
       width:16px;height:16px;transform:translate(-50%,-50%);
-      border:2px solid rgba(255,255,255,.75);
+      border:2px solid rgba(255,255,255,.72);
       border-radius:50%;
-      opacity:.75;
     }
     .targetLabel{
       position:absolute;left:50%;transform:translateX(-50%);
-      bottom:-30px;background:rgba(0,0,0,.48);
-      border:1px solid rgba(255,255,255,.1);
-      border-radius:999px;padding:6px 10px;
-      font-size:12px;color:#fff;white-space:nowrap;
-      backdrop-filter:blur(10px);
+      bottom:-30px;
+      background:rgba(0,0,0,.48);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:12px;color:#fff;
+      white-space:nowrap;
+      backdrop-filter:blur(8px);
     }
-    .target.invoice{left:62%;top:25.5%;width:28%;height:10%}
-    .target.amount{left:59%;top:63%;width:31%;height:10%}
+
+    /* 画像に合わせて修正した位置 */
+    .target.invoice{
+      left:60%;
+      top:18.5%;
+      width:31%;
+      height:8.8%;
+    }
+    .target.amount{
+      left:59%;
+      top:69.5%;
+      width:26%;
+      height:8.5%;
+    }
 
     .hint{
       position:absolute;left:50%;transform:translateX(-50%);
-      top:77%;z-index:13;background:rgba(0,0,0,.42);
-      border:1px solid rgba(255,255,255,.12);color:#fff;
-      padding:8px 12px;border-radius:999px;font-size:12px;white-space:nowrap;
-      backdrop-filter:blur(10px);
+      top:58%;
+      z-index:13;
+      background:rgba(0,0,0,.42);
+      border:1px solid rgba(255,255,255,.12);
+      color:#fff;
+      padding:7px 12px;
+      border-radius:999px;
+      font-size:12px;
+      white-space:nowrap;
+      backdrop-filter:blur(8px);
     }
-    .noteLeft{
-      position:absolute;left:12px;bottom:298px;z-index:20;max-width:58%;
-      background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);
-      padding:8px 10px;border-radius:14px;backdrop-filter:blur(10px);
+
+    .smallNote{
+      position:absolute;left:12px;bottom:248px;z-index:20;
+      max-width:56%;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.08);
+      padding:8px 10px;
+      border-radius:14px;
+      backdrop-filter:blur(8px);
       font-size:11px;line-height:1.4;color:#dbe4ef;
     }
+
     .loading{
-      position:absolute;right:12px;bottom:298px;z-index:20;
+      position:absolute;right:12px;bottom:248px;z-index:20;
       display:none;align-items:center;gap:8px;
-      background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.08);
-      border-radius:999px;padding:8px 12px;font-size:12px;backdrop-filter:blur(10px);
+      background:rgba(0,0,0,.42);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:999px;
+      padding:8px 12px;
+      font-size:12px;
+      backdrop-filter:blur(8px);
     }
     .dot{
       width:8px;height:8px;border-radius:50%;
@@ -145,31 +202,46 @@
       50%{opacity:1;transform:scale(1)}
     }
 
+    /* 下部 */
     .bottom{
       position:absolute;left:12px;right:12px;bottom:10px;z-index:20;
       display:grid;grid-template-columns:1fr;gap:10px;
     }
     .historyCard{
-      background:rgba(12,18,24,.84);border:1px solid var(--line);
-      border-radius:22px;padding:10px 12px;
-      backdrop-filter:blur(18px);box-shadow:var(--shadow);
+      background:rgba(12,18,24,.84);
+      border:1px solid var(--line);
+      border-radius:22px;
+      padding:10px 12px;
+      backdrop-filter:blur(18px);
+      box-shadow:var(--shadow);
     }
     .historyHeader{
       display:flex;justify-content:space-between;align-items:center;
-      margin-bottom:6px;font-size:12px;color:var(--muted);gap:8px;
+      margin-bottom:6px;
+      font-size:12px;color:var(--muted);
+      gap:8px;
     }
     .pill{
       display:inline-flex;align-items:center;gap:6px;
-      padding:6px 10px;border-radius:999px;font-size:12px;color:#fff;
-      background:rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.1);
+      padding:6px 10px;border-radius:999px;
+      font-size:12px;color:#fff;
+      background:rgba(0,0,0,.38);
+      border:1px solid rgba(255,255,255,.1);
       white-space:nowrap;
     }
-    .historyList{max-height:128px;overflow:auto;padding-right:2px}
+    .historyList{
+      max-height:92px;
+      overflow:auto;
+      padding-right:2px;
+    }
     .historyItem{
-      display:grid;grid-template-columns:34px 1fr auto auto;
-      gap:8px;align-items:center;padding:7px 0;
+      display:grid;
+      grid-template-columns:32px 1fr auto auto;
+      gap:8px;align-items:center;
+      padding:7px 0;
       border-bottom:1px solid rgba(255,255,255,.06);
-      font-size:14px;font-variant-numeric:tabular-nums;
+      font-size:14px;
+      font-variant-numeric:tabular-nums;
     }
     .historyItem:last-child{border-bottom:none}
     .historyItem.replaced{color:var(--replace)}
@@ -186,36 +258,39 @@
       color:var(--replace);
       border-color:rgba(125,211,252,.35);
     }
-    .badge.synced{
-      background:rgba(48,209,88,.18);
-      color:var(--green);
-      border-color:rgba(48,209,88,.35);
-    }
-    .badge.unsynced{
-      background:rgba(255,204,0,.18);
-      color:var(--accent);
-      border-color:rgba(255,204,0,.35);
-    }
 
-    .actions{display:grid;grid-template-columns:80px 1fr 80px 80px;gap:10px;align-items:center}
-    .actions2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .row1{
+      display:grid;
+      grid-template-columns:86px 1fr 86px 86px;
+      gap:10px;align-items:center;
+    }
+    .row2,.row3{
+      display:grid;grid-template-columns:1fr 1fr;gap:10px;
+    }
     .btn{
-      border:none;border-radius:22px;min-height:56px;color:#fff;background:var(--panel);
-      border:1px solid var(--line);font-size:15px;font-weight:700;
-      box-shadow:var(--shadow);backdrop-filter:blur(18px);
+      border:none;border-radius:22px;min-height:54px;
+      color:#fff;background:var(--panel);
+      border:1px solid var(--line);
+      font-size:15px;font-weight:700;
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(16px);
     }
     .btn:active{transform:scale(.98)}
     .btn.gray{background:rgba(255,255,255,.08)}
     .btn.red{background:rgba(255,69,58,.18);border-color:rgba(255,69,58,.32)}
     .btn.blue{background:rgba(10,132,255,.22);border-color:rgba(10,132,255,.35)}
-    .btn.green{background:rgba(48,209,88,.18);border-color:rgba(48,209,88,.32)}
+    .btn.green{background:rgba(48,209,88,.18);border-color:rgba(48,209,88,.3)}
     .btn.orange{background:rgba(255,159,10,.18);border-color:rgba(255,159,10,.32)}
 
-    .shutterWrap{display:flex;justify-content:flex-start;padding-left:4px}
+    .shutterWrap{display:flex;justify-content:center}
     .shutter{
-      width:84px;height:84px;border-radius:50%;border:none;
+      width:82px;height:82px;border-radius:50%;
+      border:none;
       background:linear-gradient(180deg,#fff,#d8dde4);
-      box-shadow:0 6px 20px rgba(0,0,0,.35), inset 0 0 0 9px #ffffff, inset 0 0 0 14px #d5dbe2;
+      box-shadow:
+        0 6px 20px rgba(0,0,0,.35),
+        inset 0 0 0 9px #ffffff,
+        inset 0 0 0 14px #d5dbe2;
     }
     .shutter:active{transform:scale(.96)}
 
@@ -225,9 +300,13 @@
     }
     .modal.show{display:flex}
     .sheet{
-      width:100%;background:#121922;border-radius:24px 24px 0 0;
-      border:1px solid rgba(255,255,255,.08);padding:14px 14px 24px;
-      min-height:340px;box-shadow:0 -20px 40px rgba(0,0,0,.35);
+      width:100%;
+      background:#121922;
+      border-radius:24px 24px 0 0;
+      border:1px solid rgba(255,255,255,.08);
+      padding:14px 14px 24px;
+      min-height:340px;
+      box-shadow:0 -20px 40px rgba(0,0,0,.35);
     }
     .sheetHead{
       display:flex;justify-content:space-between;align-items:center;
@@ -237,16 +316,20 @@
       border:none;background:rgba(255,255,255,.08);color:#fff;
       width:42px;height:42px;border-radius:50%;font-size:18px;
     }
-    .searchRow{display:grid;grid-template-columns:1fr 92px 92px;gap:8px;margin-bottom:10px}
+    .searchRow{
+      display:grid;grid-template-columns:1fr 92px 92px;gap:8px;
+      margin-bottom:10px;
+    }
     .input{
       width:100%;min-height:50px;border-radius:16px;
-      border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06);
       color:#fff;padding:0 14px;font-size:16px;outline:none;
     }
     .resultList{
-      max-height:260px;overflow:auto;border-radius:18px;
-      border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);
-      padding:10px;
+      max-height:260px;overflow:auto;
+      border-radius:18px;border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04);padding:10px;
     }
     .resultItem{
       padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.06);
@@ -254,35 +337,45 @@
     }
     .resultItem:last-child{border-bottom:none}
     .chartCanvas{
-      width:100%;height:220px;display:block;border-radius:18px;
-      border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);
+      width:100%;height:220px;display:block;
+      border-radius:18px;border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04);
       margin-top:12px;
     }
-    .sheetNote{color:var(--muted);font-size:12px;line-height:1.5;margin-top:10px}
-    .syncInfo{
-      margin-top:10px;padding:10px 12px;border-radius:16px;
-      border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);
-      font-size:13px;line-height:1.5;color:#e8eef6;
+    .sheetNote{
+      color:var(--muted);font-size:12px;line-height:1.5;margin-top:10px;
     }
 
     .dupOverlay{
-      position:absolute;inset:0;z-index:35;background:rgba(0,0,0,.55);
-      display:none;align-items:center;justify-content:center;padding:18px;
+      position:absolute;inset:0;z-index:35;
+      background:rgba(0,0,0,.55);
+      display:none;align-items:center;justify-content:center;
+      padding:18px;
     }
     .dupCard{
-      width:100%;background:#131b25;border:1px solid rgba(255,255,255,.1);
-      border-radius:24px;padding:16px;box-shadow:0 20px 40px rgba(0,0,0,.35);
+      width:100%;
+      background:#131b25;
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:24px;
+      padding:16px;
+      box-shadow:0 20px 40px rgba(0,0,0,.35);
     }
-    .dupTitle{font-size:20px;font-weight:800;margin-bottom:8px;color:#fff}
-    .dupBody{font-size:14px;line-height:1.65;color:#e6edf5;margin-bottom:12px}
-    .dupBtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .dupTitle{
+      font-size:20px;font-weight:800;margin-bottom:8px;color:#fff;
+    }
+    .dupBody{
+      font-size:14px;line-height:1.65;color:#e6edf5;margin-bottom:12px;
+    }
+    .dupBtns{
+      display:grid;grid-template-columns:1fr 1fr;gap:10px;
+    }
 
     @media (max-width:390px){
-      .actions{grid-template-columns:72px 1fr 72px 72px}
-      .btn{min-height:52px;font-size:14px}
-      .shutter{width:76px;height:76px}
-      .value{font-size:23px}
-      .value.small{font-size:19px}
+      .topArea{grid-template-columns:1fr 146px}
+      .triple .value{font-size:19px}
+      .row1{grid-template-columns:74px 1fr 74px 74px}
+      .btn{min-height:50px;font-size:14px}
+      .shutter{width:74px;height:74px}
       .targetLabel,.hint{font-size:11px}
     }
   </style>
@@ -292,21 +385,26 @@
     <div class="cameraWrap">
       <video id="video" autoplay playsinline muted></video>
 
-      <div class="topBar">
-        <div class="summary">
-          <div class="box">
-            <div class="label">総合計 / 総枚数</div>
-            <div class="value" id="totalAmount">0円</div>
-            <div class="sub" id="totalCount">0枚</div>
-          </div>
-          <div class="box compact">
-            <div class="label">税抜き / 消費税</div>
-            <div class="value small" id="taxBase">0円</div>
-            <div class="sub" id="taxAmount">消費税 0円</div>
+      <div class="topArea">
+        <div class="leftInfo">
+          <div class="triple">
+            <div class="box">
+              <div class="label">税抜き</div>
+              <div class="value" id="taxBase">0円</div>
+            </div>
+            <div class="box">
+              <div class="label">消費税</div>
+              <div class="value" id="taxAmountOnly">0円</div>
+            </div>
+            <div class="box">
+              <div class="label">総計</div>
+              <div class="value" id="totalAmount">0円</div>
+              <div class="sub" id="totalCount">0枚</div>
+            </div>
           </div>
         </div>
 
-        <div class="miniCol">
+        <div class="rightInfo">
           <div class="box compact">
             <div class="label">直近伝票</div>
             <div class="sub" id="lastInvoice">-</div>
@@ -324,7 +422,7 @@
           <div class="statusText" id="scanStatus">まだ未認識</div>
         </div>
         <div class="statusBox">
-          <div class="label">重複 / 同期</div>
+          <div class="label">重複チェック</div>
           <div class="statusText" id="dupStatus">まだ未チェック</div>
         </div>
       </div>
@@ -338,13 +436,11 @@
         </div>
       </div>
 
-      <div class="hint">全体合わせ不要。右上と右下の2点だけ合わせる方式</div>
+      <div class="hint">右上の伝票番号と右下の合計だけ合わせる</div>
 
-      <div class="noteLeft">
+      <div class="smallNote">
         自動認識後は3秒ホールド。<br>
-        重複時はスキップ / 金額差し替え。<br>
-        差し替え済みは色付き表示。<br>
-        未同期分はOneDriveへまとめて送信。
+        重複時はスキップ / 金額差し替え。
       </div>
 
       <div class="loading" id="loadingBadge">
@@ -364,28 +460,25 @@
         <div class="historyList" id="historyList"></div>
       </div>
 
-      <div class="actions">
+      <div class="row1">
         <button class="btn gray" id="searchBtn">検索</button>
+
         <div class="shutterWrap">
           <button class="shutter" id="scanBtn" aria-label="scan"></button>
         </div>
+
         <button class="btn red" id="todayBtn">今日</button>
         <button class="btn blue" id="releaseBtn">解除</button>
       </div>
 
-      <div class="actions2">
+      <div class="row2">
         <button class="btn green" id="autoBtn">自動認識 ON</button>
         <button class="btn orange" id="graphBtn">グラフ</button>
       </div>
 
-      <div class="actions2">
-        <button class="btn blue" id="msLoginBtn">MSログイン</button>
-        <button class="btn green" id="syncBtn">OneDrive同期</button>
-      </div>
-
-      <div class="actions2">
-        <button class="btn gray" id="exportCsvBtn">CSV書き出し</button>
-        <button class="btn gray" id="syncSettingBtn">同期設定</button>
+      <div class="row3">
+        <button class="btn gray" id="historyBtn">履歴</button>
+        <button class="btn gray" id="dummyBtn" disabled>同期なしB版</button>
       </div>
     </div>
 
@@ -393,8 +486,8 @@
       <div class="sheet">
         <div class="sheetHead">
           <div>
-            <div style="font-size:18px;font-weight:800;">伝票検索 / 同期情報</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px;">何日の何番か / 差し替え / 未同期確認</div>
+            <div style="font-size:18px;font-weight:800;">伝票検索</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px;">何日の何番か / 差し替え確認</div>
           </div>
           <button class="closeBtn" id="closeSearch">×</button>
         </div>
@@ -409,14 +502,9 @@
           <div style="color:var(--muted);font-size:13px;">まだ検索していません</div>
         </div>
 
-        <div class="syncInfo" id="syncInfo">
-          Microsoft未ログイン
-        </div>
-
         <canvas id="modalGraphCanvas" class="chartCanvas" width="480" height="220"></canvas>
         <div class="sheetNote">
-          OneDrive同期は、未同期分だけExcelテーブルへまとめて送信。<br>
-          使う前に clientId / fileId / tableName を設定してね。
+          まずはカメラ・OCR・ボタンが安定して動くB版。
         </div>
       </div>
     </div>
@@ -434,30 +522,12 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"></script>
   <script>
-    // ========= 基本設定 =========
     const TAX_RATE = 0.10;
-    const STORAGE_KEY = 'g-invoice-special-onedrive-v1';
-    const SYNC_STORAGE_KEY = 'g-invoice-sync-setting-v1';
+    const STORAGE_KEY = 'g-invoice-special-b-stable-v1';
     const AUTO_INTERVAL_MS = 1400;
     const HOLD_MS = 3000;
 
-    // Microsoft Entra で取得した値を入れる
-    const MSAL_CONFIG = {
-      auth: {
-        clientId: "YOUR_CLIENT_ID_HERE",
-        authority: "https://login.microsoftonline.com/common",
-        redirectUri: window.location.origin + window.location.pathname
-      },
-      cache: {
-        cacheLocation: "localStorage",
-        storeAuthStateInCookie: false
-      }
-    };
-    const GRAPH_SCOPES = ["User.Read", "Files.ReadWrite"];
-
-    // 2点ガイドの周辺自動検索
     const SEARCH_OFFSETS = [
       {x:0,y:0},
       {x:-0.03,y:0},
@@ -482,21 +552,12 @@
       todayKey:makeDateKey(),
       scans:[],
       allScans:[],
-      pendingDuplicate:null,
-      sync:{
-        account:null,
-        fileId:"",
-        tableName:"InvoiceTable",
-        lastSyncAt:null,
-        syncing:false
-      }
+      pendingDuplicate:null
     };
 
     const $ = id => document.getElementById(id);
     const video = $('video');
     const workCanvas = $('workCanvas');
-
-    const msalInstance = new msal.PublicClientApplication(MSAL_CONFIG);
 
     function makeDateKey(d=new Date()){
       const y = d.getFullYear();
@@ -514,7 +575,6 @@
     }
 
     function fmtDateTime(iso){
-      if(!iso) return "-";
       const d = new Date(iso);
       const y = d.getFullYear();
       const m = String(d.getMonth()+1).padStart(2,'0');
@@ -578,38 +638,13 @@
           saveState();
         }
 
-        // 旧データ互換
         for(const arr of [state.scans, state.allScans]){
           arr.forEach(item => {
-            if(typeof item.synced !== "boolean") item.synced = false;
-            if(!("syncAt" in item)) item.syncAt = null;
-            if(!("syncError" in item)) item.syncError = null;
             if(!("replacedFromAmount" in item)) item.replacedFromAmount = null;
             if(!("originalAmount" in item)) item.originalAmount = item.amount;
             if(!("isReplaced" in item)) item.isReplaced = false;
           });
         }
-      }catch(e){
-        console.error(e);
-      }
-    }
-
-    function saveSyncSettings(){
-      localStorage.setItem(SYNC_STORAGE_KEY, JSON.stringify({
-        fileId: state.sync.fileId,
-        tableName: state.sync.tableName,
-        lastSyncAt: state.sync.lastSyncAt
-      }));
-    }
-
-    function loadSyncSettings(){
-      const raw = localStorage.getItem(SYNC_STORAGE_KEY);
-      if(!raw) return;
-      try{
-        const data = JSON.parse(raw);
-        state.sync.fileId = data.fileId || "";
-        state.sync.tableName = data.tableName || "InvoiceTable";
-        state.sync.lastSyncAt = data.lastSyncAt || null;
       }catch(e){
         console.error(e);
       }
@@ -648,60 +683,6 @@
         setLoading(false);
         setText('ocrState','OCR準備失敗','err');
         setText('scanStatus','OCR読込失敗','err');
-      }
-    }
-
-    async function initMsalAccount(){
-      try{
-        const result = await msalInstance.handleRedirectPromise();
-        if(result?.account){
-          msalInstance.setActiveAccount(result.account);
-          state.sync.account = result.account;
-        }else{
-          const accounts = msalInstance.getAllAccounts();
-          if(accounts.length){
-            msalInstance.setActiveAccount(accounts[0]);
-            state.sync.account = accounts[0];
-          }
-        }
-      }catch(e){
-        console.error(e);
-        setText('dupStatus','Microsoft認証初期化エラー','err');
-      }
-    }
-
-    async function signInMicrosoft(){
-      try{
-        const result = await msalInstance.loginPopup({
-          scopes: GRAPH_SCOPES,
-          prompt: "select_account"
-        });
-        msalInstance.setActiveAccount(result.account);
-        state.sync.account = result.account;
-        updateSyncInfo();
-        setText('dupStatus', `ログイン: ${result.account.username}`, 'ok');
-      }catch(e){
-        console.error(e);
-        setText('dupStatus', 'Microsoftログイン失敗', 'err');
-      }
-    }
-
-    async function getGraphAccessToken(){
-      const account = msalInstance.getActiveAccount();
-      if(!account) throw new Error("Microsoft未ログイン");
-
-      try{
-        const token = await msalInstance.acquireTokenSilent({
-          account,
-          scopes: GRAPH_SCOPES
-        });
-        return token.accessToken;
-      }catch(e){
-        const token = await msalInstance.acquireTokenPopup({
-          account,
-          scopes: GRAPH_SCOPES
-        });
-        return token.accessToken;
       }
     }
 
@@ -808,7 +789,12 @@
       let best = {value:null, score:-1};
 
       for(const off of SEARCH_OFFSETS){
-        const rect = {x: base.x + base.w*off.x, y: base.y + base.h*off.y, w: base.w, h: base.h};
+        const rect = {
+          x: base.x + base.w*off.x,
+          y: base.y + base.h*off.y,
+          w: base.w,
+          h: base.h
+        };
         const canvas = cropVideoRegion(rect);
         const { data } = await state.worker.recognize(canvas);
         const candidate = extractInvoiceNo(data?.text || '');
@@ -823,7 +809,12 @@
       let best = {value:null, score:-1};
 
       for(const off of SEARCH_OFFSETS){
-        const rect = {x: base.x + base.w*off.x, y: base.y + base.h*off.y, w: base.w, h: base.h};
+        const rect = {
+          x: base.x + base.w*off.x,
+          y: base.y + base.h*off.y,
+          w: base.w,
+          h: base.h
+        };
         const canvas = cropVideoRegion(rect);
         const { data } = await state.worker.recognize(canvas);
         const candidate = extractAmount(data?.text || '');
@@ -857,10 +848,7 @@
         replacedFromAmount:null,
         scannedAt:now,
         dateKey:makeDateKey(new Date(now)),
-        dayIndex:getTodayNextIndex(),
-        synced:false,
-        syncAt:null,
-        syncError:null
+        dayIndex:getTodayNextIndex()
       };
       state.scans.unshift(item);
       state.allScans.unshift(item);
@@ -887,12 +875,6 @@
       item2.replacedAt = replacedAt;
       item1.replacedFromAmount = prevAmount;
       item2.replacedFromAmount = prevAmount;
-      item1.synced = false;
-      item2.synced = false;
-      item1.syncAt = null;
-      item2.syncAt = null;
-      item1.syncError = null;
-      item2.syncError = null;
 
       state.holdCurrent = item1;
       state.holdUntil = Date.now() + HOLD_MS;
@@ -930,16 +912,12 @@
       return {total, count:state.scans.length, base, tax};
     }
 
-    function getUnsyncedCount(){
-      return state.allScans.filter(v => !v.synced).length;
-    }
-
     function render(){
       const t = totals();
+      $('taxBase').textContent = yen(t.base);
+      $('taxAmountOnly').textContent = yen(t.tax);
       $('totalAmount').textContent = yen(t.total);
       $('totalCount').textContent = `${t.count}枚`;
-      $('taxBase').textContent = yen(t.base);
-      $('taxAmount').textContent = `消費税 ${yen(t.tax)}`;
       $('lastInvoice').textContent = state.scans[0] ? state.scans[0].invoiceNo : '-';
 
       const list = $('historyList');
@@ -948,9 +926,6 @@
         list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0;">まだ履歴がありません</div>';
       }else{
         state.scans.forEach((item, idx) => {
-          const syncedBadge = item.synced
-            ? '<span class="badge synced">同</span>'
-            : '<span class="badge unsynced">未</span>';
           const replacedBadge = item.isReplaced
             ? '<span class="badge replaced">差</span>'
             : '';
@@ -961,7 +936,7 @@
             <div class="index">${idx + 1}</div>
             <div class="invoiceNo">${escapeHtml(item.invoiceNo)}</div>
             <div class="amountVal">${yen(item.amount)}</div>
-            <div style="display:flex;gap:4px;justify-content:flex-end;">${replacedBadge}${syncedBadge}</div>
+            <div>${replacedBadge}</div>
           `;
           list.appendChild(row);
         });
@@ -976,24 +951,23 @@
 
       $('autoBtn').textContent = `自動認識 ${state.autoMode ? 'ON' : 'OFF'}`;
       drawGraph($('modalGraphCanvas'), state.scans);
-      updateSyncInfo();
     }
 
     async function recognizeOnce(source='manual'){
       if(!state.workerReady || state.ocrRunning) return;
       if(Date.now() < state.holdUntil){
         const sec = Math.max(0, Math.ceil((state.holdUntil - Date.now()) / 1000));
-        setText('scanStatus',`ホールド中 ${sec}秒`,'warn');
+        setText('scanStatus', `ホールド中 ${sec}秒`, 'warn');
         return;
       }
       if(video.readyState < 2){
-        setText('scanStatus','カメラ準備待ち','warn');
+        setText('scanStatus', 'カメラ準備待ち', 'warn');
         return;
       }
 
       state.ocrRunning = true;
       setLoading(true, source === 'auto' ? '自動OCR中…' : 'OCR中…');
-      setText('ocrState','認識中','warn');
+      setText('ocrState', '認識中', 'warn');
 
       try{
         const invoiceRes = await scanBestInvoiceNo();
@@ -1003,9 +977,9 @@
         const amount = amountRes.value;
 
         if(!invoiceNo || !amount){
-          setText('scanStatus','伝票番号または金額を取得できず','err');
-          setText('dupStatus','位置を少し調整して再スキャン','warn');
-          setText('ocrState','認識失敗','err');
+          setText('scanStatus', '伝票番号または金額を取得できず', 'err');
+          setText('dupStatus', '位置を少し調整して再スキャン', 'warn');
+          setText('ocrState', '認識失敗', 'err');
           return;
         }
 
@@ -1013,21 +987,21 @@
         if(dup){
           state.pendingDuplicate = {invoiceNo, amount, existing:dup};
           showDuplicateModal(state.pendingDuplicate);
-          setText('scanStatus',`重複: ${invoiceNo} / ${yen(amount)}`,'err');
-          setText('dupStatus',`${getDayOrderText(dup)} で登録済み`,'err');
-          setText('ocrState','重複検出','err');
+          setText('scanStatus', `重複: ${invoiceNo} / ${yen(amount)}`, 'err');
+          setText('dupStatus', `${getDayOrderText(dup)} で登録済み`, 'err');
+          setText('ocrState', '重複検出', 'err');
           return;
         }
 
         const item = addScan(invoiceNo, amount);
-        setText('scanStatus',`OK: ${item.invoiceNo} / ${yen(item.amount)}`,'ok');
-        setText('dupStatus','新規スキャン（未同期）','ok');
-        setText('ocrState','認識成功','ok');
+        setText('scanStatus', `OK: ${item.invoiceNo} / ${yen(item.amount)}`, 'ok');
+        setText('dupStatus', '新規スキャン', 'ok');
+        setText('ocrState', '認識成功', 'ok');
       }catch(err){
         console.error(err);
-        setText('scanStatus','OCRエラー','err');
-        setText('dupStatus','再試行してください','warn');
-        setText('ocrState','認識失敗','err');
+        setText('scanStatus', 'OCRエラー', 'err');
+        setText('dupStatus', '再試行してください', 'warn');
+        setText('ocrState', '認識失敗', 'err');
       }finally{
         state.ocrRunning = false;
         setLoading(false);
@@ -1074,15 +1048,10 @@
 
       box.innerHTML = items.map(item => `
         <div class="resultItem">
-          <div><b>${escapeHtml(item.invoiceNo)}</b>
-            ${item.isReplaced ? '<span class="badge replaced">差</span>' : ''}
-            ${item.synced ? '<span class="badge synced">同期済</span>' : '<span class="badge unsynced">未同期</span>'}
-          </div>
+          <div><b>${escapeHtml(item.invoiceNo)}</b> ${item.isReplaced ? '<span class="badge replaced">差</span>' : ''}</div>
           <div>${getDayOrderText(item)} / ${fmtDateTime(item.scannedAt)}</div>
           <div>金額: <b>${yen(item.amount)}</b></div>
           ${item.isReplaced ? `<div>旧金額: <b>${yen(item.replacedFromAmount)}</b> / 差し替え日時: <b>${fmtDateTime(item.replacedAt)}</b></div>` : ''}
-          <div>同期日時: <b>${fmtDateTime(item.syncAt)}</b></div>
-          ${item.syncError ? `<div style="color:#ff9f9f">同期エラー: ${escapeHtml(item.syncError)}</div>` : ''}
         </div>
       `).join('');
     }
@@ -1167,163 +1136,6 @@
       return `${num}`;
     }
 
-    function getUnsyncedItems(){
-      return state.allScans.filter(v => !v.synced);
-    }
-
-    function buildExcelRows(items){
-      return items.map(item => [
-        item.invoiceNo,
-        Number(item.amount),
-        item.scannedAt,
-        fmtDate(item.scannedAt),
-        Number(item.dayIndex),
-        item.isReplaced ? true : false,
-        item.replacedFromAmount ?? "",
-        item.replacedAt ?? "",
-        new Date().toISOString()
-      ]);
-    }
-
-    async function syncUnsyncedToOneDrive(){
-      if(state.sync.syncing) return;
-      if(!state.sync.fileId){
-        setText('dupStatus','fileId未設定', 'err');
-        return;
-      }
-      if(!state.sync.tableName){
-        setText('dupStatus','tableName未設定', 'err');
-        return;
-      }
-
-      const unsynced = getUnsyncedItems();
-      if(!unsynced.length){
-        setText('dupStatus','未同期データなし', 'info');
-        return;
-      }
-
-      state.sync.syncing = true;
-      setLoading(true, 'OneDrive同期中…');
-      setText('dupStatus', `未同期 ${unsynced.length}件を送信中`, 'warn');
-
-      try{
-        const token = await getGraphAccessToken();
-        const rows = buildExcelRows(unsynced);
-
-        const url = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(state.sync.fileId)}/workbook/tables/${encodeURIComponent(state.sync.tableName)}/rows/add`;
-
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ values: rows })
-        });
-
-        if(!res.ok){
-          const txt = await res.text();
-          throw new Error(`Graph error ${res.status}: ${txt}`);
-        }
-
-        const syncAt = new Date().toISOString();
-        unsynced.forEach(item => {
-          item.synced = true;
-          item.syncAt = syncAt;
-          item.syncError = null;
-        });
-
-        // state.scans 側も同期
-        state.scans.forEach(item => {
-          const hit = unsynced.find(v => v.id === item.id);
-          if(hit){
-            item.synced = true;
-            item.syncAt = syncAt;
-            item.syncError = null;
-          }
-        });
-
-        state.sync.lastSyncAt = syncAt;
-        saveState();
-        saveSyncSettings();
-        setText('dupStatus', `${unsynced.length}件同期完了`, 'ok');
-      }catch(e){
-        console.error(e);
-        const msg = String(e.message || e);
-        getUnsyncedItems().forEach(item => {
-          item.syncError = msg;
-        });
-        state.scans.forEach(item => {
-          if(!item.synced) item.syncError = msg;
-        });
-        saveState();
-        setText('dupStatus', '同期失敗', 'err');
-      }finally{
-        state.sync.syncing = false;
-        setLoading(false);
-        render();
-      }
-    }
-
-    function exportCsv(){
-      const header = [
-        "伝票番号","金額","スキャン日時","日付","その日の何番目",
-        "差し替え済み","旧金額","差し替え日時","同期済み","同期日時"
-      ];
-
-      const rows = state.allScans.map(item => [
-        item.invoiceNo,
-        item.amount,
-        item.scannedAt,
-        fmtDate(item.scannedAt),
-        item.dayIndex,
-        item.isReplaced ? "TRUE" : "FALSE",
-        item.replacedFromAmount ?? "",
-        item.replacedAt ?? "",
-        item.synced ? "TRUE" : "FALSE",
-        item.syncAt ?? ""
-      ]);
-
-      const csv = [header, ...rows]
-        .map(r => r.map(v => `"${String(v ?? "").replaceAll('"','""')}"`).join(","))
-        .join("\r\n");
-
-      const blob = new Blob(["\uFEFF" + csv], {type:"text/csv;charset=utf-8;"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `伝票台帳_${makeDateKey()}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-
-      setText('dupStatus', 'CSV書き出し完了', 'ok');
-    }
-
-    function openSyncSettingPrompt(){
-      const fileId = prompt("OneDrive上のExcelファイルIDを入力", state.sync.fileId || "");
-      if(fileId === null) return;
-      const tableName = prompt("Excelのテーブル名を入力", state.sync.tableName || "InvoiceTable");
-      if(tableName === null) return;
-
-      state.sync.fileId = fileId.trim();
-      state.sync.tableName = tableName.trim() || "InvoiceTable";
-      saveSyncSettings();
-      updateSyncInfo();
-      setText('dupStatus', '同期設定保存', 'ok');
-    }
-
-    function updateSyncInfo(){
-      const accountName = state.sync.account?.username || "未ログイン";
-      const unsynced = getUnsyncedCount();
-      $('syncInfo').innerHTML = `
-        Microsoft: <b>${escapeHtml(accountName)}</b><br>
-        fileId: <b>${escapeHtml(state.sync.fileId || "未設定")}</b><br>
-        tableName: <b>${escapeHtml(state.sync.tableName || "未設定")}</b><br>
-        未同期件数: <b>${unsynced}件</b><br>
-        最終同期: <b>${fmtDateTime(state.sync.lastSyncAt)}</b>
-      `;
-    }
-
     function startAutoLoop(){
       stopAutoLoop();
       state.autoTimer = setInterval(() => {
@@ -1370,7 +1182,11 @@
         $('searchModal').classList.add('show');
         $('searchInput').focus();
         drawGraph($('modalGraphCanvas'), state.scans);
-        updateSyncInfo();
+      });
+
+      $('historyBtn').addEventListener('click', () => {
+        $('historyList').scrollTop = 0;
+        setText('scanStatus', state.scans.length ? `履歴 ${state.scans.length}件` : '履歴なし', 'info');
       });
 
       $('closeSearch').addEventListener('click', () => {
@@ -1408,22 +1224,10 @@
         replaceAmountOnly(existing.id, amount);
         hideDuplicateModal();
         setText('scanStatus', `差し替え完了: ${invoiceNo} / ${yen(amount)}`, 'ok');
-        setText('dupStatus', `${getDayOrderText(existing)} の金額を更新（未同期）`, 'ok');
+        setText('dupStatus', `${getDayOrderText(existing)} の金額を更新`, 'ok');
         setText('ocrState', '差し替え成功', 'ok');
         state.pendingDuplicate = null;
       });
-
-      $('msLoginBtn').addEventListener('click', async () => {
-        await signInMicrosoft();
-        render();
-      });
-
-      $('syncBtn').addEventListener('click', async () => {
-        await syncUnsyncedToOneDrive();
-      });
-
-      $('exportCsvBtn').addEventListener('click', () => exportCsv());
-      $('syncSettingBtn').addEventListener('click', () => openSyncSettingPrompt());
 
       document.addEventListener('visibilitychange', () => {
         if(document.hidden){
@@ -1436,8 +1240,6 @@
 
     async function boot(){
       loadState();
-      loadSyncSettings();
-      await initMsalAccount();
       render();
       bindEvents();
       await initCamera();
