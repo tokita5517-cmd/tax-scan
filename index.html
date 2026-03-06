@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>G伝票専用スキャン UI再構成版</title>
+  <title>G伝票専用スキャン レイアウト修正版</title>
   <style>
     :root{
       --bg:#070b11;
@@ -40,29 +40,29 @@
     }
     canvas{display:none}
 
-    /* 左上: 総合計/枚数 */
+    /* 左上: 総合計 / 枚数 */
     .topLeft{
       position:absolute;
       left:10px; top:10px;
-      width:128px;
+      width:130px;
       z-index:20;
     }
 
-    /* 真ん中上: 税抜/消費税/税込 */
+    /* 真ん中上: 税抜 / 消費税 / 税込 */
     .topCenter{
       position:absolute;
-      left:148px; top:10px;
-      width:138px;
+      left:150px; top:10px;
+      width:145px;
       z-index:20;
       display:grid;
       gap:8px;
     }
 
-    /* 右上: 直近/認識状態 */
+    /* 右上: 直近伝票 / 認識状態 */
     .topRight{
       position:absolute;
       right:10px; top:10px;
-      width:148px;
+      width:155px;
       z-index:20;
       display:grid;
       gap:8px;
@@ -77,7 +77,7 @@
       backdrop-filter:blur(16px);
       min-height:58px;
     }
-    .box.tall{min-height:118px}
+    .box.tall{min-height:124px}
     .label{
       font-size:11px;color:var(--muted);letter-spacing:.04em;margin-bottom:2px;
     }
@@ -91,10 +91,10 @@
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
 
-    /* 状態 */
+    /* 状態バー */
     .statusWrap{
       position:absolute;
-      left:10px; right:10px; top:138px;
+      left:10px; right:10px; top:140px;
       z-index:20;
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -117,7 +117,7 @@
     .err{color:var(--red)}
     .info{color:#91c5ff}
 
-    /* ガイド */
+    /* 上だけ表示ガイド */
     .guideArea{
       position:absolute;inset:0;z-index:12;pointer-events:none;
     }
@@ -149,19 +149,17 @@
       backdrop-filter:blur(8px);
     }
 
-    /* 上だけ基準枠 */
     .target.invoice{
-      left:58%;
-      top:18.2%;
-      width:36%;
+      left:57.5%;
+      top:18%;
+      width:37%;
       height:10%;
     }
 
-    /* 説明文 */
     .hint{
       position:absolute;
-      left:50%; transform:translateX(-50%);
-      top:56%;
+      left:50%;transform:translateX(-50%);
+      top:58%;
       z-index:13;
       background:rgba(0,0,0,.42);
       border:1px solid rgba(255,255,255,.12);
@@ -172,21 +170,10 @@
       white-space:nowrap;
       backdrop-filter:blur(8px);
     }
-    .smallNote{
-      position:absolute;
-      left:18px; top:63%;
-      z-index:13;
-      max-width:44%;
-      background:rgba(0,0,0,.35);
-      border:1px solid rgba(255,255,255,.08);
-      padding:8px 10px;
-      border-radius:14px;
-      backdrop-filter:blur(8px);
-      font-size:11px;line-height:1.4;color:#dbe4ef;
-    }
 
     .loading{
-      position:absolute;right:10px;top:63%;
+      position:absolute;
+      right:10px;top:59%;
       z-index:20;
       display:none;align-items:center;gap:8px;
       background:rgba(0,0,0,.42);
@@ -206,17 +193,14 @@
       50%{opacity:1;transform:scale(1)}
     }
 
-    /* 真ん中左の小さい丸シャッター */
+    /* 左中央の小さい丸シャッター */
     .shutterWrap{
       position:absolute;
       left:16px;
       top:66%;
       z-index:21;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      width:84px;
-      height:84px;
+      width:84px;height:84px;
+      display:flex;align-items:center;justify-content:center;
     }
     .shutter{
       width:82px;height:82px;border-radius:50%;
@@ -232,9 +216,9 @@
     /* 中央操作 */
     .centerActions{
       position:absolute;
-      left:110px;
-      top:66.5%;
-      width:160px;
+      left:116px;
+      top:66.3%;
+      width:150px;
       z-index:21;
       display:grid;
       gap:10px;
@@ -244,7 +228,7 @@
     .rightActions{
       position:absolute;
       right:10px;
-      top:66.5%;
+      top:66.3%;
       width:150px;
       z-index:21;
       display:grid;
@@ -254,9 +238,8 @@
     /* 下段操作 */
     .bottomActions{
       position:absolute;
-      left:10px;
-      right:10px;
-      top:76.5%;
+      left:10px; right:10px;
+      top:76.2%;
       z-index:21;
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -278,7 +261,7 @@
     .btn.green{background:rgba(48,209,88,.18);border-color:rgba(48,209,88,.30)}
     .btn.delete{background:rgba(255,69,58,.14);border-color:rgba(255,69,58,.28)}
 
-    /* 履歴を広げる */
+    /* 履歴ウィンドウ拡大 */
     .historyCard{
       position:absolute;
       left:10px;right:10px;bottom:10px;
@@ -289,7 +272,7 @@
       padding:10px 12px;
       backdrop-filter:blur(18px);
       box-shadow:var(--shadow);
-      min-height:170px;
+      min-height:190px;
     }
     .historyHeader{
       display:flex;justify-content:space-between;align-items:center;
@@ -305,7 +288,7 @@
       white-space:nowrap;
     }
     .historyList{
-      max-height:118px;
+      max-height:138px;
       overflow:auto;
       padding-right:2px;
     }
@@ -407,13 +390,6 @@
     .dupBtns{
       display:grid;grid-template-columns:1fr 1fr;gap:10px;
     }
-
-    @media (max-width:390px){
-      .topCenter{left:142px;width:128px}
-      .topRight{width:138px}
-      .value{font-size:20px}
-      .hint,.smallNote,.targetLabel{font-size:11px}
-    }
   </style>
 </head>
 <body>
@@ -472,12 +448,7 @@
         </div>
       </div>
 
-      <div class="hint">上だけ合わせる。下の合計は内部で広めに読む</div>
-
-      <div class="smallNote">
-        上は「伝票番号」と「1頁」が入るくらい。<br>
-        シャッターは左の丸。音あり。
-      </div>
+      <div class="hint">上だけ合わせる。合計は右下1/4を全部読む</div>
 
       <div class="loading" id="loadingBadge">
         <div class="dot"></div>
@@ -503,7 +474,7 @@
 
     <div class="bottomActions">
       <button class="btn green" id="autoBtn">自動認識 ON</button>
-      <button class="btn gray" id="dummyBtn" disabled>履歴下に表示</button>
+      <button class="btn gray" id="dummyBtn" disabled>右下1/4読取</button>
     </div>
 
     <div class="historyCard">
@@ -551,7 +522,7 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script>
     const TAX_RATE = 0.10;
-    const STORAGE_KEY = 'g-invoice-ui-remake-v1';
+    const STORAGE_KEY = 'g-invoice-layout-q4-v1';
     const AUTO_INTERVAL_MS = 2100;
     const HOLD_MS = 3000;
     const FAIL_COOLDOWN_MS = 1800;
@@ -569,18 +540,16 @@
       {x:0.02,y:-0.01}
     ];
 
-    const SEARCH_OFFSETS_AMOUNT = [
+    const SEARCH_OFFSETS_Q4 = [
       {x:0,y:0},
-      {x:-0.06,y:0},
-      {x:0.06,y:0},
-      {x:-0.03,y:0},
-      {x:0.03,y:0},
+      {x:-0.05,y:0},
+      {x:0.05,y:0},
       {x:0,y:-0.05},
       {x:0,y:0.05},
-      {x:-0.04,y:-0.03},
-      {x:-0.04,y:0.03},
-      {x:0.04,y:-0.03},
-      {x:0.04,y:0.03}
+      {x:-0.04,y:-0.04},
+      {x:0.04,y:-0.04},
+      {x:-0.04,y:0.04},
+      {x:0.04,y:0.04}
     ];
 
     const state = {
@@ -762,12 +731,12 @@
       };
     }
 
-    function getInternalAmountRectFromInvoiceRect(invoiceRect){
+    function getLowerRightQuarterRect(){
       return {
-        x: invoiceRect.x - invoiceRect.w * 1.55,
-        y: invoiceRect.y + invoiceRect.h * 8.45,
-        w: invoiceRect.w * 1.95,
-        h: invoiceRect.h * 2.00
+        x: video.videoWidth / 2,
+        y: video.videoHeight / 2,
+        w: video.videoWidth / 2,
+        h: video.videoHeight / 2
       };
     }
 
@@ -868,7 +837,7 @@
 
     async function scanBestInvoiceNo(){
       const base = getGuideRectPixels($('invoiceGuide'));
-      let best = {value:null, score:-1, rect:base};
+      let best = {value:null, score:-1};
 
       for(const off of SEARCH_OFFSETS_INVOICE){
         const rect = {
@@ -881,19 +850,19 @@
         const { data } = await state.worker.recognize(canvas);
         const candidate = extractInvoiceNo(data?.text || '');
         const score = scoreInvoice(candidate);
-        if(score > best.score) best = {value:candidate, score, rect};
+        if(score > best.score) best = {value:candidate, score};
       }
       return best;
     }
 
-    async function scanBestAmount(invoiceRect){
-      const base = getInternalAmountRectFromInvoiceRect(invoiceRect);
+    async function scanBestAmountFromLowerRightQuarter(){
+      const base = getLowerRightQuarterRect();
       let best = {value:null, score:-1};
 
-      for(const off of SEARCH_OFFSETS_AMOUNT){
+      for(const off of SEARCH_OFFSETS_Q4){
         const rect = {
-          x: base.x + base.w*off.x,
-          y: base.y + base.h*off.y,
+          x: base.x + base.w * off.x,
+          y: base.y + base.h * off.y,
           w: base.w,
           h: base.h
         };
@@ -1102,7 +1071,7 @@
           return;
         }
 
-        const amountRes = await scanBestAmount(invoiceRes.rect);
+        const amountRes = await scanBestAmountFromLowerRightQuarter();
         const amount = amountRes.value;
         const amountOk = amount && scoreAmount(amount) >= 100;
 
@@ -1289,10 +1258,7 @@
       await initCamera();
       await initWorker();
       startAutoLoop();
-
-      setInterval(() => {
-        render();
-      }, 500);
+      setInterval(() => render(), 500);
     }
 
     boot();
