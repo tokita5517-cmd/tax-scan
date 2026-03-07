@@ -3,30 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>請求書スキャン高速版</title>
+  <title>請求書スキャン修正版</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root{
       --bg:#05070b;
       --panel:rgba(12,18,28,.86);
-      --panel2:rgba(12,18,28,.74);
       --line:rgba(255,255,255,.08);
       --text:#f4f7fb;
       --muted:rgba(255,255,255,.74);
       --danger:#ff5b57;
       --warn:#ffd54a;
       --ok:#7ff0a1;
-      --blue:#173b69;
-      --blue2:#0f2d52;
-      --red1:rgba(180,70,70,.58);
-      --red2:rgba(120,35,35,.70);
-      --gray1:rgba(150,150,150,.38);
-      --gray2:rgba(90,90,90,.40);
       --shadow:0 14px 40px rgba(0,0,0,.35);
       --safe-top:env(safe-area-inset-top);
       --safe-bottom:env(safe-area-inset-bottom);
     }
-
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     html,body{
       margin:0;padding:0;width:100%;height:100%;
@@ -34,38 +26,24 @@
       font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
       overflow:hidden;
     }
-
-    #app{
-      position:fixed;inset:0;background:#000;overflow:hidden;
-    }
-
+    #app{position:fixed;inset:0;background:#000;overflow:hidden}
     #video{
-      position:absolute;inset:0;
-      width:100%;height:100%;
-      object-fit:cover;
-      background:#000;
+      position:absolute;inset:0;width:100%;height:100%;
+      object-fit:cover;background:#000;
     }
-
     .dim{
       position:absolute;inset:0;
       background:linear-gradient(to bottom,rgba(0,0,0,.18),rgba(0,0,0,.04) 35%,rgba(0,0,0,.10));
       pointer-events:none;
     }
-
     .hud{
-      position:absolute;
-      left:14px;right:14px;
-      top:calc(var(--safe-top) + 14px);
-      z-index:20;
+      position:absolute;left:14px;right:14px;
+      top:calc(var(--safe-top) + 14px);z-index:20;
     }
-
     .topGrid{
-      display:grid;
-      grid-template-columns:1fr 1fr 1.25fr;
-      gap:10px;
-      align-items:stretch;
+      display:grid;grid-template-columns:1fr 1fr 1.25fr;
+      gap:10px;align-items:stretch;
     }
-
     .card,.miniCard{
       background:linear-gradient(180deg,rgba(17,24,38,.90),rgba(10,16,26,.84));
       border:1px solid var(--line);
@@ -74,237 +52,122 @@
       backdrop-filter:blur(10px);
       -webkit-backdrop-filter:blur(10px);
     }
-
     .card{padding:14px 16px;min-height:88px}
     .miniCard{padding:12px 16px;min-height:78px}
-
-    .stack{
-      display:grid;
-      grid-template-rows:1fr 1fr;
-      gap:10px;
-    }
-
+    .stack{display:grid;grid-template-rows:1fr 1fr;gap:10px}
     .label{
-      font-size:15px;
-      color:var(--muted);
-      line-height:1.1;
-      margin-bottom:4px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
+      font-size:15px;color:var(--muted);line-height:1.1;margin-bottom:4px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
-
-    .big{
-      font-size:28px;
-      font-weight:800;
-      line-height:1.08;
-      letter-spacing:.2px;
-    }
-
+    .big{font-size:28px;font-weight:800;line-height:1.08;letter-spacing:.2px}
     .mid{
-      font-size:18px;
-      font-weight:760;
-      line-height:1.2;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
+      font-size:18px;font-weight:760;line-height:1.2;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
-
-    .sub{
-      margin-top:4px;
-      font-size:16px;
-      color:var(--muted);
-    }
-
+    .sub{margin-top:4px;font-size:16px;color:var(--muted)}
     .danger{color:var(--danger);font-weight:800}
     .warn{color:var(--warn);font-weight:800}
     .ok{color:var(--ok);font-weight:800}
-
     .statusRow{
-      margin-top:10px;
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
+      margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;
     }
-
     .hints{
-      position:absolute;
-      left:50%;
-      transform:translateX(-50%);
-      top:47.5%;
-      z-index:14;
-      width:min(92vw,760px);
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:10px;
+      position:absolute;left:50%;transform:translateX(-50%);
+      top:48%;z-index:14;width:min(92vw,760px);
+      display:flex;flex-direction:column;align-items:center;gap:10px;
       pointer-events:none;
     }
-
     .hint{
       background:rgba(25,25,28,.55);
       border:1px solid rgba(255,255,255,.08);
-      border-radius:999px;
-      padding:10px 16px;
-      font-size:15px;
+      border-radius:999px;padding:10px 16px;font-size:15px;
       color:rgba(255,255,255,.94);
-      backdrop-filter:blur(8px);
-      -webkit-backdrop-filter:blur(8px);
-      text-align:center;
-      box-shadow:0 8px 20px rgba(0,0,0,.18);
+      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+      text-align:center;box-shadow:0 8px 20px rgba(0,0,0,.18);
     }
-
     .controls{
-      position:absolute;
-      left:14px;right:14px;
+      position:absolute;left:14px;right:14px;
       bottom:calc(var(--safe-bottom) + 170px);
-      z-index:24;
-      display:grid;
-      grid-template-columns:96px 1fr 1fr;
-      gap:14px;
-      align-items:center;
+      z-index:24;display:grid;grid-template-columns:96px 1fr 1fr;gap:14px;align-items:center;
     }
-
-    .shutterWrap{
-      display:flex;align-items:center;justify-content:center;
-    }
-
+    .shutterWrap{display:flex;align-items:center;justify-content:center}
     .shutter{
-      width:86px;height:86px;border-radius:50%;
-      border:none;
+      width:86px;height:86px;border-radius:50%;border:none;
       background:linear-gradient(180deg,#fbfbfd,#e8ebf0);
       box-shadow:0 0 0 8px rgba(255,255,255,.20),0 10px 28px rgba(0,0,0,.30);
       position:relative;
     }
-
     .shutter::after{
-      content:"";
-      position:absolute;inset:12px;
-      border-radius:50%;
+      content:"";position:absolute;inset:12px;border-radius:50%;
       border:3px solid rgba(0,0,0,.05);
     }
-
     .btn{
-      min-height:72px;
-      border:none;
-      border-radius:22px;
-      color:#fff;
-      font-size:20px;
-      font-weight:800;
-      box-shadow:var(--shadow);
-      backdrop-filter:blur(10px);
-      -webkit-backdrop-filter:blur(10px);
+      min-height:72px;border:none;border-radius:22px;color:#fff;
+      font-size:20px;font-weight:800;box-shadow:var(--shadow);
+      backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
     }
-
     .btn.gray{
-      background:linear-gradient(180deg,var(--gray1),var(--gray2));
+      background:linear-gradient(180deg,rgba(150,150,150,.38),rgba(90,90,90,.40));
       border:1px solid rgba(255,255,255,.08);
     }
-
     .btn.red{
-      background:linear-gradient(180deg,var(--red1),var(--red2));
+      background:linear-gradient(180deg,rgba(180,70,70,.58),rgba(120,35,35,.70));
       border:1px solid rgba(255,255,255,.09);
     }
-
     .historyPanel{
-      position:absolute;
-      left:14px;right:14px;
+      position:absolute;left:14px;right:14px;
       bottom:calc(var(--safe-bottom) + 14px);
-      z-index:22;
-      min-height:154px;
+      z-index:22;min-height:154px;
       background:linear-gradient(180deg,rgba(12,18,29,.90),rgba(8,13,22,.90));
       border:1px solid rgba(255,255,255,.09);
-      border-radius:28px;
-      box-shadow:var(--shadow);
-      backdrop-filter:blur(12px);
-      -webkit-backdrop-filter:blur(12px);
+      border-radius:28px;box-shadow:var(--shadow);
+      backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
       padding:14px;
     }
-
     .historyHead{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-      margin-bottom:12px;
+      display:flex;justify-content:space-between;align-items:center;
+      gap:12px;margin-bottom:12px;
     }
-
     .pill{
-      background:rgba(8,13,22,.78);
-      border:1px solid rgba(255,255,255,.08);
-      color:#fff;
-      border-radius:999px;
-      padding:10px 18px;
-      font-size:16px;
-      font-weight:800;
+      background:rgba(8,13,22,.78);border:1px solid rgba(255,255,255,.08);
+      color:#fff;border-radius:999px;padding:10px 18px;font-size:16px;font-weight:800;
       white-space:nowrap;
     }
-
     .historyList{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      max-height:156px;
-      overflow:auto;
-      padding-right:2px;
+      display:flex;flex-direction:column;gap:10px;max-height:156px;overflow:auto;padding-right:2px;
     }
-
     .row{
-      display:grid;
-      grid-template-columns:34px 1fr auto;
-      gap:12px;
-      align-items:center;
-      border-radius:16px;
-      padding:14px 16px;
-      font-size:19px;
-      font-weight:800;
+      display:grid;grid-template-columns:34px 1fr auto;
+      gap:12px;align-items:center;border-radius:16px;padding:14px 16px;
+      font-size:19px;font-weight:800;
       background:linear-gradient(180deg,rgba(18,47,84,.96),rgba(18,59,104,.91));
     }
-
     .row.alt{
       background:linear-gradient(180deg,rgba(17,23,33,.84),rgba(11,16,24,.84));
-      border:1px solid rgba(255,255,255,.05);
-      font-weight:700;
+      border:1px solid rgba(255,255,255,.05);font-weight:700;
     }
-
     .idx{color:rgba(255,255,255,.86);text-align:center}
     .inv{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .amt{white-space:nowrap}
-
     .ocrBadge{
-      position:absolute;
-      right:16px;
-      top:54%;
-      transform:translateY(-50%);
-      z-index:24;
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding:12px 16px;
-      border-radius:999px;
+      position:absolute;right:16px;top:54%;transform:translateY(-50%);
+      z-index:24;display:flex;align-items:center;gap:10px;
+      padding:12px 16px;border-radius:999px;
       background:rgba(25,25,28,.72);
       border:1px solid rgba(255,255,255,.08);
-      backdrop-filter:blur(10px);
-      -webkit-backdrop-filter:blur(10px);
+      backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
       box-shadow:0 8px 24px rgba(0,0,0,.20);
-      font-size:16px;
-      font-weight:800;
+      font-size:16px;font-weight:800;
     }
-
     .dot{
       width:12px;height:12px;border-radius:50%;
-      background:var(--warn);
-      box-shadow:0 0 10px rgba(255,213,74,.75);
+      background:var(--warn);box-shadow:0 0 10px rgba(255,213,74,.75);
       flex:0 0 auto;
     }
-
     .overlay{
-      position:absolute;
-      left:0;top:0;width:100%;height:100%;
-      pointer-events:none;
-      z-index:8;
+      position:absolute;left:0;top:0;width:100%;height:100%;
+      pointer-events:none;z-index:8;
     }
-
     .roi{
       position:absolute;
       border:3px solid rgba(255,0,0,.96);
@@ -312,37 +175,29 @@
       border-radius:18px;
       box-shadow:0 0 0 1px rgba(255,255,255,.12) inset;
     }
-
     .roi::after{
       content:attr(data-label);
-      position:absolute;
-      top:-28px;
-      left:0;
-      background:rgba(255,0,0,.92);
-      color:#fff;
-      font-size:12px;
-      font-weight:800;
-      line-height:1;
-      padding:6px 8px;
-      border-radius:8px;
-      white-space:nowrap;
+      position:absolute;top:-28px;left:0;
+      background:rgba(255,0,0,.92);color:#fff;
+      font-size:12px;font-weight:800;line-height:1;
+      padding:6px 8px;border-radius:8px;white-space:nowrap;
     }
 
+    /* ちゃんと右半分 */
     #roiTop{
-      left:2.5vw;
-      top:11.5vh;
-      width:95vw;
-      height:26vh;
+      left:50vw;
+      top:10.5vh;
+      width:46vw;
+      height:24vh;
     }
-
     #roiBottom{
-      left:2.5vw;
-      top:61.5vh;
-      width:95vw;
-      height:23.5vh;
+      left:50vw;
+      top:59vh;
+      width:46vw;
+      height:24vh;
     }
 
-    #canvas,#ocrCanvas{display:none}
+    #canvas,#topCanvas,#bottomCanvas{display:none}
 
     @media (max-width:430px){
       .topGrid{grid-template-columns:.95fr 1fr 1.2fr;gap:8px}
@@ -359,8 +214,8 @@
   <div class="dim"></div>
 
   <div class="overlay" id="debugOverlay">
-    <div id="roiTop" class="roi" data-label="上の目安エリア"></div>
-    <div id="roiBottom" class="roi" data-label="下の目安エリア"></div>
+    <div id="roiTop" class="roi" data-label="上OCR 右半分"></div>
+    <div id="roiBottom" class="roi" data-label="下OCR 右半分"></div>
   </div>
 
   <div class="hud">
@@ -407,8 +262,8 @@
   </div>
 
   <div class="hints">
-    <div class="hint">帳票全体をざっくり入れるだけ</div>
-    <div class="hint">TEL / G伝票番号 / 1頁 / 御中 / 合計 の右側金額を1回OCRで探す</div>
+    <div class="hint">帳票全体を入れるだけ。OCRは右半分だけ読む</div>
+    <div class="hint">上：TEL / G伝票番号 / 1頁　下：合計の右の金額</div>
   </div>
 
   <div class="ocrBadge">
@@ -439,26 +294,25 @@
   </div>
 
   <canvas id="canvas"></canvas>
-  <canvas id="ocrCanvas"></canvas>
+  <canvas id="topCanvas"></canvas>
+  <canvas id="bottomCanvas"></canvas>
 </div>
 
 <script>
-  // =========================
-  // 高速化設定
-  // =========================
-  const DEBUG_OVERLAY = true;      // 位置が決まったら false
+  const DEBUG_OVERLAY = true;
   const AUTO_SCAN = true;
-  const AUTO_INTERVAL = 900;       // もっと速め
-  const SUCCESS_COOLDOWN = 1700;   // 成功後の待機
-  const OCR_MAX_WIDTH = 960;       // 小さめにして高速化
-  const OCR_LANG = 'jpn+eng';
+  const AUTO_INTERVAL = 850;
+  const SUCCESS_COOLDOWN = 1800;
+  const OCR_MAX_WIDTH = 960;
 
-  // =========================
-  // 要素
-  // =========================
+  // 実際のOCR範囲も右半分
+  const TOP_REGION = { x: 0.50, y: 0.02, w: 0.48, h: 0.34 };
+  const BOTTOM_REGION = { x: 0.50, y: 0.56, w: 0.48, h: 0.28 };
+
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
-  const ocrCanvas = document.getElementById('ocrCanvas');
+  const topCanvas = document.getElementById('topCanvas');
+  const bottomCanvas = document.getElementById('bottomCanvas');
   const debugOverlay = document.getElementById('debugOverlay');
 
   const grandTotalEl = document.getElementById('grandTotal');
@@ -477,21 +331,14 @@
   const scanBtn = document.getElementById('scanBtn');
   const resetBtn = document.getElementById('resetBtn');
 
-  // =========================
-  // 状態
-  // =========================
   let worker = null;
   let stream = null;
   let isReady = false;
   let isScanning = false;
   let autoTimer = null;
   let cooldownUntil = 0;
-
   let historyData = loadHistory();
 
-  // =========================
-  // 起動
-  // =========================
   init();
 
   async function init() {
@@ -528,7 +375,7 @@
     setRecognition('OCR初期化中', 'warn');
     ocrBadgeText.textContent = 'OCR初期化中...';
 
-    worker = await Tesseract.createWorker(OCR_LANG, 1, {
+    worker = await Tesseract.createWorker('jpn+eng', 1, {
       logger: m => {
         if (m.status === 'recognizing text') {
           ocrBadgeText.textContent = `OCR中 ${Math.round((m.progress || 0) * 100)}%`;
@@ -543,9 +390,6 @@
     });
   }
 
-  // =========================
-  // 操作
-  // =========================
   shutterBtn.addEventListener('click', () => scanNow(true));
   scanBtn.addEventListener('click', () => scanNow(true));
 
@@ -562,16 +406,12 @@
   function startAutoScan() {
     if (autoTimer) clearInterval(autoTimer);
     autoTimer = setInterval(() => {
-      if (!AUTO_SCAN) return;
-      if (!isReady || isScanning) return;
+      if (!AUTO_SCAN || !isReady || isScanning) return;
       if (Date.now() < cooldownUntil) return;
       scanNow(false);
     }, AUTO_INTERVAL);
   }
 
-  // =========================
-  // スキャン
-  // =========================
   async function scanNow(manual = false) {
     if (!isReady || isScanning) return;
     if (Date.now() < cooldownUntil) return;
@@ -583,12 +423,22 @@
 
     try {
       captureFrame(video, canvas, OCR_MAX_WIDTH);
-      preprocessForOCR(canvas, ocrCanvas);
 
-      const result = await worker.recognize(ocrCanvas);
-      const parsed = parseInvoiceFromWholePage(result.data);
+      cropRegion(canvas, topCanvas, TOP_REGION);
+      cropRegion(canvas, bottomCanvas, BOTTOM_REGION);
 
-      if (!parsed.invoiceNo || !parsed.amount) {
+      preprocessForOCR(topCanvas);
+      preprocessForOCR(bottomCanvas);
+
+      const [topRes, bottomRes] = await Promise.all([
+        worker.recognize(topCanvas),
+        worker.recognize(bottomCanvas)
+      ]);
+
+      const invoiceNo = extractInvoiceNo(topRes.data);
+      const amount = extractTotalAmount(bottomRes.data);
+
+      if (!invoiceNo || !amount) {
         setRecognition('認識失敗', 'danger');
         scanResultEl.textContent = '伝票番号または金額を取得できず';
         duplicateCheckEl.textContent = '位置を少し調整して再スキャン';
@@ -597,10 +447,10 @@
         return;
       }
 
-      const dup = findDuplicate(parsed.invoiceNo);
+      const dup = findDuplicate(invoiceNo);
       if (dup) {
         setRecognition('重複候補', 'warn');
-        scanResultEl.textContent = `${parsed.invoiceNo} / ${formatYen(parsed.amount)}`;
+        scanResultEl.textContent = `${invoiceNo} / ${formatYen(amount)}`;
         duplicateCheckEl.textContent = `${dup.date} ${dup.time} の ${dup.index}件目に同番号あり`;
         cooldownUntil = Date.now() + SUCCESS_COOLDOWN;
         beep(660, 0.05);
@@ -610,9 +460,9 @@
         return;
       }
 
-      addHistory(parsed.invoiceNo, parsed.amount);
+      addHistory(invoiceNo, amount);
       setRecognition('認識成功', 'ok');
-      scanResultEl.textContent = `${parsed.invoiceNo} / ${formatYen(parsed.amount)}`;
+      scanResultEl.textContent = `${invoiceNo} / ${formatYen(amount)}`;
       duplicateCheckEl.textContent = '新規登録しました';
       cooldownUntil = Date.now() + SUCCESS_COOLDOWN;
       beep(900, 0.06);
@@ -628,112 +478,82 @@
     }
   }
 
-  // =========================
-  // 全画面OCR解析
-  // =========================
-  function parseInvoiceFromWholePage(data) {
-    const fullText = normalizeText(data.text || '');
-    const words = mapWords(data.words || [], data);
-
-    const invoiceNo = extractInvoiceNo(fullText, words);
-    const amount = extractTotalAmount(fullText, words);
-
-    return { invoiceNo, amount };
-  }
-
-  function extractInvoiceNo(text, words) {
-    const joined = text.replace(/\s+/g, ' ');
-
-    const telWords = words.filter(w => /TEL/i.test(w.text));
-    const pageWords = words.filter(w => /(1頁|1页|1P|1p)/i.test(w.text));
+  function extractInvoiceNo(data) {
+    const text = normalizeText(data.text || '');
+    const words = mapWords(data.words || [], data.imageSize?.width || topCanvas.width, data.imageSize?.height || topCanvas.height);
 
     let candidates = [];
 
-    const regexHits = joined.match(/[GＧ][0-9O０-９]{6,10}/g) || [];
+    const regexHits = text.match(/[GＧ][0-9O０-９]{6,10}/g) || [];
     for (const hit of regexHits) {
-      const normalized = normalizeInvoiceNo(hit);
-      if (/^G\d{6,10}$/.test(normalized)) {
-        candidates.push({ text: normalized, cx: 0.8, cy: 0.2, score: 1 });
-      }
+      const n = normalizeInvoiceNo(hit);
+      if (/^G\d{6,10}$/.test(n)) candidates.push({ text: n, score: 10, cx: 0.8, cy: 0.2 });
     }
 
     for (const w of words) {
       const n = normalizeInvoiceNo(w.text);
       if (/^G\d{6,10}$/.test(n)) {
-        candidates.push({ text: n, cx: w.cx, cy: w.cy, score: 0 });
+        let score = 0;
+        if (w.cy < 0.65) score += 3;
+        if (w.cx > 0.30) score += 2;
+        candidates.push({ text: n, score, cx: w.cx, cy: w.cy });
       }
     }
 
+    candidates = dedupeByText(candidates);
     if (!candidates.length) return null;
-
-    candidates = dedupeInvoiceCandidates(candidates);
-
-    for (const c of candidates) {
-      let score = 0;
-
-      if (c.cy < 0.42) score += 3;
-      if (c.cx > 0.55) score += 2;
-
-      const telNear = telWords.some(t => distance(c.cx, c.cy, t.cx, t.cy) < 0.22);
-      const pageNear = pageWords.some(p => distance(c.cx, c.cy, p.cx, p.cy) < 0.18);
-
-      if (telNear) score += 4;
-      if (pageNear) score += 4;
-
-      c.score += score;
-    }
-
-    candidates.sort((a, b) => b.score - a.score);
-    return candidates[0]?.text || null;
+    candidates.sort((a,b) => b.score - a.score);
+    return candidates[0].text;
   }
 
-  function extractTotalAmount(text, words) {
+  function extractTotalAmount(data) {
+    const text = normalizeText(data.text || '');
+    const words = mapWords(data.words || [], data.imageSize?.width || bottomCanvas.width, data.imageSize?.height || bottomCanvas.height);
+
     const totalWords = words.filter(w => /合計/.test(w.text));
-    const onchuWords = words.filter(w => /御中/.test(w.text));
     const amountWords = words
       .filter(w => isAmountToken(w.text))
       .map(w => ({
         raw: w.text,
         num: parseAmount(w.text),
         cx: w.cx,
-        cy: w.cy
+        cy: w.cy,
+        text: w.text
       }))
-      .filter(v => v.num >= 100 && v.num <= 9999999);
+      .filter(v =>
+        v.num >= 100 &&
+        v.num <= 999999 &&
+        !String(v.num).startsWith('260') &&   // 郵便番号っぽいの除外
+        !String(v.num).startsWith('43')       // TELの一部誤読対策
+      );
 
-    if (!amountWords.length) return null;
-
-    // 1. 合計の右側同ライン最優先
-    let best = null;
+    // 1. 合計の右の同ラインだけ採用
     for (const total of totalWords) {
       const sameLine = amountWords
-        .filter(a => Math.abs(a.cy - total.cy) < 0.05 && a.cx > total.cx + 0.03)
-        .sort((a, b) => b.cx - a.cx);
+        .filter(a => Math.abs(a.cy - total.cy) < 0.10 && a.cx > total.cx + 0.06)
+        .sort((a,b) => a.cx - b.cx);
 
       if (sameLine.length) {
-        best = sameLine[0];
-        break;
+        return sameLine[sameLine.length - 1].num;
       }
     }
-    if (best) return best.num;
 
-    // 2. 御中の右側かつ下側の右寄り優先
-    if (onchuWords.length) {
-      const anchor = onchuWords.sort((a, b) => b.cy - a.cy)[0];
-      const near = amountWords
-        .filter(a => a.cx > anchor.cx + 0.05 && a.cy > anchor.cy - 0.10 && a.cy < anchor.cy + 0.12)
-        .sort((a, b) => {
-          const sa = a.cx * 2 - Math.abs(a.cy - anchor.cy);
-          const sb = b.cx * 2 - Math.abs(b.cy - anchor.cy);
-          return sb - sa;
-        });
-
-      if (near.length) return near[0].num;
+    // 2. テキスト行で「合計」を含む行の右端数字
+    const lines = text.split(/\n+/).map(v => v.trim()).filter(Boolean);
+    for (const line of lines) {
+      if (/合計/.test(line)) {
+        const nums = line.match(/[0-9０-９][0-9０-９,，.]*/g) || [];
+        const parsed = nums
+          .map(parseAmount)
+          .filter(v => v >= 100 && v <= 999999);
+        if (parsed.length) return parsed[parsed.length - 1];
+      }
     }
 
-    // 3. 下半分右側優先
+    // 3. 右下限定フォールバック
     const lowerRight = amountWords
-      .filter(a => a.cy > 0.58 && a.cx > 0.58)
-      .sort((a, b) => {
+      .filter(a => a.cx > 0.45 && a.cy > 0.18 && a.cy < 0.92)
+      .sort((a,b) => {
         const sa = a.cx * 2 + a.cy;
         const sb = b.cx * 2 + b.cy;
         return sb - sa;
@@ -741,28 +561,10 @@
 
     if (lowerRight.length) return lowerRight[0].num;
 
-    // 4. 合計を含む行の最後の数字
-    const lines = normalizeText(text).split(/\n+/).map(v => v.trim()).filter(Boolean);
-    for (const line of lines) {
-      if (/合計/.test(line)) {
-        const nums = line.match(/[0-9０-９][0-9０-９,，.]*/g) || [];
-        const parsed = nums.map(parseAmount).filter(v => v > 0);
-        if (parsed.length) return parsed[parsed.length - 1];
-      }
-    }
-
-    // 5. フォールバック
-    const sorted = [...amountWords].sort((a, b) => b.num - a.num);
-    return sorted[0]?.num || null;
+    return null;
   }
 
-  // =========================
-  // OCR補助
-  // =========================
-  function mapWords(words, data) {
-    const width = data?.imageSize?.width || ocrCanvas.width || 1;
-    const height = data?.imageSize?.height || ocrCanvas.height || 1;
-
+  function mapWords(words, width, height) {
     return words
       .filter(w => w.text && w.text.trim())
       .map(w => {
@@ -780,20 +582,14 @@
       });
   }
 
-  function dedupeInvoiceCandidates(items) {
-    const map = new Map();
-    for (const item of items) {
-      if (!map.has(item.text)) {
-        map.set(item.text, item);
-      } else if ((item.score || 0) > (map.get(item.text).score || 0)) {
-        map.set(item.text, item);
+  function dedupeByText(arr) {
+    const m = new Map();
+    for (const item of arr) {
+      if (!m.has(item.text) || item.score > m.get(item.text).score) {
+        m.set(item.text, item);
       }
     }
-    return [...map.values()];
-  }
-
-  function distance(x1, y1, x2, y2) {
-    return Math.hypot(x1 - x2, y1 - y2);
+    return [...m.values()];
   }
 
   function normalizeText(s) {
@@ -833,68 +629,66 @@
     return Number(n) || 0;
   }
 
-  // =========================
-  // 画像処理
-  // =========================
   function captureFrame(videoEl, outCanvas, maxWidth) {
     const vw = videoEl.videoWidth;
     const vh = videoEl.videoHeight;
-
-    let tw = vw;
-    let th = vh;
-
+    let tw = vw, th = vh;
     if (vw > maxWidth) {
       const ratio = maxWidth / vw;
       tw = Math.round(vw * ratio);
       th = Math.round(vh * ratio);
     }
-
     outCanvas.width = tw;
     outCanvas.height = th;
-
     const ctx = outCanvas.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(videoEl, 0, 0, tw, th);
   }
 
-  function preprocessForOCR(srcCanvas, dstCanvas) {
-    dstCanvas.width = srcCanvas.width;
-    dstCanvas.height = srcCanvas.height;
+  function cropRegion(srcCanvas, dstCanvas, region) {
+    const sw = srcCanvas.width;
+    const sh = srcCanvas.height;
+    const sx = Math.round(sw * region.x);
+    const sy = Math.round(sh * region.y);
+    const cw = Math.round(sw * region.w);
+    const ch = Math.round(sh * region.h);
 
-    const sctx = srcCanvas.getContext('2d', { willReadFrequently: true });
-    const dctx = dstCanvas.getContext('2d', { willReadFrequently: true });
-    const img = sctx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+    dstCanvas.width = cw;
+    dstCanvas.height = ch;
+
+    const ctx = dstCanvas.getContext('2d', { willReadFrequently: true });
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.drawImage(srcCanvas, sx, sy, cw, ch, 0, 0, cw, ch);
+  }
+
+  function preprocessForOCR(targetCanvas) {
+    const ctx = targetCanvas.getContext('2d', { willReadFrequently: true });
+    const img = ctx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
     const data = img.data;
 
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
-      let y = 0.299 * r + 0.587 * g + 0.114 * b;
+      let y = 0.299*r + 0.587*g + 0.114*b;
       y = (y - 128) * 1.22 + 128;
       y = Math.max(0, Math.min(255, y));
-
       if (y > 168) y = 255;
       else if (y < 82) y = 0;
-
-      data[i] = data[i + 1] = data[i + 2] = y;
+      data[i] = data[i+1] = data[i+2] = y;
     }
-
-    dctx.putImageData(img, 0, 0);
+    ctx.putImageData(img, 0, 0);
   }
 
-  // =========================
-  // 履歴
-  // =========================
   function loadHistory() {
     try {
-      return JSON.parse(localStorage.getItem('tax-scan-history-fast-v1') || '[]');
+      return JSON.parse(localStorage.getItem('tax-scan-right-half-v1') || '[]');
     } catch {
       return [];
     }
   }
 
   function saveHistory() {
-    localStorage.setItem('tax-scan-history-fast-v1', JSON.stringify(historyData));
+    localStorage.setItem('tax-scan-right-half-v1', JSON.stringify(historyData));
   }
 
   function addHistory(invoiceNo, amount) {
@@ -912,10 +706,7 @@
   function findDuplicate(invoiceNo) {
     const index = historyData.findIndex(v => v.invoiceNo === invoiceNo);
     if (index === -1) return null;
-    return {
-      ...historyData[index],
-      index: index + 1
-    };
+    return { ...historyData[index], index: index + 1 };
   }
 
   function calcTotals() {
@@ -925,9 +716,6 @@
     return { total, net, tax, count: historyData.length };
   }
 
-  // =========================
-  // 描画
-  // =========================
   function renderAll() {
     const totals = calcTotals();
     grandTotalEl.textContent = formatYen(totals.total);
@@ -960,7 +748,7 @@
     `).join('');
   }
 
-  function setRecognition(text, kind = 'danger') {
+  function setRecognition(text, kind='danger') {
     recognitionStatusEl.textContent = text;
     recognitionStatusEl.className = `mid ${kind}`;
   }
@@ -971,29 +759,26 @@
 
   function formatDate(d) {
     const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
     return `${y}/${m}/${day}`;
   }
 
   function formatTime(d) {
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
     return `${hh}:${mm}`;
   }
 
   function escapeHtml(str) {
     return String(str)
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
   }
 
-  // =========================
-  // 音
-  // =========================
   function beep(freq = 880, duration = 0.05) {
     try {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -1007,12 +792,9 @@
       gain.connect(ctx.destination);
       osc.start();
       osc.stop(ctx.currentTime + duration);
-    } catch (e) {}
+    } catch(e) {}
   }
 
-  // =========================
-  // 後始末
-  // =========================
   window.addEventListener('beforeunload', async () => {
     if (autoTimer) clearInterval(autoTimer);
     if (stream) stream.getTracks().forEach(t => t.stop());
