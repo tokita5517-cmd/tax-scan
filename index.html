@@ -3,1115 +3,1023 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>G伝票専用スキャン 合計最下段帯版</title>
+  <title>請求書スキャン高速版</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root{
-      --bg:#070b11;
-      --panel:rgba(12,20,30,.88);
-      --line:rgba(255,255,255,.11);
-      --text:#f7fafc;
-      --muted:#9fb0c2;
-      --accent:#ffcc00;
-      --green:#30d158;
-      --red:#ff453a;
-      --blue:#0a84ff;
-      --replace:#7dd3fc;
-      --shadow:0 10px 28px rgba(0,0,0,.34);
+      --bg:#05070b;
+      --panel:rgba(12,18,28,.86);
+      --panel2:rgba(12,18,28,.74);
+      --line:rgba(255,255,255,.08);
+      --text:#f4f7fb;
+      --muted:rgba(255,255,255,.74);
+      --danger:#ff5b57;
+      --warn:#ffd54a;
+      --ok:#7ff0a1;
+      --blue:#173b69;
+      --blue2:#0f2d52;
+      --red1:rgba(180,70,70,.58);
+      --red2:rgba(120,35,35,.70);
+      --gray1:rgba(150,150,150,.38);
+      --gray2:rgba(90,90,90,.40);
+      --shadow:0 14px 40px rgba(0,0,0,.35);
+      --safe-top:env(safe-area-inset-top);
+      --safe-bottom:env(safe-area-inset-bottom);
     }
+
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     html,body{
-      margin:0;padding:0;background:#000;color:var(--text);
-      font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Hiragino Sans","Noto Sans JP",sans-serif;
-      height:100%;overflow:hidden;
-    }
-    body{display:flex;justify-content:center;align-items:stretch}
-    .app{
-      width:min(100vw,520px);
-      height:100dvh;
-      position:relative;
+      margin:0;padding:0;width:100%;height:100%;
+      background:#000;color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
       overflow:hidden;
-      background:linear-gradient(180deg,#070b11 0%, #0d1621 100%);
     }
 
-    .cameraWrap{position:absolute;inset:0;background:#000}
-    video{
-      position:absolute;inset:0;width:100%;height:100%;
-      object-fit:cover;background:#000;
-    }
-    canvas{display:none}
-
-    .topLeft{
-      position:absolute; left:10px; top:10px; width:130px; z-index:20;
-    }
-    .topCenter{
-      position:absolute; left:150px; top:10px; width:145px; z-index:20;
-      display:grid; gap:8px;
-    }
-    .topRight{
-      position:absolute; right:10px; top:10px; width:155px; z-index:20;
-      display:grid; gap:8px;
+    #app{
+      position:fixed;inset:0;background:#000;overflow:hidden;
     }
 
-    .box{
-      background:var(--panel);
-      border:1px solid var(--line);
-      border-radius:18px;
-      padding:8px 10px;
-      box-shadow:var(--shadow);
-      backdrop-filter:blur(16px);
-      min-height:58px;
-    }
-    .box.tall{min-height:124px}
-    .label{
-      font-size:11px;color:var(--muted);letter-spacing:.04em;margin-bottom:2px;
-    }
-    .value{
-      font-size:21px;font-weight:800;line-height:1.05;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-      font-variant-numeric:tabular-nums;
-    }
-    .sub{
-      font-size:12px;color:var(--muted);margin-top:2px;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    #video{
+      position:absolute;inset:0;
+      width:100%;height:100%;
+      object-fit:cover;
+      background:#000;
     }
 
-    .statusWrap{
-      position:absolute; left:10px; right:10px; top:140px; z-index:20;
-      display:grid; grid-template-columns:1fr 1fr; gap:8px;
+    .dim{
+      position:absolute;inset:0;
+      background:linear-gradient(to bottom,rgba(0,0,0,.18),rgba(0,0,0,.04) 35%,rgba(0,0,0,.10));
+      pointer-events:none;
     }
-    .statusBox{
-      background:rgba(12,18,24,.84);
-      border:1px solid var(--line);
-      border-radius:16px;
-      padding:8px 10px;
-      min-height:58px;
-      backdrop-filter:blur(16px);
-    }
-    .statusText{
-      font-size:13px;line-height:1.35;color:#e9eef5;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    }
-    .ok{color:var(--green)}
-    .warn{color:var(--accent)}
-    .err{color:var(--red)}
-    .info{color:#91c5ff}
 
-    .guideArea{
-      position:absolute; inset:0; z-index:12; pointer-events:none;
-    }
-    .target{
+    .hud{
       position:absolute;
-      border:3px solid rgba(255,204,0,.95);
-      border-radius:20px;
-      box-shadow:0 0 0 2px rgba(255,204,0,.18) inset, 0 0 18px rgba(255,204,0,.24);
-      background:rgba(255,204,0,.05);
+      left:14px;right:14px;
+      top:calc(var(--safe-top) + 14px);
+      z-index:20;
     }
-    .target::before{
-      content:"";
-      position:absolute; left:50%; top:50%;
-      width:16px; height:16px; transform:translate(-50%,-50%);
-      border:2px solid rgba(255,255,255,.72);
-      border-radius:50%;
+
+    .topGrid{
+      display:grid;
+      grid-template-columns:1fr 1fr 1.25fr;
+      gap:10px;
+      align-items:stretch;
     }
-    .targetLabel{
-      position:absolute; left:50%; transform:translateX(-50%);
-      bottom:-30px;
-      background:rgba(0,0,0,.48);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:999px;
-      padding:6px 10px;
-      font-size:12px; color:#fff;
+
+    .card,.miniCard{
+      background:linear-gradient(180deg,rgba(17,24,38,.90),rgba(10,16,26,.84));
+      border:1px solid var(--line);
+      border-radius:22px;
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+    }
+
+    .card{padding:14px 16px;min-height:88px}
+    .miniCard{padding:12px 16px;min-height:78px}
+
+    .stack{
+      display:grid;
+      grid-template-rows:1fr 1fr;
+      gap:10px;
+    }
+
+    .label{
+      font-size:15px;
+      color:var(--muted);
+      line-height:1.1;
+      margin-bottom:4px;
       white-space:nowrap;
-      backdrop-filter:blur(8px);
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
-    .target.invoice{
-      left:57.5%;
-      top:18%;
-      width:37%;
-      height:10%;
+
+    .big{
+      font-size:28px;
+      font-weight:800;
+      line-height:1.08;
+      letter-spacing:.2px;
+    }
+
+    .mid{
+      font-size:18px;
+      font-weight:760;
+      line-height:1.2;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .sub{
+      margin-top:4px;
+      font-size:16px;
+      color:var(--muted);
+    }
+
+    .danger{color:var(--danger);font-weight:800}
+    .warn{color:var(--warn);font-weight:800}
+    .ok{color:var(--ok);font-weight:800}
+
+    .statusRow{
+      margin-top:10px;
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+    }
+
+    .hints{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      top:47.5%;
+      z-index:14;
+      width:min(92vw,760px);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:10px;
+      pointer-events:none;
     }
 
     .hint{
-      position:absolute; left:50%; transform:translateX(-50%);
-      top:58%; z-index:13;
-      background:rgba(0,0,0,.42);
-      border:1px solid rgba(255,255,255,.12);
-      color:#fff; padding:7px 12px;
-      border-radius:999px;
-      font-size:12px;
-      white-space:nowrap;
-      backdrop-filter:blur(8px);
-    }
-
-    .loading{
-      position:absolute; right:10px; top:59%;
-      z-index:20;
-      display:none; align-items:center; gap:8px;
-      background:rgba(0,0,0,.42);
+      background:rgba(25,25,28,.55);
       border:1px solid rgba(255,255,255,.08);
       border-radius:999px;
-      padding:8px 12px;
-      font-size:12px;
+      padding:10px 16px;
+      font-size:15px;
+      color:rgba(255,255,255,.94);
       backdrop-filter:blur(8px);
+      -webkit-backdrop-filter:blur(8px);
+      text-align:center;
+      box-shadow:0 8px 20px rgba(0,0,0,.18);
     }
-    .dot{
-      width:8px; height:8px; border-radius:50%;
-      background:#ffd400; box-shadow:0 0 8px #ffd400;
-      animation:blink 1s infinite ease-in-out;
-    }
-    @keyframes blink{
-      0%,100%{opacity:.4;transform:scale(.85)}
-      50%{opacity:1;transform:scale(1)}
+
+    .controls{
+      position:absolute;
+      left:14px;right:14px;
+      bottom:calc(var(--safe-bottom) + 170px);
+      z-index:24;
+      display:grid;
+      grid-template-columns:96px 1fr 1fr;
+      gap:14px;
+      align-items:center;
     }
 
     .shutterWrap{
-      position:absolute; left:16px; top:66%;
-      z-index:21; width:84px; height:84px;
-      display:flex; align-items:center; justify-content:center;
+      display:flex;align-items:center;justify-content:center;
     }
-    .shutter{
-      width:82px; height:82px; border-radius:50%;
-      border:none;
-      background:linear-gradient(180deg,#fff,#d8dde4);
-      box-shadow:0 6px 20px rgba(0,0,0,.35), inset 0 0 0 9px #ffffff, inset 0 0 0 14px #d5dbe2;
-    }
-    .shutter:active{transform:scale(.96)}
 
-    .centerActions{
-      position:absolute; left:116px; top:66.3%;
-      width:150px; z-index:21;
-      display:grid; gap:10px;
+    .shutter{
+      width:86px;height:86px;border-radius:50%;
+      border:none;
+      background:linear-gradient(180deg,#fbfbfd,#e8ebf0);
+      box-shadow:0 0 0 8px rgba(255,255,255,.20),0 10px 28px rgba(0,0,0,.30);
+      position:relative;
     }
-    .rightActions{
-      position:absolute; right:10px; top:66.3%;
-      width:150px; z-index:21;
-      display:grid; gap:10px;
-    }
-    .bottomActions{
-      position:absolute; left:10px; right:10px; top:76.2%;
-      z-index:21;
-      display:grid; grid-template-columns:1fr 1fr; gap:10px;
+
+    .shutter::after{
+      content:"";
+      position:absolute;inset:12px;
+      border-radius:50%;
+      border:3px solid rgba(0,0,0,.05);
     }
 
     .btn{
-      border:none; border-radius:20px; min-height:52px;
-      color:#fff; background:var(--panel);
-      border:1px solid var(--line);
-      font-size:15px; font-weight:700;
-      box-shadow:var(--shadow);
-      backdrop-filter:blur(16px);
-    }
-    .btn:active{transform:scale(.98)}
-    .btn.gray{background:rgba(255,255,255,.08)}
-    .btn.red{background:rgba(255,69,58,.18);border-color:rgba(255,69,58,.32)}
-    .btn.blue{background:rgba(10,132,255,.22);border-color:rgba(10,132,255,.35)}
-    .btn.green{background:rgba(48,209,88,.18);border-color:rgba(48,209,88,.30)}
-    .btn.delete{background:rgba(255,69,58,.14);border-color:rgba(255,69,58,.28)}
-
-    .historyCard{
-      position:absolute; left:10px; right:10px; bottom:10px;
-      z-index:22;
-      background:rgba(12,18,24,.84);
-      border:1px solid var(--line);
+      min-height:72px;
+      border:none;
       border-radius:22px;
-      padding:10px 12px;
-      backdrop-filter:blur(18px);
+      color:#fff;
+      font-size:20px;
+      font-weight:800;
       box-shadow:var(--shadow);
-      min-height:190px;
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
     }
-    .historyHeader{
-      display:flex; justify-content:space-between; align-items:center;
-      margin-bottom:8px;
-      font-size:12px; color:var(--muted); gap:8px;
+
+    .btn.gray{
+      background:linear-gradient(180deg,var(--gray1),var(--gray2));
+      border:1px solid rgba(255,255,255,.08);
     }
+
+    .btn.red{
+      background:linear-gradient(180deg,var(--red1),var(--red2));
+      border:1px solid rgba(255,255,255,.09);
+    }
+
+    .historyPanel{
+      position:absolute;
+      left:14px;right:14px;
+      bottom:calc(var(--safe-bottom) + 14px);
+      z-index:22;
+      min-height:154px;
+      background:linear-gradient(180deg,rgba(12,18,29,.90),rgba(8,13,22,.90));
+      border:1px solid rgba(255,255,255,.09);
+      border-radius:28px;
+      box-shadow:var(--shadow);
+      backdrop-filter:blur(12px);
+      -webkit-backdrop-filter:blur(12px);
+      padding:14px;
+    }
+
+    .historyHead{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-bottom:12px;
+    }
+
     .pill{
-      display:inline-flex; align-items:center; gap:6px;
-      padding:6px 10px; border-radius:999px;
-      font-size:12px; color:#fff;
-      background:rgba(0,0,0,.38);
-      border:1px solid rgba(255,255,255,.1);
+      background:rgba(8,13,22,.78);
+      border:1px solid rgba(255,255,255,.08);
+      color:#fff;
+      border-radius:999px;
+      padding:10px 18px;
+      font-size:16px;
+      font-weight:800;
       white-space:nowrap;
     }
+
     .historyList{
-      max-height:138px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      max-height:156px;
       overflow:auto;
       padding-right:2px;
     }
-    .historyItem{
+
+    .row{
       display:grid;
-      grid-template-columns:30px 1fr auto auto;
-      gap:8px; align-items:center;
-      padding:8px 0;
-      border-bottom:1px solid rgba(255,255,255,.06);
-      font-size:14px;
-      font-variant-numeric:tabular-nums;
-      cursor:pointer;
-    }
-    .historyItem:last-child{border-bottom:none}
-    .historyItem.replaced{color:var(--replace)}
-    .historyItem.selected{
-      background:rgba(10,132,255,.14);
-      border-radius:12px;
-      padding-left:6px;
-      padding-right:6px;
-    }
-    .index{color:var(--muted);text-align:center}
-    .invoiceNo{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .amountVal{font-weight:800}
-    .badge{
-      font-size:11px; padding:3px 7px; border-radius:999px;
-      border:1px solid rgba(255,255,255,.15);
-      background:rgba(255,255,255,.08); color:#fff;
-    }
-    .badge.replaced{
-      background:rgba(125,211,252,.18);
-      color:var(--replace);
-      border-color:rgba(125,211,252,.35);
+      grid-template-columns:34px 1fr auto;
+      gap:12px;
+      align-items:center;
+      border-radius:16px;
+      padding:14px 16px;
+      font-size:19px;
+      font-weight:800;
+      background:linear-gradient(180deg,rgba(18,47,84,.96),rgba(18,59,104,.91));
     }
 
-    .modal{
-      position:absolute; inset:0; background:rgba(0,0,0,.52);
-      display:none; align-items:flex-end; z-index:40;
+    .row.alt{
+      background:linear-gradient(180deg,rgba(17,23,33,.84),rgba(11,16,24,.84));
+      border:1px solid rgba(255,255,255,.05);
+      font-weight:700;
     }
-    .modal.show{display:flex}
-    .sheet{
-      width:100%;
-      background:#121922;
-      border-radius:24px 24px 0 0;
+
+    .idx{color:rgba(255,255,255,.86);text-align:center}
+    .inv{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .amt{white-space:nowrap}
+
+    .ocrBadge{
+      position:absolute;
+      right:16px;
+      top:54%;
+      transform:translateY(-50%);
+      z-index:24;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:12px 16px;
+      border-radius:999px;
+      background:rgba(25,25,28,.72);
       border:1px solid rgba(255,255,255,.08);
-      padding:14px 14px 24px;
-      min-height:320px;
-      box-shadow:0 -20px 40px rgba(0,0,0,.35);
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+      box-shadow:0 8px 24px rgba(0,0,0,.20);
+      font-size:16px;
+      font-weight:800;
     }
-    .sheetHead{
-      display:flex; justify-content:space-between; align-items:center;
-      margin-bottom:10px;
-    }
-    .closeBtn{
-      border:none; background:rgba(255,255,255,.08); color:#fff;
-      width:42px; height:42px; border-radius:50%; font-size:18px;
-    }
-    .searchRow{
-      display:grid; grid-template-columns:1fr 92px 92px; gap:8px;
-      margin-bottom:10px;
-    }
-    .input{
-      width:100%; min-height:50px; border-radius:16px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.06);
-      color:#fff; padding:0 14px; font-size:16px; outline:none;
-    }
-    .resultList{
-      max-height:300px; overflow:auto;
-      border-radius:18px; border:1px solid rgba(255,255,255,.08);
-      background:rgba(255,255,255,.04); padding:10px;
-    }
-    .resultItem{
-      padding:10px 8px; border-bottom:1px solid rgba(255,255,255,.06);
-      font-size:14px; line-height:1.5;
-    }
-    .resultItem:last-child{border-bottom:none}
 
-    .dupOverlay{
-      position:absolute; inset:0; z-index:35;
-      background:rgba(0,0,0,.55);
-      display:none; align-items:center; justify-content:center;
-      padding:18px;
+    .dot{
+      width:12px;height:12px;border-radius:50%;
+      background:var(--warn);
+      box-shadow:0 0 10px rgba(255,213,74,.75);
+      flex:0 0 auto;
     }
-    .dupCard{
-      width:100%;
-      background:#131b25;
-      border:1px solid rgba(255,255,255,.1);
-      border-radius:24px;
-      padding:16px;
-      box-shadow:0 20px 40px rgba(0,0,0,.35);
+
+    .overlay{
+      position:absolute;
+      left:0;top:0;width:100%;height:100%;
+      pointer-events:none;
+      z-index:8;
     }
-    .dupTitle{
-      font-size:20px; font-weight:800; margin-bottom:8px; color:#fff;
+
+    .roi{
+      position:absolute;
+      border:3px solid rgba(255,0,0,.96);
+      background:rgba(255,0,0,.12);
+      border-radius:18px;
+      box-shadow:0 0 0 1px rgba(255,255,255,.12) inset;
     }
-    .dupBody{
-      font-size:14px; line-height:1.65; color:#e6edf5; margin-bottom:12px;
+
+    .roi::after{
+      content:attr(data-label);
+      position:absolute;
+      top:-28px;
+      left:0;
+      background:rgba(255,0,0,.92);
+      color:#fff;
+      font-size:12px;
+      font-weight:800;
+      line-height:1;
+      padding:6px 8px;
+      border-radius:8px;
+      white-space:nowrap;
     }
-    .dupBtns{
-      display:grid; grid-template-columns:1fr 1fr; gap:10px;
+
+    #roiTop{
+      left:2.5vw;
+      top:11.5vh;
+      width:95vw;
+      height:26vh;
+    }
+
+    #roiBottom{
+      left:2.5vw;
+      top:61.5vh;
+      width:95vw;
+      height:23.5vh;
+    }
+
+    #canvas,#ocrCanvas{display:none}
+
+    @media (max-width:430px){
+      .topGrid{grid-template-columns:.95fr 1fr 1.2fr;gap:8px}
+      .big{font-size:25px}
+      .mid{font-size:17px}
+      .btn{font-size:18px;min-height:68px}
+      .row{font-size:18px}
     }
   </style>
 </head>
 <body>
-  <div class="app">
-    <div class="cameraWrap">
-      <video id="video" autoplay playsinline muted></video>
+<div id="app">
+  <video id="video" playsinline autoplay muted></video>
+  <div class="dim"></div>
 
-      <div class="topLeft">
-        <div class="box tall">
-          <div class="label">総合計 / 枚数</div>
-          <div class="value" id="totalAmount">0円</div>
-          <div class="sub" id="totalCount">0枚</div>
-        </div>
+  <div class="overlay" id="debugOverlay">
+    <div id="roiTop" class="roi" data-label="上の目安エリア"></div>
+    <div id="roiBottom" class="roi" data-label="下の目安エリア"></div>
+  </div>
+
+  <div class="hud">
+    <div class="topGrid">
+      <div class="card">
+        <div class="label">総合計 / 枚数</div>
+        <div id="grandTotal" class="big">0円</div>
+        <div id="grandCount" class="sub">0枚</div>
       </div>
 
-      <div class="topCenter">
-        <div class="box">
+      <div class="stack">
+        <div class="card">
           <div class="label">税抜</div>
-          <div class="value" id="taxBase">0円</div>
+          <div id="netTotal" class="big">0円</div>
         </div>
-        <div class="box">
+        <div class="card">
           <div class="label">消費税</div>
-          <div class="value" id="taxAmountOnly">0円</div>
-        </div>
-        <div class="box">
-          <div class="label">税込</div>
-          <div class="value" id="grossAmount">0円</div>
+          <div id="taxTotal" class="big">0円</div>
         </div>
       </div>
 
-      <div class="topRight">
-        <div class="box small">
+      <div class="stack">
+        <div class="card">
           <div class="label">直近伝票</div>
-          <div class="sub" id="lastInvoice">-</div>
+          <div id="latestInvoice" class="mid">-</div>
         </div>
-        <div class="box small">
+        <div class="card">
           <div class="label">認識状態</div>
-          <div class="sub" id="ocrState">待機中</div>
-        </div>
-      </div>
-
-      <div class="statusWrap">
-        <div class="statusBox">
-          <div class="label">スキャン結果</div>
-          <div class="statusText" id="scanStatus">まだ未認識</div>
-        </div>
-        <div class="statusBox">
-          <div class="label">重複チェック</div>
-          <div class="statusText" id="dupStatus">まだ未チェック</div>
-        </div>
-      </div>
-
-      <div class="guideArea">
-        <div class="target invoice" id="invoiceGuide">
-          <div class="targetLabel">ここだけ合わせる（伝票番号〜1頁）</div>
-        </div>
-      </div>
-
-      <div class="hint">上だけ合わせる。合計は右下の最下段帯を読む</div>
-
-      <div class="loading" id="loadingBadge">
-        <div class="dot"></div>
-        <div id="loadingText">OCR中…</div>
-      </div>
-    </div>
-
-    <canvas id="workCanvas"></canvas>
-
-    <div class="shutterWrap">
-      <button class="shutter" id="scanBtn" aria-label="scan"></button>
-    </div>
-
-    <div class="centerActions">
-      <button class="btn gray" id="searchBtn">検索</button>
-      <button class="btn delete" id="deleteBtn">削除</button>
-    </div>
-
-    <div class="rightActions">
-      <button class="btn red" id="todayBtn">今日</button>
-      <button class="btn blue" id="releaseBtn">解除</button>
-    </div>
-
-    <div class="bottomActions">
-      <button class="btn green" id="autoBtn">自動認識 ON</button>
-      <button class="btn gray" id="dummyBtn" disabled>最下段帯読取</button>
-    </div>
-
-    <div class="historyCard">
-      <div class="historyHeader">
-        <span>履歴</span>
-        <span class="pill" id="holdBadge">ホールドなし</span>
-      </div>
-      <div class="historyList" id="historyList"></div>
-    </div>
-
-    <div class="modal" id="searchModal">
-      <div class="sheet">
-        <div class="sheetHead">
-          <div>
-            <div style="font-size:18px;font-weight:800;">伝票検索</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px;">何日の何番か / 差し替え確認</div>
-          </div>
-          <button class="closeBtn" id="closeSearch">×</button>
-        </div>
-
-        <div class="searchRow">
-          <input class="input" id="searchInput" placeholder="例: G01297282" />
-          <button class="btn blue" id="doSearchBtn">検索</button>
-          <button class="btn gray" id="showReplacedBtn">差替一覧</button>
-        </div>
-
-        <div class="resultList" id="searchResults">
-          <div style="color:var(--muted);font-size:13px;">まだ検索していません</div>
+          <div id="recognitionStatus" class="mid danger">待機中</div>
         </div>
       </div>
     </div>
 
-    <div class="dupOverlay" id="dupOverlay">
-      <div class="dupCard">
-        <div class="dupTitle">重複しています</div>
-        <div class="dupBody" id="dupBody"></div>
-        <div class="dupBtns">
-          <button class="btn gray" id="skipDupBtn">スキップ</button>
-          <button class="btn blue" id="replaceAmountBtn">金額だけ差し替え</button>
-        </div>
+    <div class="statusRow">
+      <div class="miniCard">
+        <div class="label">スキャン結果</div>
+        <div id="scanResult" class="mid danger">まだスキャンしていません</div>
+      </div>
+      <div class="miniCard">
+        <div class="label">重複チェック</div>
+        <div id="duplicateCheck" class="mid warn">待機中</div>
       </div>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-  <script>
-    const TAX_RATE = 0.10;
-    const STORAGE_KEY = 'g-invoice-bottom-band-v1';
-    const AUTO_INTERVAL_MS = 2100;
-    const HOLD_MS = 3000;
-    const FAIL_COOLDOWN_MS = 1800;
-    const MIN_AMOUNT = 1000;
-    const MAX_AMOUNT = 999999;
+  <div class="hints">
+    <div class="hint">帳票全体をざっくり入れるだけ</div>
+    <div class="hint">TEL / G伝票番号 / 1頁 / 御中 / 合計 の右側金額を1回OCRで探す</div>
+  </div>
 
-    const SEARCH_OFFSETS_INVOICE = [
-      {x:0,y:0},
-      {x:-0.015,y:0},
-      {x:0.015,y:0},
-      {x:0,y:-0.012},
-      {x:0,y:0.012}
-    ];
+  <div class="ocrBadge">
+    <div class="dot"></div>
+    <div id="ocrBadgeText">自動OCR待機中</div>
+  </div>
 
-    const SEARCH_OFFSETS_BAND = [
-      {x:0,y:0},
-      {x:-0.04,y:0},
-      {x:0.04,y:0},
-      {x:0,y:-0.04},
-      {x:0,y:0.04},
-      {x:-0.03,y:-0.03},
-      {x:0.03,y:-0.03},
-      {x:-0.03,y:0.03},
-      {x:0.03,y:0.03}
-    ];
+  <div class="controls">
+    <div class="shutterWrap">
+      <button id="shutterBtn" class="shutter" aria-label="手動スキャン"></button>
+    </div>
+    <button id="scanBtn" class="btn gray">検索</button>
+    <button id="resetBtn" class="btn red">今日</button>
+  </div>
 
-    const state = {
-      stream:null,
-      worker:null,
-      workerReady:false,
-      ocrRunning:false,
-      autoMode:true,
-      autoTimer:null,
-      holdUntil:0,
-      holdCurrent:null,
-      lastFailUntil:0,
-      todayKey:makeDateKey(),
-      scans:[],
-      allScans:[],
-      pendingDuplicate:null,
-      selectedHistoryId:null
-    };
+  <div class="historyPanel">
+    <div class="historyHead">
+      <div class="label" style="margin:0;font-size:16px;">履歴</div>
+      <div id="holdPill" class="pill">ホールドなし</div>
+    </div>
+    <div id="historyList" class="historyList">
+      <div class="row alt">
+        <div class="idx">-</div>
+        <div class="inv">まだ履歴がありません</div>
+        <div class="amt">-</div>
+      </div>
+    </div>
+  </div>
 
-    const $ = id => document.getElementById(id);
-    const video = $('video');
-    const workCanvas = $('workCanvas');
+  <canvas id="canvas"></canvas>
+  <canvas id="ocrCanvas"></canvas>
+</div>
 
-    function makeDateKey(d=new Date()){
-      const y = d.getFullYear();
-      const m = String(d.getMonth()+1).padStart(2,'0');
-      const day = String(d.getDate()).padStart(2,'0');
-      return `${y}-${m}-${day}`;
+<script>
+  // =========================
+  // 高速化設定
+  // =========================
+  const DEBUG_OVERLAY = true;      // 位置が決まったら false
+  const AUTO_SCAN = true;
+  const AUTO_INTERVAL = 900;       // もっと速め
+  const SUCCESS_COOLDOWN = 1700;   // 成功後の待機
+  const OCR_MAX_WIDTH = 960;       // 小さめにして高速化
+  const OCR_LANG = 'jpn+eng';
+
+  // =========================
+  // 要素
+  // =========================
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ocrCanvas = document.getElementById('ocrCanvas');
+  const debugOverlay = document.getElementById('debugOverlay');
+
+  const grandTotalEl = document.getElementById('grandTotal');
+  const grandCountEl = document.getElementById('grandCount');
+  const netTotalEl = document.getElementById('netTotal');
+  const taxTotalEl = document.getElementById('taxTotal');
+  const latestInvoiceEl = document.getElementById('latestInvoice');
+  const recognitionStatusEl = document.getElementById('recognitionStatus');
+  const scanResultEl = document.getElementById('scanResult');
+  const duplicateCheckEl = document.getElementById('duplicateCheck');
+  const historyListEl = document.getElementById('historyList');
+  const holdPillEl = document.getElementById('holdPill');
+  const ocrBadgeText = document.getElementById('ocrBadgeText');
+
+  const shutterBtn = document.getElementById('shutterBtn');
+  const scanBtn = document.getElementById('scanBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  // =========================
+  // 状態
+  // =========================
+  let worker = null;
+  let stream = null;
+  let isReady = false;
+  let isScanning = false;
+  let autoTimer = null;
+  let cooldownUntil = 0;
+
+  let historyData = loadHistory();
+
+  // =========================
+  // 起動
+  // =========================
+  init();
+
+  async function init() {
+    debugOverlay.style.display = DEBUG_OVERLAY ? 'block' : 'none';
+    renderAll();
+    await startCamera();
+    await initWorker();
+    isReady = true;
+    setRecognition('待機中', 'danger');
+    ocrBadgeText.textContent = '自動OCR待機中';
+    if (AUTO_SCAN) startAutoScan();
+  }
+
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 }
+        },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+    } catch (err) {
+      console.error(err);
+      setRecognition('カメラ失敗', 'danger');
+      scanResultEl.textContent = 'カメラの起動に失敗しました';
     }
+  }
 
-    function fmtDate(iso){
-      const d = new Date(iso);
-      return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
-    }
+  async function initWorker() {
+    setRecognition('OCR初期化中', 'warn');
+    ocrBadgeText.textContent = 'OCR初期化中...';
 
-    function fmtDateTime(iso){
-      const d = new Date(iso);
-      return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-    }
-
-    function yen(n){ return `${Number(n||0).toLocaleString('ja-JP')}円`; }
-
-    function escapeHtml(str=''){
-      return str.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#39;");
-    }
-
-    function setLoading(flag, text='OCR中…'){
-      $('loadingBadge').style.display = flag ? 'flex' : 'none';
-      $('loadingText').textContent = text;
-    }
-
-    function setText(id, text, cls=''){
-      const el = $(id);
-      el.textContent = text;
-      if(id === 'scanStatus' || id === 'dupStatus'){
-        el.className = `statusText ${cls}`.trim();
-      }else{
-        el.className = `sub ${cls}`.trim();
-      }
-    }
-
-    function saveState(){
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        todayKey: state.todayKey,
-        scans: state.scans,
-        allScans: state.allScans,
-        holdCurrent: state.holdCurrent
-      }));
-    }
-
-    function loadState(){
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if(!raw) return;
-      try{
-        const data = JSON.parse(raw);
-        state.todayKey = data.todayKey || makeDateKey();
-        state.scans = Array.isArray(data.scans) ? data.scans : [];
-        state.allScans = Array.isArray(data.allScans) ? data.allScans : [];
-        state.holdCurrent = data.holdCurrent || null;
-        if(state.todayKey !== makeDateKey()){
-          state.todayKey = makeDateKey();
-          state.scans = [];
-          state.holdCurrent = null;
-          saveState();
+    worker = await Tesseract.createWorker(OCR_LANG, 1, {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          ocrBadgeText.textContent = `OCR中 ${Math.round((m.progress || 0) * 100)}%`;
         }
-      }catch(e){}
-    }
-
-    async function initCamera(){
-      try{
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio:false,
-          video:{ facingMode:{ideal:'environment'}, width:{ideal:1920}, height:{ideal:1080} }
-        });
-        state.stream = stream;
-        video.srcObject = stream;
-        await video.play();
-        setText('ocrState','カメラ起動OK','ok');
-      }catch(err){
-        setText('ocrState','カメラ起動失敗','err');
-        setText('scanStatus','カメラ許可を確認','err');
       }
-    }
-
-    async function initWorker(){
-      try{
-        setLoading(true,'OCR初期化中…');
-        state.worker = await Tesseract.createWorker('jpn+eng');
-        state.workerReady = true;
-        setLoading(false);
-        setText('ocrState','OCR準備完了','ok');
-      }catch(err){
-        setLoading(false);
-        setText('ocrState','OCR準備失敗','err');
-        setText('scanStatus','OCR読込失敗','err');
-      }
-    }
-
-    function playShutterSound(){
-      try{
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(1200, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(700, ctx.currentTime + 0.08);
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.start(); osc.stop(ctx.currentTime + 0.13);
-      }catch(e){}
-    }
-
-    function getGuideRectPixels(el){
-      const vr = video.getBoundingClientRect();
-      const gr = el.getBoundingClientRect();
-      return {
-        x: (gr.left - vr.left) * (video.videoWidth / vr.width),
-        y: (gr.top - vr.top) * (video.videoHeight / vr.height),
-        w: gr.width * (video.videoWidth / vr.width),
-        h: gr.height * (video.videoHeight / vr.height)
-      };
-    }
-
-    function getBottomAmountBandRect(){
-      return {
-        x: video.videoWidth * 0.54,
-        y: video.videoHeight * 0.76,
-        w: video.videoWidth * 0.34,
-        h: video.videoHeight * 0.14
-      };
-    }
-
-    function cropVideoRegion(rect){
-      const x = Math.max(0, Math.round(rect.x));
-      const y = Math.max(0, Math.round(rect.y));
-      const w = Math.max(10, Math.round(rect.w));
-      const h = Math.max(10, Math.round(rect.h));
-      workCanvas.width = w;
-      workCanvas.height = h;
-      const ctx = workCanvas.getContext('2d', {willReadFrequently:true});
-      ctx.drawImage(video, x, y, w, h, 0, 0, w, h);
-      const img = ctx.getImageData(0,0,w,h);
-      const d = img.data;
-      for(let i=0;i<d.length;i+=4){
-        const gray = d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114;
-        const boosted = gray > 172 ? 255 : gray < 120 ? 0 : gray * 1.2;
-        d[i]=d[i+1]=d[i+2]=Math.max(0,Math.min(255,boosted));
-      }
-      ctx.putImageData(img,0,0);
-      return workCanvas;
-    }
-
-    function normalizeText(text){
-      return (text || '')
-        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0)-0xFEE0))
-        .replace(/[￥¥]/g,'¥')
-        .replace(/[，、]/g,',')
-        .replace(/[．]/g,'.')
-        .replace(/[ー―‐]/g,'-')
-        .replace(/\s+/g,' ')
-        .trim();
-    }
-
-    function fixInvoiceCandidate(v){
-      let s = v.toUpperCase().replace(/[^A-Z0-9]/g,'');
-      if(!s.startsWith('G')) return null;
-      let rest = s.slice(1)
-        .replace(/O/g,'0').replace(/I/g,'1').replace(/Z/g,'2').replace(/S/g,'5').replace(/B/g,'8')
-        .replace(/[^0-9]/g,'');
-      if(rest.length < 8) return null;
-      rest = rest.slice(0,8);
-      return 'G' + rest;
-    }
-
-    function extractInvoiceNo(text){
-      const t = normalizeText(text).toUpperCase();
-      const hits = [
-        ...t.matchAll(/G[0-9OIZSB]{8,10}/g),
-        ...t.matchAll(/G\s*[0-9OIZSB]{8,10}/g)
-      ].map(m => fixInvoiceCandidate(m[0].replace(/\s+/g,''))).filter(Boolean);
-      if(!hits.length) return null;
-      hits.sort((a,b)=>scoreInvoice(b)-scoreInvoice(a));
-      return hits[0];
-    }
-
-    function extractAmountCandidates(text){
-      const t = normalizeText(text)
-        .replace(/合計/g,' ')
-        .replace(/[⇨→]/g,' ')
-        .replace(/[^\d,\s]/g,' ');
-      return [...t.matchAll(/(\d{1,3}(?:,\d{3})+|\d{4,7})/g)]
-        .map(m => parseInt(m[1].replace(/,/g,''),10))
-        .filter(n => n >= MIN_AMOUNT && n <= MAX_AMOUNT);
-    }
-
-    function chooseBestAmount(nums){
-      if(!nums.length) return null;
-      nums.sort((a,b)=>b-a);
-      return nums[0];
-    }
-
-    function scoreInvoice(candidate){
-      if(!candidate) return -1;
-      let score = 0;
-      if(/^G\d{8}$/.test(candidate)) score += 150;
-      if(candidate.startsWith('G0')) score += 8;
-      return score;
-    }
-
-    function scoreAmount(amount){
-      if(!amount) return -1;
-      let score = 0;
-      if(amount >= MIN_AMOUNT && amount <= MAX_AMOUNT) score += 100;
-      if(amount >= 5000) score += 10;
-      return score;
-    }
-
-    async function scanBestInvoiceNo(){
-      const base = getGuideRectPixels($('invoiceGuide'));
-      let best = {value:null, score:-1};
-      for(const off of SEARCH_OFFSETS_INVOICE){
-        const rect = {
-          x: base.x + base.w * off.x,
-          y: base.y + base.h * off.y,
-          w: base.w,
-          h: base.h
-        };
-        const canvas = cropVideoRegion(rect);
-        const { data } = await state.worker.recognize(canvas);
-        const candidate = extractInvoiceNo(data?.text || '');
-        const score = scoreInvoice(candidate);
-        if(score > best.score) best = {value:candidate, score};
-      }
-      return best;
-    }
-
-    async function scanBestAmountFromBottomBand(){
-      const base = getBottomAmountBandRect();
-      let best = {value:null, score:-1};
-      for(const off of SEARCH_OFFSETS_BAND){
-        const rect = {
-          x: base.x + base.w * off.x,
-          y: base.y + base.h * off.y,
-          w: base.w,
-          h: base.h
-        };
-        const canvas = cropVideoRegion(rect);
-        const { data } = await state.worker.recognize(canvas);
-        const nums = extractAmountCandidates(data?.text || '');
-        const candidate = chooseBestAmount(nums);
-        const score = scoreAmount(candidate);
-        if(score > best.score) best = {value:candidate, score};
-      }
-      return best;
-    }
-
-    function getTodayNextIndex(){ return state.scans.length + 1; }
-    function getDayOrderText(item){ return `${fmtDate(item.scannedAt)} の ${item.dayIndex}番目`; }
-    function findDuplicate(invoiceNo, amount){
-      return state.allScans.find(v => v.invoiceNo === invoiceNo && Number(v.amount) === Number(amount)) || null;
-    }
-
-    function addScan(invoiceNo, amount){
-      const now = new Date().toISOString();
-      const item = {
-        id: crypto.randomUUID(),
-        invoiceNo,
-        amount:Number(amount),
-        originalAmount:Number(amount),
-        isReplaced:false,
-        replacedAt:null,
-        replacedFromAmount:null,
-        scannedAt:now,
-        dateKey:makeDateKey(new Date(now)),
-        dayIndex:getTodayNextIndex()
-      };
-      state.scans.unshift(item);
-      state.allScans.unshift(item);
-      state.holdCurrent = item;
-      state.holdUntil = Date.now() + HOLD_MS;
-      state.selectedHistoryId = item.id;
-      saveState();
-      render();
-      return item;
-    }
-
-    function replaceAmountOnly(targetId, newAmount){
-      const item1 = state.scans.find(v => v.id === targetId);
-      const item2 = state.allScans.find(v => v.id === targetId);
-      if(!item1 || !item2) return;
-      const prevAmount = item1.amount;
-      const replacedAt = new Date().toISOString();
-      item1.amount = Number(newAmount);
-      item2.amount = Number(newAmount);
-      item1.isReplaced = item2.isReplaced = true;
-      item1.replacedAt = item2.replacedAt = replacedAt;
-      item1.replacedFromAmount = item2.replacedFromAmount = prevAmount;
-      state.holdCurrent = item1;
-      state.holdUntil = Date.now() + HOLD_MS;
-      state.selectedHistoryId = item1.id;
-      saveState();
-      render();
-    }
-
-    function deleteSelectedHistory(){
-      if(!state.selectedHistoryId){
-        setText('dupStatus','削除する履歴を選択','warn');
-        return;
-      }
-      const target = state.allScans.find(v => v.id === state.selectedHistoryId);
-      if(!target){
-        state.selectedHistoryId = null;
-        render();
-        return;
-      }
-      const ok = confirm(`削除しますか？\n${target.invoiceNo}\n${yen(target.amount)}`);
-      if(!ok) return;
-
-      state.scans = state.scans.filter(v => v.id !== state.selectedHistoryId);
-      state.allScans = state.allScans.filter(v => v.id !== state.selectedHistoryId);
-      if(state.holdCurrent?.id === state.selectedHistoryId){
-        state.holdCurrent = null;
-        state.holdUntil = 0;
-      }
-      state.selectedHistoryId = null;
-      saveState();
-      render();
-      setText('dupStatus','履歴を削除しました','ok');
-    }
-
-    function undoCurrentHoldOnly(){
-      if(!state.holdCurrent) return;
-      const id = state.holdCurrent.id;
-      state.scans = state.scans.filter(v => v.id !== id);
-      state.allScans = state.allScans.filter(v => v.id !== id);
-      state.holdCurrent = null;
-      state.holdUntil = 0;
-      if(state.selectedHistoryId === id) state.selectedHistoryId = null;
-      saveState();
-      setText('scanStatus','今ホールド中の1件だけ取り消し','warn');
-      setText('dupStatus','再スキャン可能','info');
-      render();
-    }
-
-    function releaseHoldOnly(){
-      state.holdUntil = 0;
-      state.holdCurrent = null;
-      saveState();
-      setText('scanStatus','ホールド解除。合計は維持','info');
-      setText('dupStatus','再スキャン可能','info');
-      render();
-    }
-
-    function totals(){
-      const total = state.scans.reduce((sum,v)=>sum + Number(v.amount||0),0);
-      const base = Math.floor(total / (1 + TAX_RATE));
-      const tax = total - base;
-      return {total, count:state.scans.length, base, tax};
-    }
-
-    function render(){
-      const t = totals();
-      $('totalAmount').textContent = yen(t.total);
-      $('grossAmount').textContent = yen(t.total);
-      $('taxBase').textContent = yen(t.base);
-      $('taxAmountOnly').textContent = yen(t.tax);
-      $('totalCount').textContent = `${t.count}枚`;
-      $('lastInvoice').textContent = state.scans[0] ? state.scans[0].invoiceNo : '-';
-
-      const list = $('historyList');
-      list.innerHTML = '';
-      if(!state.scans.length){
-        list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:10px 0;">まだ履歴がありません</div>';
-      }else{
-        state.scans.forEach((item, idx) => {
-          const replacedBadge = item.isReplaced ? '<span class="badge replaced">差</span>' : '';
-          const row = document.createElement('div');
-          row.className = `historyItem ${item.isReplaced ? 'replaced' : ''} ${state.selectedHistoryId === item.id ? 'selected' : ''}`;
-          row.innerHTML = `
-            <div class="index">${idx + 1}</div>
-            <div class="invoiceNo">${escapeHtml(item.invoiceNo)}</div>
-            <div class="amountVal">${yen(item.amount)}</div>
-            <div>${replacedBadge}</div>
-          `;
-          row.addEventListener('click', () => {
-            state.selectedHistoryId = state.selectedHistoryId === item.id ? null : item.id;
-            render();
-          });
-          list.appendChild(row);
-        });
-      }
-
-      if(state.holdCurrent && Date.now() < state.holdUntil){
-        const sec = Math.max(0, Math.ceil((state.holdUntil - Date.now()) / 1000));
-        $('holdBadge').textContent = `ホールド中 ${sec}s / ${state.holdCurrent.invoiceNo}`;
-      }else{
-        $('holdBadge').textContent = state.holdCurrent ? `直近 ${state.holdCurrent.invoiceNo}` : 'ホールドなし';
-      }
-
-      $('autoBtn').textContent = `自動認識 ${state.autoMode ? 'ON' : 'OFF'}`;
-    }
-
-    async function recognizeOnce(source='manual'){
-      if(!state.workerReady || state.ocrRunning) return;
-      if(Date.now() < state.holdUntil){
-        const sec = Math.max(0, Math.ceil((state.holdUntil - Date.now()) / 1000));
-        setText('scanStatus', `ホールド中 ${sec}秒`, 'warn');
-        return;
-      }
-      if(Date.now() < state.lastFailUntil) return;
-      if(video.readyState < 2){
-        setText('scanStatus', 'カメラ準備待ち', 'warn');
-        return;
-      }
-
-      playShutterSound();
-      state.ocrRunning = true;
-      setLoading(true, source === 'auto' ? '自動OCR中…' : 'OCR中…');
-      setText('ocrState', '認識中', 'warn');
-
-      try{
-        const invoiceRes = await scanBestInvoiceNo();
-        const invoiceNo = invoiceRes.value;
-        const invoiceOk = invoiceNo && scoreInvoice(invoiceNo) >= 150;
-        if(!invoiceOk){
-          state.lastFailUntil = Date.now() + FAIL_COOLDOWN_MS;
-          setText('scanStatus', '伝票番号または金額を取得できず', 'err');
-          setText('dupStatus', '位置を少し調整して再スキャン', 'warn');
-          setText('ocrState', '認識失敗', 'err');
-          return;
-        }
-
-        const amountRes = await scanBestAmountFromBottomBand();
-        const amount = amountRes.value;
-        const amountOk = amount && scoreAmount(amount) >= 100;
-        if(!amountOk){
-          state.lastFailUntil = Date.now() + FAIL_COOLDOWN_MS;
-          setText('scanStatus', '伝票番号または金額を取得できず', 'err');
-          setText('dupStatus', '位置を少し調整して再スキャン', 'warn');
-          setText('ocrState', '認識失敗', 'err');
-          return;
-        }
-
-        const dup = findDuplicate(invoiceNo, amount);
-        if(dup){
-          state.pendingDuplicate = {invoiceNo, amount, existing:dup};
-          showDuplicateModal(state.pendingDuplicate);
-          setText('scanStatus', `重複: ${invoiceNo} / ${yen(amount)}`, 'err');
-          setText('dupStatus', `${getDayOrderText(dup)} で登録済み`, 'err');
-          setText('ocrState', '重複検出', 'err');
-          return;
-        }
-
-        const item = addScan(invoiceNo, amount);
-        setText('scanStatus', `OK: ${item.invoiceNo} / ${yen(item.amount)}`, 'ok');
-        setText('dupStatus', '新規スキャン', 'ok');
-        setText('ocrState', '認識成功', 'ok');
-      }catch(err){
-        state.lastFailUntil = Date.now() + FAIL_COOLDOWN_MS;
-        setText('scanStatus', 'OCRエラー', 'err');
-        setText('dupStatus', '再試行してください', 'warn');
-        setText('ocrState', '認識失敗', 'err');
-      }finally{
-        state.ocrRunning = false;
-        setLoading(false);
-      }
-    }
-
-    function showDuplicateModal(data){
-      const {invoiceNo, amount, existing} = data;
-      $('dupBody').innerHTML = `
-        伝票番号: <b>${escapeHtml(invoiceNo)}</b><br>
-        金額: <b>${yen(amount)}</b><br><br>
-        登録済み: <b>${fmtDateTime(existing.scannedAt)}</b><br>
-        その日の位置: <b>${existing.dayIndex}番目</b><br>
-        現在金額: <b>${yen(existing.amount)}</b><br>
-        ${existing.isReplaced ? `差し替え済み: <b>${fmtDateTime(existing.replacedAt)}</b><br>` : ''}
-      `;
-      $('dupOverlay').style.display = 'flex';
-    }
-
-    function hideDuplicateModal(){ $('dupOverlay').style.display = 'none'; }
-
-    function searchByInvoiceNo(keyword){
-      const q = normalizeText(keyword).toUpperCase().replace(/\s+/g,'');
-      if(!q) return [];
-      return state.allScans.filter(v => v.invoiceNo.includes(q))
-        .sort((a,b) => new Date(b.scannedAt) - new Date(a.scannedAt));
-    }
-
-    function searchReplacedOnly(){
-      return state.allScans.filter(v => v.isReplaced)
-        .sort((a,b) => new Date(b.replacedAt || b.scannedAt) - new Date(a.replacedAt || a.scannedAt));
-    }
-
-    function renderSearchResults(items){
-      const box = $('searchResults');
-      if(!items.length){
-        box.innerHTML = `<div style="color:var(--muted);font-size:13px;">該当なし</div>`;
-        return;
-      }
-      box.innerHTML = items.map(item => `
-        <div class="resultItem">
-          <div><b>${escapeHtml(item.invoiceNo)}</b> ${item.isReplaced ? '<span class="badge replaced">差</span>' : ''}</div>
-          <div>${getDayOrderText(item)} / ${fmtDateTime(item.scannedAt)}</div>
-          <div>金額: <b>${yen(item.amount)}</b></div>
-          ${item.isReplaced ? `<div>旧金額: <b>${yen(item.replacedFromAmount)}</b> / 差し替え日時: <b>${fmtDateTime(item.replacedAt)}</b></div>` : ''}
-        </div>
-      `).join('');
-    }
-
-    function bindEvents(){
-      $('scanBtn').addEventListener('click', () => recognizeOnce('manual'));
-      $('todayBtn').addEventListener('click', () => {
-        if(!state.holdCurrent || Date.now() >= state.holdUntil){
-          setText('scanStatus','今ホールド中の取り消し対象なし','warn');
-          return;
-        }
-        undoCurrentHoldOnly();
-      });
-      $('releaseBtn').addEventListener('click', () => releaseHoldOnly());
-      $('autoBtn').addEventListener('click', () => {
-        state.autoMode = !state.autoMode;
-        setText('ocrState', state.autoMode ? '自動認識ON' : '自動認識OFF', state.autoMode ? 'ok' : 'info');
-        render();
-      });
-      $('searchBtn').addEventListener('click', () => {
-        $('searchModal').classList.add('show');
-        $('searchInput').focus();
-      });
-      $('deleteBtn').addEventListener('click', () => deleteSelectedHistory());
-      $('closeSearch').addEventListener('click', () => $('searchModal').classList.remove('show'));
-      $('searchModal').addEventListener('click', (e) => {
-        if(e.target.id === 'searchModal') $('searchModal').classList.remove('show');
-      });
-      $('doSearchBtn').addEventListener('click', () => renderSearchResults(searchByInvoiceNo($('searchInput').value)));
-      $('showReplacedBtn').addEventListener('click', () => renderSearchResults(searchReplacedOnly()));
-      $('searchInput').addEventListener('keydown', (e) => { if(e.key === 'Enter') $('doSearchBtn').click(); });
-      $('skipDupBtn').addEventListener('click', () => {
-        hideDuplicateModal();
-        state.pendingDuplicate = null;
-        state.holdUntil = Date.now() + HOLD_MS;
-        setText('scanStatus', '重複のためスキップ', 'warn');
-        setText('dupStatus', '再スキャン可能', 'info');
-        render();
-      });
-      $('replaceAmountBtn').addEventListener('click', () => {
-        if(!state.pendingDuplicate) return;
-        const { existing, amount, invoiceNo } = state.pendingDuplicate;
-        replaceAmountOnly(existing.id, amount);
-        hideDuplicateModal();
-        setText('scanStatus', `差し替え完了: ${invoiceNo} / ${yen(amount)}`, 'ok');
-        setText('dupStatus', `${getDayOrderText(existing)} の金額を更新`, 'ok');
-        setText('ocrState', '差し替え成功', 'ok');
-        state.pendingDuplicate = null;
-      });
-      document.addEventListener('visibilitychange', () => {
-        if(document.hidden) stopAutoLoop();
-        else startAutoLoop();
-      });
-    }
-
-    function startAutoLoop(){
-      stopAutoLoop();
-      state.autoTimer = setInterval(() => {
-        if(state.autoMode && !state.ocrRunning && $('dupOverlay').style.display !== 'flex'){
-          recognizeOnce('auto');
-        }
-        render();
-      }, AUTO_INTERVAL_MS);
-    }
-
-    function stopAutoLoop(){
-      if(state.autoTimer){
-        clearInterval(state.autoTimer);
-        state.autoTimer = null;
-      }
-    }
-
-    async function boot(){
-      loadState();
-      render();
-      bindEvents();
-      await initCamera();
-      await initWorker();
-      startAutoLoop();
-      setInterval(() => render(), 500);
-    }
-
-    boot();
-
-    window.addEventListener('beforeunload', async () => {
-      try{
-        stopAutoLoop();
-        if(state.worker) await state.worker.terminate();
-        if(state.stream) state.stream.getTracks().forEach(t => t.stop());
-      }catch(e){}
     });
-  </script>
+
+    await worker.setParameters({
+      tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+      preserve_interword_spaces: '1',
+      user_defined_dpi: '220'
+    });
+  }
+
+  // =========================
+  // 操作
+  // =========================
+  shutterBtn.addEventListener('click', () => scanNow(true));
+  scanBtn.addEventListener('click', () => scanNow(true));
+
+  resetBtn.addEventListener('click', () => {
+    if (!confirm('今日の集計と履歴をリセットしますか？')) return;
+    historyData = [];
+    saveHistory();
+    renderAll();
+    setRecognition('リセット完了', 'ok');
+    scanResultEl.textContent = '今日のデータをリセットしました';
+    duplicateCheckEl.textContent = '待機中';
+  });
+
+  function startAutoScan() {
+    if (autoTimer) clearInterval(autoTimer);
+    autoTimer = setInterval(() => {
+      if (!AUTO_SCAN) return;
+      if (!isReady || isScanning) return;
+      if (Date.now() < cooldownUntil) return;
+      scanNow(false);
+    }, AUTO_INTERVAL);
+  }
+
+  // =========================
+  // スキャン
+  // =========================
+  async function scanNow(manual = false) {
+    if (!isReady || isScanning) return;
+    if (Date.now() < cooldownUntil) return;
+    if (!video.videoWidth || !video.videoHeight) return;
+
+    isScanning = true;
+    setRecognition('認識中', 'warn');
+    ocrBadgeText.textContent = manual ? '手動OCR中...' : '自動OCR中...';
+
+    try {
+      captureFrame(video, canvas, OCR_MAX_WIDTH);
+      preprocessForOCR(canvas, ocrCanvas);
+
+      const result = await worker.recognize(ocrCanvas);
+      const parsed = parseInvoiceFromWholePage(result.data);
+
+      if (!parsed.invoiceNo || !parsed.amount) {
+        setRecognition('認識失敗', 'danger');
+        scanResultEl.textContent = '伝票番号または金額を取得できず';
+        duplicateCheckEl.textContent = '位置を少し調整して再スキャン';
+        isScanning = false;
+        ocrBadgeText.textContent = '自動OCR待機中';
+        return;
+      }
+
+      const dup = findDuplicate(parsed.invoiceNo);
+      if (dup) {
+        setRecognition('重複候補', 'warn');
+        scanResultEl.textContent = `${parsed.invoiceNo} / ${formatYen(parsed.amount)}`;
+        duplicateCheckEl.textContent = `${dup.date} ${dup.time} の ${dup.index}件目に同番号あり`;
+        cooldownUntil = Date.now() + SUCCESS_COOLDOWN;
+        beep(660, 0.05);
+        renderAll();
+        isScanning = false;
+        ocrBadgeText.textContent = '自動OCR待機中';
+        return;
+      }
+
+      addHistory(parsed.invoiceNo, parsed.amount);
+      setRecognition('認識成功', 'ok');
+      scanResultEl.textContent = `${parsed.invoiceNo} / ${formatYen(parsed.amount)}`;
+      duplicateCheckEl.textContent = '新規登録しました';
+      cooldownUntil = Date.now() + SUCCESS_COOLDOWN;
+      beep(900, 0.06);
+      renderAll();
+    } catch (err) {
+      console.error(err);
+      setRecognition('OCRエラー', 'danger');
+      scanResultEl.textContent = 'OCR処理でエラーが発生しました';
+      duplicateCheckEl.textContent = 'もう一度お試しください';
+    } finally {
+      isScanning = false;
+      ocrBadgeText.textContent = '自動OCR待機中';
+    }
+  }
+
+  // =========================
+  // 全画面OCR解析
+  // =========================
+  function parseInvoiceFromWholePage(data) {
+    const fullText = normalizeText(data.text || '');
+    const words = mapWords(data.words || [], data);
+
+    const invoiceNo = extractInvoiceNo(fullText, words);
+    const amount = extractTotalAmount(fullText, words);
+
+    return { invoiceNo, amount };
+  }
+
+  function extractInvoiceNo(text, words) {
+    const joined = text.replace(/\s+/g, ' ');
+
+    const telWords = words.filter(w => /TEL/i.test(w.text));
+    const pageWords = words.filter(w => /(1頁|1页|1P|1p)/i.test(w.text));
+
+    let candidates = [];
+
+    const regexHits = joined.match(/[GＧ][0-9O０-９]{6,10}/g) || [];
+    for (const hit of regexHits) {
+      const normalized = normalizeInvoiceNo(hit);
+      if (/^G\d{6,10}$/.test(normalized)) {
+        candidates.push({ text: normalized, cx: 0.8, cy: 0.2, score: 1 });
+      }
+    }
+
+    for (const w of words) {
+      const n = normalizeInvoiceNo(w.text);
+      if (/^G\d{6,10}$/.test(n)) {
+        candidates.push({ text: n, cx: w.cx, cy: w.cy, score: 0 });
+      }
+    }
+
+    if (!candidates.length) return null;
+
+    candidates = dedupeInvoiceCandidates(candidates);
+
+    for (const c of candidates) {
+      let score = 0;
+
+      if (c.cy < 0.42) score += 3;
+      if (c.cx > 0.55) score += 2;
+
+      const telNear = telWords.some(t => distance(c.cx, c.cy, t.cx, t.cy) < 0.22);
+      const pageNear = pageWords.some(p => distance(c.cx, c.cy, p.cx, p.cy) < 0.18);
+
+      if (telNear) score += 4;
+      if (pageNear) score += 4;
+
+      c.score += score;
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0]?.text || null;
+  }
+
+  function extractTotalAmount(text, words) {
+    const totalWords = words.filter(w => /合計/.test(w.text));
+    const onchuWords = words.filter(w => /御中/.test(w.text));
+    const amountWords = words
+      .filter(w => isAmountToken(w.text))
+      .map(w => ({
+        raw: w.text,
+        num: parseAmount(w.text),
+        cx: w.cx,
+        cy: w.cy
+      }))
+      .filter(v => v.num >= 100 && v.num <= 9999999);
+
+    if (!amountWords.length) return null;
+
+    // 1. 合計の右側同ライン最優先
+    let best = null;
+    for (const total of totalWords) {
+      const sameLine = amountWords
+        .filter(a => Math.abs(a.cy - total.cy) < 0.05 && a.cx > total.cx + 0.03)
+        .sort((a, b) => b.cx - a.cx);
+
+      if (sameLine.length) {
+        best = sameLine[0];
+        break;
+      }
+    }
+    if (best) return best.num;
+
+    // 2. 御中の右側かつ下側の右寄り優先
+    if (onchuWords.length) {
+      const anchor = onchuWords.sort((a, b) => b.cy - a.cy)[0];
+      const near = amountWords
+        .filter(a => a.cx > anchor.cx + 0.05 && a.cy > anchor.cy - 0.10 && a.cy < anchor.cy + 0.12)
+        .sort((a, b) => {
+          const sa = a.cx * 2 - Math.abs(a.cy - anchor.cy);
+          const sb = b.cx * 2 - Math.abs(b.cy - anchor.cy);
+          return sb - sa;
+        });
+
+      if (near.length) return near[0].num;
+    }
+
+    // 3. 下半分右側優先
+    const lowerRight = amountWords
+      .filter(a => a.cy > 0.58 && a.cx > 0.58)
+      .sort((a, b) => {
+        const sa = a.cx * 2 + a.cy;
+        const sb = b.cx * 2 + b.cy;
+        return sb - sa;
+      });
+
+    if (lowerRight.length) return lowerRight[0].num;
+
+    // 4. 合計を含む行の最後の数字
+    const lines = normalizeText(text).split(/\n+/).map(v => v.trim()).filter(Boolean);
+    for (const line of lines) {
+      if (/合計/.test(line)) {
+        const nums = line.match(/[0-9０-９][0-9０-９,，.]*/g) || [];
+        const parsed = nums.map(parseAmount).filter(v => v > 0);
+        if (parsed.length) return parsed[parsed.length - 1];
+      }
+    }
+
+    // 5. フォールバック
+    const sorted = [...amountWords].sort((a, b) => b.num - a.num);
+    return sorted[0]?.num || null;
+  }
+
+  // =========================
+  // OCR補助
+  // =========================
+  function mapWords(words, data) {
+    const width = data?.imageSize?.width || ocrCanvas.width || 1;
+    const height = data?.imageSize?.height || ocrCanvas.height || 1;
+
+    return words
+      .filter(w => w.text && w.text.trim())
+      .map(w => {
+        const b = w.bbox || {};
+        const x0 = (b.x0 ?? 0) / width;
+        const y0 = (b.y0 ?? 0) / height;
+        const x1 = (b.x1 ?? 0) / width;
+        const y1 = (b.y1 ?? 0) / height;
+        return {
+          text: normalizeText(w.text),
+          x0, y0, x1, y1,
+          cx: (x0 + x1) / 2,
+          cy: (y0 + y1) / 2
+        };
+      });
+  }
+
+  function dedupeInvoiceCandidates(items) {
+    const map = new Map();
+    for (const item of items) {
+      if (!map.has(item.text)) {
+        map.set(item.text, item);
+      } else if ((item.score || 0) > (map.get(item.text).score || 0)) {
+        map.set(item.text, item);
+      }
+    }
+    return [...map.values()];
+  }
+
+  function distance(x1, y1, x2, y2) {
+    return Math.hypot(x1 - x2, y1 - y2);
+  }
+
+  function normalizeText(s) {
+    if (!s) return '';
+    return s
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+      .replace(/　/g, ' ')
+      .replace(/[，]/g, ',')
+      .replace(/[．]/g, '.')
+      .replace(/[ー―ｰ]/g, '-')
+      .trim();
+  }
+
+  function normalizeInvoiceNo(s) {
+    return normalizeText(s)
+      .replace(/\s+/g, '')
+      .replace(/^Ｇ/, 'G')
+      .replace(/^g/, 'G')
+      .replace(/^6/, 'G')
+      .replace(/^C/, 'G')
+      .replace(/^O/, 'G')
+      .replace(/^0/, 'G')
+      .replace(/[OＯ]/g, '0');
+  }
+
+  function isAmountToken(s) {
+    const n = normalizeText(s);
+    return /^[¥￥]?[0-9][0-9,，.]*$/.test(n);
+  }
+
+  function parseAmount(s) {
+    const n = normalizeText(s)
+      .replace(/[¥￥円\s]/g, '')
+      .replace(/[，]/g, ',')
+      .replace(/[^0-9,]/g, '')
+      .replace(/,/g, '');
+    return Number(n) || 0;
+  }
+
+  // =========================
+  // 画像処理
+  // =========================
+  function captureFrame(videoEl, outCanvas, maxWidth) {
+    const vw = videoEl.videoWidth;
+    const vh = videoEl.videoHeight;
+
+    let tw = vw;
+    let th = vh;
+
+    if (vw > maxWidth) {
+      const ratio = maxWidth / vw;
+      tw = Math.round(vw * ratio);
+      th = Math.round(vh * ratio);
+    }
+
+    outCanvas.width = tw;
+    outCanvas.height = th;
+
+    const ctx = outCanvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(videoEl, 0, 0, tw, th);
+  }
+
+  function preprocessForOCR(srcCanvas, dstCanvas) {
+    dstCanvas.width = srcCanvas.width;
+    dstCanvas.height = srcCanvas.height;
+
+    const sctx = srcCanvas.getContext('2d', { willReadFrequently: true });
+    const dctx = dstCanvas.getContext('2d', { willReadFrequently: true });
+    const img = sctx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+    const data = img.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      let y = 0.299 * r + 0.587 * g + 0.114 * b;
+      y = (y - 128) * 1.22 + 128;
+      y = Math.max(0, Math.min(255, y));
+
+      if (y > 168) y = 255;
+      else if (y < 82) y = 0;
+
+      data[i] = data[i + 1] = data[i + 2] = y;
+    }
+
+    dctx.putImageData(img, 0, 0);
+  }
+
+  // =========================
+  // 履歴
+  // =========================
+  function loadHistory() {
+    try {
+      return JSON.parse(localStorage.getItem('tax-scan-history-fast-v1') || '[]');
+    } catch {
+      return [];
+    }
+  }
+
+  function saveHistory() {
+    localStorage.setItem('tax-scan-history-fast-v1', JSON.stringify(historyData));
+  }
+
+  function addHistory(invoiceNo, amount) {
+    const now = new Date();
+    historyData.unshift({
+      invoiceNo,
+      amount,
+      ts: now.getTime(),
+      date: formatDate(now),
+      time: formatTime(now)
+    });
+    saveHistory();
+  }
+
+  function findDuplicate(invoiceNo) {
+    const index = historyData.findIndex(v => v.invoiceNo === invoiceNo);
+    if (index === -1) return null;
+    return {
+      ...historyData[index],
+      index: index + 1
+    };
+  }
+
+  function calcTotals() {
+    const total = historyData.reduce((sum, v) => sum + v.amount, 0);
+    const net = Math.floor(total / 1.1);
+    const tax = total - net;
+    return { total, net, tax, count: historyData.length };
+  }
+
+  // =========================
+  // 描画
+  // =========================
+  function renderAll() {
+    const totals = calcTotals();
+    grandTotalEl.textContent = formatYen(totals.total);
+    grandCountEl.textContent = `${totals.count}枚`;
+    netTotalEl.textContent = formatYen(totals.net);
+    taxTotalEl.textContent = formatYen(totals.tax);
+    latestInvoiceEl.textContent = historyData[0]?.invoiceNo || '-';
+    holdPillEl.textContent = historyData[0] ? `直近 ${historyData[0].invoiceNo}` : 'ホールドなし';
+    renderHistory();
+  }
+
+  function renderHistory() {
+    if (!historyData.length) {
+      historyListEl.innerHTML = `
+        <div class="row alt">
+          <div class="idx">-</div>
+          <div class="inv">まだ履歴がありません</div>
+          <div class="amt">-</div>
+        </div>
+      `;
+      return;
+    }
+
+    historyListEl.innerHTML = historyData.slice(0, 8).map((item, idx) => `
+      <div class="row ${idx === 0 ? '' : 'alt'}">
+        <div class="idx">${idx + 1}</div>
+        <div class="inv">${escapeHtml(item.invoiceNo)}</div>
+        <div class="amt">${formatYen(item.amount)}</div>
+      </div>
+    `).join('');
+  }
+
+  function setRecognition(text, kind = 'danger') {
+    recognitionStatusEl.textContent = text;
+    recognitionStatusEl.className = `mid ${kind}`;
+  }
+
+  function formatYen(n) {
+    return `${Number(n || 0).toLocaleString('ja-JP')}円`;
+  }
+
+  function formatDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}/${m}/${day}`;
+  }
+
+  function formatTime(d) {
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+  }
+
+  // =========================
+  // 音
+  // =========================
+  function beep(freq = 880, duration = 0.05) {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.value = 0.03;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) {}
+  }
+
+  // =========================
+  // 後始末
+  // =========================
+  window.addEventListener('beforeunload', async () => {
+    if (autoTimer) clearInterval(autoTimer);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (worker) {
+      try { await worker.terminate(); } catch {}
+    }
+  });
+</script>
 </body>
 </html>
