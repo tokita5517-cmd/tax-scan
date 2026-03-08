@@ -163,9 +163,14 @@
     }
     .controls{
       display:grid;
-      grid-template-columns:1fr 74px 1fr 1fr;
-      gap:8px;
+      grid-template-columns:74px 1fr;
+      gap:10px;
       align-items:center;
+    }
+    .rightButtons{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:8px;
     }
     .btn{
       appearance:none;
@@ -198,7 +203,7 @@
       border:1px solid var(--line);
       border-radius:18px;
       padding:8px 10px;
-      max-height:160px;
+      max-height:180px;
       overflow:auto;
       backdrop-filter:blur(14px);
     }
@@ -226,6 +231,22 @@
 
     .debugCanvas{
       display:none;
+    }
+
+    .freeze{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:none;
+      z-index:9;
+    }
+    .cameraWrap.processing video{
+      opacity:0;
+    }
+    .cameraWrap.processing .freeze{
+      display:block;
     }
   </style>
 </head>
@@ -259,8 +280,9 @@
       </div>
     </div>
 
-    <div class="cameraWrap">
+    <div class="cameraWrap" id="cameraWrap">
       <video id="video" playsinline autoplay muted></video>
+      <img id="freezeFrame" class="freeze" alt="">
       <canvas id="capture" class="capture"></canvas>
 
       <div class="overlay">
@@ -279,10 +301,10 @@
 
     <div class="bottomBar">
       <div class="controls">
-        <button class="btn" id="toggleAutoBtn">自動認識ON</button>
         <button class="shutter" id="scanBtn">SCAN</button>
-        <button class="btn" id="releaseBtn">解除</button>
-        <button class="btn" id="resetBtn">1件戻す</button>
+        <div class="rightButtons">
+          <button class="btn" id="undoBtn">1件戻す</button>
+        </div>
       </div>
 
       <div class="history">
@@ -300,16 +322,16 @@
     const capCtx = capture.getContext('2d', { willReadFrequently: true });
     const workCanvas = document.getElementById('workCanvas');
     const workCtx = workCanvas.getContext('2d', { willReadFrequently: true });
+    const cameraWrap = document.getElementById('cameraWrap');
+    const freezeFrame = document.getElementById('freezeFrame');
 
     const grandTotalEl = document.getElementById('grandTotal');
     const countEl = document.getElementById('count');
     const lastAmountEl = document.getElementById('lastAmount');
     const historyList = document.getElementById('historyList');
     const statusEl = document.getElementById('status');
-    const toggleAutoBtn = document.getElementById('toggleAutoBtn');
-    const releaseBtn = document.getElementById('releaseBtn');
-    const resetBtn = document.getElementById('resetBtn');
     const scanBtn = document.getElementById('scanBtn');
+    const undoBtn = document.getElementById('undoBtn');
 
     const taxEx = document.getElementById('taxEx');
     const taxOnly = document.getElementById('taxOnly');
@@ -320,17 +342,11 @@
 
     let worker = null;
     let stream = null;
-    let autoMode = true;
     let busy = false;
-    let hold = false;
     let total = 0;
     let count = 0;
     let history = [];
-    let lastAcceptedNo = null;
-    let cooldownUntil = 0;
-
-    const ACCEPT_COOLDOWN_MS = 5000;
-    const LOOP_INTERVAL_MS = 1400;
+    let frozenDataUrl = '';
 
     // 余裕を持たせた認識エリア
     const topArea = {
@@ -463,21 +479,34 @@
       return Math.max(...nums);
     }
 
-    function cropFromVideo(area) {
+    function captureFrame() {
       const vw = video.videoWidth;
       const vh = video.videoHeight;
-      if (!vw || !vh) return null;
+      if (!vw || !vh) return false;
 
       capture.width = vw;
       capture.height = vh;
       capCtx.drawImage(video, 0, 0, vw, vh);
+      frozenDataUrl = capture.toDataURL('image/jpeg', 0.92);
+      freezeFrame.src = frozenDataUrl;
+      cameraWrap.classList.add('processing');
+      return true;
+    }
+
+    function releaseFrame() {
+      cameraWrap.classList.remove('processing');
+    }
+
+    function cropFromCaptured(area) {
+      const vw = capture.width;
+      const vh = capture.height;
+      if (!vw || !vh) return null;
 
       const sx = Math.floor(vw * area.left);
       const sy = Math.floor(vh * area.top);
       const sw = Math.floor(vw * area.width);
       const sh = Math.floor(vh * area.height);
 
-      // OCR用は縮小して軽量化
       const MAX_W = 900;
       const scale = Math.min(1, MAX_W / sw);
       const dw = Math.max(1, Math.floor(sw * scale));
@@ -492,20 +521,30 @@
     }
 
     async function recognizeArea(area) {
-      cropFromVideo(area);
+      cropFromCaptured(area);
       const result = await worker.recognize(workCanvas);
       return normalizeText(result.data.text || '');
     }
 
     async function scanOnce() {
-      if (busy || hold) return;
-      if (Date.now() < cooldownUntil) return;
+      if (busy) return;
       if (!video.videoWidth) return;
 
       busy = true;
-      setStatus('認識中…');
+      scanBtn.disabled = true;
+      undoBtn.disabled = true;
+      setStatus('撮影中…');
 
       try {
+        const ok = captureFrame();
+        if (!ok) {
+          setStatus('カメラ画像を取得できない');
+          return;
+        }
+
+        beep();
+        setStatus('OCR読取中…');
+
         const topText = await recognizeArea(topArea);
         const bottomText = await recognizeArea(bottomArea);
         const merged = `${topText}\n${bottomText}`;
@@ -518,15 +557,8 @@
           return;
         }
 
-        if (invoiceNo && lastAcceptedNo && invoiceNo === lastAcceptedNo) {
-          hold = true;
-          setStatus(`同じ伝票番号を連続検出: ${invoiceNo}`);
-          return;
-        }
-
         total += amount;
         count += 1;
-        lastAcceptedNo = invoiceNo || `NOLESS-${Date.now()}`;
 
         history.unshift({
           no: invoiceNo,
@@ -537,24 +569,15 @@
 
         calcTaxFields(amount);
         updateUI();
-        beep();
-
-        cooldownUntil = Date.now() + ACCEPT_COOLDOWN_MS;
         setStatus(`登録: ${invoiceNo || '番号なし'} / ${fmt(amount)}円`);
       } catch (e) {
         console.error(e);
         setStatus('OCRエラー');
       } finally {
+        releaseFrame();
         busy = false;
-      }
-    }
-
-    async function loop() {
-      while (true) {
-        if (autoMode) {
-          await scanOnce();
-        }
-        await new Promise(r => setTimeout(r, LOOP_INTERVAL_MS));
+        scanBtn.disabled = false;
+        undoBtn.disabled = false;
       }
     }
 
@@ -577,23 +600,13 @@
       await video.play();
     }
 
-    toggleAutoBtn.addEventListener('click', () => {
-      autoMode = !autoMode;
-      toggleAutoBtn.textContent = autoMode ? '自動認識ON' : '自動認識OFF';
-      setStatus(autoMode ? '自動認識ON' : '自動認識OFF');
-    });
-
     scanBtn.addEventListener('click', async () => {
-      beep();
       await scanOnce();
     });
 
-    releaseBtn.addEventListener('click', () => {
-      hold = false;
-      setStatus('ホールド解除');
-    });
+    undoBtn.addEventListener('click', () => {
+      if (busy) return;
 
-    resetBtn.addEventListener('click', () => {
       if (!history.length) {
         setStatus('戻せる履歴がない');
         return;
@@ -606,10 +619,6 @@
 
       count -= 1;
       if (count < 0) count = 0;
-
-      lastAcceptedNo = history.length
-        ? (history[0].no || `NOLESS-${Date.now()}`)
-        : null;
 
       if (history.length) {
         calcTaxFields(history[0].amount);
@@ -631,7 +640,6 @@
         await initWorker();
         updateUI();
         setStatus('準備完了');
-        loop();
       } catch (e) {
         console.error(e);
         setStatus('カメラまたはOCRの初期化に失敗');
