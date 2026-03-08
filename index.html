@@ -108,35 +108,47 @@
       overflow:hidden;
       background:#000;
     }
-    video, canvas.capture{
+    video{
       position:absolute;
       inset:0;
       width:100%;
       height:100%;
       object-fit:cover;
+      z-index:1;
     }
+    canvas.capture,
+    canvas.work{
+      display:none;
+    }
+
     .overlay{
       position:absolute;
       inset:0;
       pointer-events:none;
       z-index:10;
     }
-    .guide{
+
+    /* 右側の重要部分だけ入ればいい縦長ガイド */
+    .scanGuide{
       position:absolute;
-      border:2px solid var(--yellow);
-      border-radius:16px;
-      box-shadow:0 0 14px rgba(255,216,77,.20);
+      left:36%;
+      top:6%;
+      width:56%;
+      height:82%;
+      border:3px solid var(--yellow);
+      border-radius:18px;
+      box-shadow:0 0 16px rgba(255,216,77,.20);
     }
-    .guideLabel{
+    .scanGuideLabel{
       position:absolute;
-      left:8px;
-      top:-24px;
+      left:12px;
+      top:-26px;
       background:rgba(0,0,0,.55);
       border:1px solid rgba(255,255,255,.15);
       color:#fff;
       border-radius:999px;
-      padding:3px 8px;
-      font-size:10px;
+      padding:4px 10px;
+      font-size:11px;
       white-space:nowrap;
     }
     .scanLine{
@@ -146,13 +158,13 @@
       height:2px;
       background:linear-gradient(90deg, transparent, var(--green), transparent);
       box-shadow:0 0 10px rgba(45,212,191,.8);
-      animation:sweep 2.1s linear infinite;
+      animation:sweep 2.2s linear infinite;
       opacity:.9;
     }
     @keyframes sweep{
-      0%{top:4px}
-      50%{top:calc(100% - 6px)}
-      100%{top:4px}
+      0%{top:6px}
+      50%{top:calc(100% - 8px)}
+      100%{top:6px}
     }
 
     .bottomBar{
@@ -227,10 +239,6 @@
       color:var(--sub);
       min-height:18px;
     }
-
-    .debugCanvas{
-      display:none;
-    }
   </style>
 </head>
 <body>
@@ -266,19 +274,14 @@
     <div class="cameraWrap">
       <video id="video" playsinline autoplay muted></video>
       <canvas id="capture" class="capture"></canvas>
+      <canvas id="workCanvas" class="work"></canvas>
 
       <div class="overlay">
-        <div id="topGuide" class="guide">
-          <div class="guideLabel">伝票番号</div>
-          <div class="scanLine"></div>
-        </div>
-        <div id="bottomGuide" class="guide">
-          <div class="guideLabel">合計金額</div>
+        <div class="scanGuide">
+          <div class="scanGuideLabel">伝票番号と合計が入ればOK</div>
           <div class="scanLine"></div>
         </div>
       </div>
-
-      <canvas id="workCanvas" class="debugCanvas"></canvas>
     </div>
 
     <div class="bottomBar">
@@ -300,7 +303,6 @@
     const video = document.getElementById('video');
     const capture = document.getElementById('capture');
     const capCtx = capture.getContext('2d', { willReadFrequently: true });
-
     const workCanvas = document.getElementById('workCanvas');
     const workCtx = workCanvas.getContext('2d', { willReadFrequently: true });
 
@@ -316,55 +318,37 @@
     const taxOnly = document.getElementById('taxOnly');
     const taxIn = document.getElementById('taxIn');
 
-    const topGuide = document.getElementById('topGuide');
-    const bottomGuide = document.getElementById('bottomGuide');
-
-    let worker = null;
+    let workerJpn = null;
+    let workerNum = null;
     let stream = null;
     let busy = false;
     let total = 0;
     let count = 0;
     let history = [];
 
-    function insetArea(area, insetXRatio, insetYRatio) {
-      const dx = area.width * insetXRatio;
-      const dy = area.height * insetYRatio;
-      return {
-        left: area.left + dx,
-        top: area.top + dy,
-        width: area.width - dx * 2,
-        height: area.height - dy * 2
-      };
-    }
+    // 撮影時に入ればOKな縦長範囲
+    const shotArea = {
+      left: 0.36,
+      top: 0.06,
+      width: 0.56,
+      height: 0.82
+    };
 
-    const topGuideArea = {
-      left: 0.47,
-      top: 0.08,
-      width: 0.48,
+    // その中の上側で伝票番号
+    const topReadArea = {
+      left: 0.10,
+      top: 0.00,
+      width: 0.86,
+      height: 0.24
+    };
+
+    // その中の下側で合計
+    const bottomReadArea = {
+      left: 0.12,
+      top: 0.72,
+      width: 0.78,
       height: 0.16
     };
-
-    const bottomGuideArea = {
-      left: 0.49,
-      top: 0.73,
-      width: 0.42,
-      height: 0.14
-    };
-
-    const topOcrArea = insetArea(topGuideArea, 0.08, 0.14);
-    const bottomOcrArea = insetArea(bottomGuideArea, 0.08, 0.18);
-
-    function applyGuides() {
-      topGuide.style.left = `${topGuideArea.left * 100}%`;
-      topGuide.style.top = `${topGuideArea.top * 100}%`;
-      topGuide.style.width = `${topGuideArea.width * 100}%`;
-      topGuide.style.height = `${topGuideArea.height * 100}%`;
-
-      bottomGuide.style.left = `${bottomGuideArea.left * 100}%`;
-      bottomGuide.style.top = `${bottomGuideArea.top * 100}%`;
-      bottomGuide.style.width = `${bottomGuideArea.width * 100}%`;
-      bottomGuide.style.height = `${bottomGuideArea.height * 100}%`;
-    }
 
     function fmt(num) {
       return Number(num || 0).toLocaleString('ja-JP');
@@ -386,7 +370,7 @@
         gain.connect(ctx.destination);
         osc.start();
         osc.stop(ctx.currentTime + 0.08);
-      } catch(e) {}
+      } catch (e) {}
     }
 
     function calcTaxFields(amount) {
@@ -437,7 +421,10 @@
     }
 
     function onlyNumeric(text) {
-      return normalizeText(text).replace(/[^0-9,]/g, ' ').replace(/\s+/g, ' ').trim();
+      return normalizeText(text)
+        .replace(/[^0-9,]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
     }
 
     function captureFrame() {
@@ -451,21 +438,26 @@
       return true;
     }
 
-    function preprocessRegion(area, options = {}) {
+    function cropShotRelativeArea(relativeArea, options = {}) {
       const {
-        maxWidth = 1400,
+        maxWidth = 1600,
         threshold = null,
-        contrast = 1.18
+        contrast = 1.12
       } = options;
 
       const vw = capture.width;
       const vh = capture.height;
-      if (!vw || !vh) return null;
+      if (!vw || !vh) return false;
 
-      const sx = Math.floor(vw * area.left);
-      const sy = Math.floor(vh * area.top);
-      const sw = Math.floor(vw * area.width);
-      const sh = Math.floor(vh * area.height);
+      const shotX = Math.floor(vw * shotArea.left);
+      const shotY = Math.floor(vh * shotArea.top);
+      const shotW = Math.floor(vw * shotArea.width);
+      const shotH = Math.floor(vh * shotArea.height);
+
+      const sx = Math.floor(shotX + shotW * relativeArea.left);
+      const sy = Math.floor(shotY + shotH * relativeArea.top);
+      const sw = Math.floor(shotW * relativeArea.width);
+      const sh = Math.floor(shotH * relativeArea.height);
 
       const scale = Math.min(1, maxWidth / sw);
       const dw = Math.max(1, Math.floor(sw * scale));
@@ -498,31 +490,14 @@
       }
 
       workCtx.putImageData(img, 0, 0);
+      return true;
     }
 
-    async function recognizeArea(area, preprocessOptions, params = {}) {
-      preprocessRegion(area, preprocessOptions);
+    async function recognizeWithWorker(worker, relativeArea, preprocessOptions) {
+      const ok = cropShotRelativeArea(relativeArea, preprocessOptions);
+      if (!ok) return '';
       const result = await worker.recognize(workCanvas);
       return result.data.text || '';
-    }
-
-    async function setTopMode() {
-      await worker.setParameters({
-        tessedit_pageseg_mode: Tesseract.PSM.AUTO
-      });
-    }
-
-    async function setBottomMode() {
-      await worker.setParameters({
-        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
-        tessedit_char_whitelist: '0123456789,'
-      });
-    }
-
-    async function resetWhitelist() {
-      await worker.setParameters({
-        tessedit_char_whitelist: ''
-      });
     }
 
     function extractInvoiceNo(text) {
@@ -556,51 +531,54 @@
       return Math.max(...nums);
     }
 
-    async function readTopInvoiceNo() {
-      await resetWhitelist();
-      await setTopMode();
-
-      const raw1 = await recognizeArea(topOcrArea, {
-        maxWidth: 1400,
-        threshold: 158,
-        contrast: 1.25
+    async function readInvoiceNo() {
+      await workerJpn.setParameters({
+        tessedit_char_whitelist: '',
+        tessedit_pageseg_mode: Tesseract.PSM.AUTO
       });
 
+      const raw1 = await recognizeWithWorker(workerJpn, topReadArea, {
+        maxWidth: 1500,
+        threshold: 156,
+        contrast: 1.20
+      });
       const no1 = extractInvoiceNo(raw1);
       if (no1) return no1;
 
-      const raw2 = await recognizeArea(topGuideArea, {
-        maxWidth: 1400,
+      const raw2 = await recognizeWithWorker(workerJpn, topReadArea, {
+        maxWidth: 1500,
         threshold: null,
-        contrast: 1.12
+        contrast: 1.08
       });
-
       return extractInvoiceNo(raw2);
     }
 
-    async function readBottomAmount() {
-      await setBottomMode();
+    async function readAmount() {
+      await workerNum.setParameters({
+        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+        tessedit_char_whitelist: '0123456789,'
+      });
 
-      const raw1 = await recognizeArea(bottomOcrArea, {
+      const raw1 = await recognizeWithWorker(workerNum, bottomReadArea, {
         maxWidth: 1800,
         threshold: null,
-        contrast: 1.10
+        contrast: 1.08
       });
       const amount1 = extractAmount(raw1);
       if (amount1) return amount1;
 
-      const raw2 = await recognizeArea(bottomOcrArea, {
+      const raw2 = await recognizeWithWorker(workerNum, bottomReadArea, {
         maxWidth: 1800,
         threshold: 176,
-        contrast: 1.16
+        contrast: 1.14
       });
       const amount2 = extractAmount(raw2);
       if (amount2) return amount2;
 
-      const raw3 = await recognizeArea(bottomGuideArea, {
+      const raw3 = await recognizeWithWorker(workerNum, bottomReadArea, {
         maxWidth: 1800,
-        threshold: null,
-        contrast: 1.08
+        threshold: 162,
+        contrast: 1.20
       });
       return extractAmount(raw3);
     }
@@ -614,7 +592,8 @@
       undoBtn.disabled = true;
 
       try {
-        setStatus('撮影中…');
+        setStatus('撮影待ち…');
+        await new Promise(r => setTimeout(r, 300));
 
         const ok = captureFrame();
         if (!ok) {
@@ -625,10 +604,10 @@
         beep();
 
         setStatus('伝票番号読取中…');
-        const invoiceNo = await readTopInvoiceNo();
+        const invoiceNo = await readInvoiceNo();
 
         setStatus('合計金額読取中…');
-        const amount = await readBottomAmount();
+        const amount = await readAmount();
 
         if (!amount) {
           setStatus('合計金額が見つからない');
@@ -652,18 +631,20 @@
         console.error(e);
         setStatus('OCRエラー');
       } finally {
-        await resetWhitelist();
-        busy = false;
         scanBtn.disabled = false;
         undoBtn.disabled = false;
+        busy = false;
       }
     }
 
-    async function initWorker() {
-      worker = await Tesseract.createWorker('jpn+eng', 1, {
+    async function initWorkers() {
+      workerJpn = await Tesseract.createWorker('jpn+eng', 1, {
         logger: () => {}
       });
-      await resetWhitelist();
+
+      workerNum = await Tesseract.createWorker('eng', 1, {
+        logger: () => {}
+      });
     }
 
     async function initCamera() {
@@ -705,14 +686,11 @@
       setStatus(`1件取り消し: ${removed.no || '番号なし'} / ${fmt(removed.amount)}円`);
     });
 
-    window.addEventListener('resize', applyGuides);
-
     (async () => {
       try {
-        applyGuides();
         await initCamera();
         setStatus('OCR初期化中…');
-        await initWorker();
+        await initWorkers();
         updateUI();
         setStatus('準備完了');
       } catch (e) {
