@@ -185,6 +185,10 @@
       backdrop-filter:blur(12px);
     }
     .btn:active{transform:scale(.98)}
+    .btn:disabled,
+    .shutter:disabled{
+      opacity:.55;
+    }
     .shutter{
       width:74px;
       height:74px;
@@ -287,11 +291,11 @@
 
       <div class="overlay">
         <div id="topGuide" class="guide">
-          <div class="guideLabel">上エリア</div>
+          <div class="guideLabel">伝票番号</div>
           <div class="scanLine"></div>
         </div>
         <div id="bottomGuide" class="guide">
-          <div class="guideLabel">下エリア</div>
+          <div class="guideLabel">合計金額</div>
           <div class="scanLine"></div>
         </div>
       </div>
@@ -320,8 +324,10 @@
     const video = document.getElementById('video');
     const capture = document.getElementById('capture');
     const capCtx = capture.getContext('2d', { willReadFrequently: true });
+
     const workCanvas = document.getElementById('workCanvas');
     const workCtx = workCanvas.getContext('2d', { willReadFrequently: true });
+
     const cameraWrap = document.getElementById('cameraWrap');
     const freezeFrame = document.getElementById('freezeFrame');
 
@@ -346,33 +352,47 @@
     let total = 0;
     let count = 0;
     let history = [];
-    let frozenDataUrl = '';
 
-    // 余裕を持たせた認識エリア
-    const topArea = {
-      left: 0.48,
-      top: 0.04,
-      width: 0.48,
-      height: 0.27
+    // 表示用ガイド（少し大きめ）
+    const topGuideArea = {
+      left: 0.54,
+      top: 0.08,
+      width: 0.28,
+      height: 0.10
     };
 
-    const bottomArea = {
-      left: 0.36,
-      top: 0.68,
-      width: 0.58,
-      height: 0.24
+    const bottomGuideArea = {
+      left: 0.66,
+      top: 0.77,
+      width: 0.24,
+      height: 0.10
     };
+
+    // 実際のOCR範囲（少し内側）
+    const topOcrArea = insetArea(topGuideArea, 0.03, 0.10);
+    const bottomOcrArea = insetArea(bottomGuideArea, 0.06, 0.14);
+
+    function insetArea(area, insetXRatio, insetYRatio) {
+      const dx = area.width * insetXRatio;
+      const dy = area.height * insetYRatio;
+      return {
+        left: area.left + dx,
+        top: area.top + dy,
+        width: area.width - dx * 2,
+        height: area.height - dy * 2
+      };
+    }
 
     function applyGuides() {
-      topGuide.style.left = `${topArea.left * 100}%`;
-      topGuide.style.top = `${topArea.top * 100}%`;
-      topGuide.style.width = `${topArea.width * 100}%`;
-      topGuide.style.height = `${topArea.height * 100}%`;
+      topGuide.style.left = `${topGuideArea.left * 100}%`;
+      topGuide.style.top = `${topGuideArea.top * 100}%`;
+      topGuide.style.width = `${topGuideArea.width * 100}%`;
+      topGuide.style.height = `${topGuideArea.height * 100}%`;
 
-      bottomGuide.style.left = `${bottomArea.left * 100}%`;
-      bottomGuide.style.top = `${bottomArea.top * 100}%`;
-      bottomGuide.style.width = `${bottomArea.width * 100}%`;
-      bottomGuide.style.height = `${bottomArea.height * 100}%`;
+      bottomGuide.style.left = `${bottomGuideArea.left * 100}%`;
+      bottomGuide.style.top = `${bottomGuideArea.top * 100}%`;
+      bottomGuide.style.width = `${bottomGuideArea.width * 100}%`;
+      bottomGuide.style.height = `${bottomGuideArea.height * 100}%`;
     }
 
     function fmt(num) {
@@ -437,46 +457,10 @@
         .replace(/[：]/g, ':')
         .replace(/[，]/g, ',')
         .replace(/[．]/g, '.')
+        .replace(/[ＯoＯ]/g, '0')
+        .replace(/[ＩIｌl]/g, '1')
         .replace(/\s+/g, ' ')
         .trim();
-    }
-
-    function extractInvoiceNo(text) {
-      const t = normalizeText(text);
-
-      const patterns = [
-        /(?:伝票番号|伝票No\.?|伝票NO\.?|No\.?|NO\.?)\s*[:：]?\s*([A-Z0-9\-]{4,})/i,
-        /([A-Z]{0,3}\d{4,}(?:-\d+)*)/i
-      ];
-
-      for (const p of patterns) {
-        const m = t.match(p);
-        if (m && m[1]) return m[1];
-      }
-      return null;
-    }
-
-    function extractAmount(text) {
-      const t = normalizeText(text);
-
-      const strongPatterns = [
-        /(?:合計|請求額|ご請求額|今回ご請求額|総合計|金額)\s*[:：]?\s*¥?\s*([0-9][0-9,]{1,})/i,
-        /(?:税込|税込金額)\s*[:：]?\s*¥?\s*([0-9][0-9,]{1,})/i
-      ];
-
-      for (const p of strongPatterns) {
-        const m = t.match(p);
-        if (m && m[1]) {
-          return parseInt(m[1].replace(/,/g, ''), 10);
-        }
-      }
-
-      const nums = [...t.matchAll(/¥?\s*([0-9]{2,3}(?:,[0-9]{3})+|[0-9]{3,7})/g)]
-        .map(m => parseInt(m[1].replace(/,/g, ''), 10))
-        .filter(n => n >= 50 && n <= 999999);
-
-      if (!nums.length) return null;
-      return Math.max(...nums);
     }
 
     function captureFrame() {
@@ -487,8 +471,8 @@
       capture.width = vw;
       capture.height = vh;
       capCtx.drawImage(video, 0, 0, vw, vh);
-      frozenDataUrl = capture.toDataURL('image/jpeg', 0.92);
-      freezeFrame.src = frozenDataUrl;
+
+      freezeFrame.src = capture.toDataURL('image/jpeg', 0.92);
       cameraWrap.classList.add('processing');
       return true;
     }
@@ -497,7 +481,14 @@
       cameraWrap.classList.remove('processing');
     }
 
-    function cropFromCaptured(area) {
+    function preprocessRegion(area, options = {}) {
+      const {
+        maxWidth = 1200,
+        threshold = 175,
+        contrast = 1.55,
+        brightness = 0
+      } = options;
+
       const vw = capture.width;
       const vh = capture.height;
       if (!vw || !vh) return null;
@@ -507,8 +498,7 @@
       const sw = Math.floor(vw * area.width);
       const sh = Math.floor(vh * area.height);
 
-      const MAX_W = 900;
-      const scale = Math.min(1, MAX_W / sw);
+      const scale = Math.min(1, maxWidth / sw);
       const dw = Math.max(1, Math.floor(sw * scale));
       const dh = Math.max(1, Math.floor(sh * scale));
 
@@ -517,13 +507,103 @@
       workCtx.clearRect(0, 0, dw, dh);
       workCtx.drawImage(capture, sx, sy, sw, sh, 0, 0, dw, dh);
 
+      const img = workCtx.getImageData(0, 0, dw, dh);
+      const data = img.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        gray = (gray - 128) * contrast + 128 + brightness;
+        gray = gray >= threshold ? 255 : 0;
+
+        data[i] = gray;
+        data[i + 1] = gray;
+        data[i + 2] = gray;
+      }
+
+      workCtx.putImageData(img, 0, 0);
+
       return { sx, sy, sw, sh, dw, dh };
     }
 
-    async function recognizeArea(area) {
-      cropFromCaptured(area);
+    async function recognizePrepared(area, options) {
+      preprocessRegion(area, options);
       const result = await worker.recognize(workCanvas);
       return normalizeText(result.data.text || '');
+    }
+
+    function extractInvoiceNo(text) {
+      const t = normalizeText(text);
+
+      const patterns = [
+        /(?:伝票番号|伝票No\.?|伝票NO\.?|No\.?|NO\.?)\s*[:：]?\s*([A-Z0-9\-]{4,})/i,
+        /\b([A-Z]{0,3}\d{5,}(?:-\d+)*)\b/i,
+        /\b(\d{6,})\b/
+      ];
+
+      for (const p of patterns) {
+        const m = t.match(p);
+        if (m && m[1]) return m[1];
+      }
+      return null;
+    }
+
+    function parseMoneyCandidates(text) {
+      const t = normalizeText(text);
+      return [...t.matchAll(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{3,7})/g)]
+        .map(m => parseInt(m[1].replace(/,/g, ''), 10))
+        .filter(n => n >= 50 && n <= 999999);
+    }
+
+    function extractAmountFromBottom(text) {
+      const t = normalizeText(text);
+
+      const strongPatterns = [
+        /(?:合計|税込|請求額|金額)\s*[:：]?\s*([0-9][0-9,]{1,})/i,
+        /^([0-9][0-9,]{2,})$/,
+        /\b([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{3,7})\b/
+      ];
+
+      for (const p of strongPatterns) {
+        const m = t.match(p);
+        if (m && m[1]) {
+          const n = parseInt(m[1].replace(/,/g, ''), 10);
+          if (n >= 50 && n <= 999999) return n;
+        }
+      }
+
+      const nums = parseMoneyCandidates(t);
+      if (!nums.length) return null;
+      return Math.max(...nums);
+    }
+
+    async function readTopInvoiceNo() {
+      const texts = [];
+      texts.push(await recognizePrepared(topOcrArea, { maxWidth: 1300, threshold: 165, contrast: 1.65 }));
+      texts.push(await recognizePrepared(topOcrArea, { maxWidth: 1300, threshold: 150, contrast: 1.45 }));
+      texts.push(await recognizePrepared(topGuideArea, { maxWidth: 1300, threshold: 160, contrast: 1.55 }));
+
+      for (const t of texts) {
+        const no = extractInvoiceNo(t);
+        if (no) return no;
+      }
+      return null;
+    }
+
+    async function readBottomAmount() {
+      const texts = [];
+      texts.push(await recognizePrepared(bottomOcrArea, { maxWidth: 1500, threshold: 172, contrast: 1.65 }));
+      texts.push(await recognizePrepared(bottomOcrArea, { maxWidth: 1500, threshold: 155, contrast: 1.50 }));
+      texts.push(await recognizePrepared(bottomGuideArea, { maxWidth: 1500, threshold: 165, contrast: 1.55 }));
+
+      for (const t of texts) {
+        const amount = extractAmountFromBottom(t);
+        if (amount) return amount;
+      }
+      return null;
     }
 
     async function scanOnce() {
@@ -533,9 +613,10 @@
       busy = true;
       scanBtn.disabled = true;
       undoBtn.disabled = true;
-      setStatus('撮影中…');
 
       try {
+        setStatus('撮影中…');
+
         const ok = captureFrame();
         if (!ok) {
           setStatus('カメラ画像を取得できない');
@@ -543,17 +624,15 @@
         }
 
         beep();
-        setStatus('OCR読取中…');
 
-        const topText = await recognizeArea(topArea);
-        const bottomText = await recognizeArea(bottomArea);
-        const merged = `${topText}\n${bottomText}`;
+        setStatus('伝票番号読取中…');
+        const invoiceNo = await readTopInvoiceNo();
 
-        const invoiceNo = extractInvoiceNo(merged);
-        const amount = extractAmount(merged);
+        setStatus('合計金額読取中…');
+        const amount = await readBottomAmount();
 
         if (!amount) {
-          setStatus('金額が見つからない');
+          setStatus('合計金額が見つからない');
           return;
         }
 
@@ -569,6 +648,7 @@
 
         calcTaxFields(amount);
         updateUI();
+
         setStatus(`登録: ${invoiceNo || '番号なし'} / ${fmt(amount)}円`);
       } catch (e) {
         console.error(e);
