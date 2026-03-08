@@ -2,1045 +2,633 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title>請求書スキャン</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root{
-      --bg:#05070b;
-      --panel:rgba(12,18,28,.86);
-      --line:rgba(255,255,255,.08);
-      --text:#f4f7fb;
-      --muted:rgba(255,255,255,.74);
-      --danger:#ff5b57;
-      --warn:#ffd54a;
-      --ok:#7ff0a1;
-      --shadow:0 14px 40px rgba(0,0,0,.35);
-      --safe-top:env(safe-area-inset-top);
-      --safe-bottom:env(safe-area-inset-bottom);
+      --bg:#0b1020;
+      --panel:rgba(255,255,255,.08);
+      --panel2:rgba(255,255,255,.12);
+      --line:rgba(255,255,255,.18);
+      --text:#fff;
+      --sub:#b8c0d8;
+      --yellow:#ffd84d;
+      --green:#2dd4bf;
+      --red:#ff6b6b;
+      --blue:#60a5fa;
     }
-
-    *{
-      box-sizing:border-box;
-      -webkit-tap-highlight-color:transparent;
-    }
-
+    *{box-sizing:border-box}
     html,body{
       margin:0;
       padding:0;
-      width:100%;
-      height:100%;
-      background:#000;
+      background:var(--bg);
       color:var(--text);
-      font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+      font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;
+      height:100%;
       overflow:hidden;
     }
-
-    #app{
+    .app{
       position:fixed;
       inset:0;
-      background:#000;
-      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+    }
+    .topbar{
+      flex:0 0 auto;
+      padding:10px 12px 8px;
+      background:linear-gradient(to bottom, rgba(0,0,0,.35), rgba(0,0,0,0));
+      z-index:30;
+    }
+    .summary{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      align-items:start;
+    }
+    .mainTotal{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:10px 12px;
+      backdrop-filter: blur(12px);
+    }
+    .mainTotal .label{
+      font-size:12px;
+      color:var(--sub);
+      margin-bottom:4px;
+    }
+    .mainTotal .value{
+      font-size:30px;
+      line-height:1;
+      font-weight:800;
+      letter-spacing:.02em;
+    }
+    .mainTotal .subrow{
+      display:flex;
+      gap:12px;
+      margin-top:8px;
+      font-size:13px;
+      color:var(--sub);
+    }
+    .taxPanel{
+      width:120px;
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:10px 10px;
+      backdrop-filter: blur(12px);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      align-self:stretch;
+      justify-content:center;
+    }
+    .taxItem{
+      display:flex;
+      flex-direction:column;
+      gap:3px;
+    }
+    .taxItem .t{
+      font-size:12px;
+      color:var(--sub);
+    }
+    .taxItem .v{
+      min-height:22px;
+      border:1px dashed rgba(255,255,255,.22);
+      border-radius:8px;
+      padding:2px 6px;
+      font-size:14px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
     }
 
-    #video{
+    .cameraWrap{
+      position:relative;
+      flex:1 1 auto;
+      overflow:hidden;
+      background:#000;
+    }
+    video, canvas.capture{
       position:absolute;
       inset:0;
       width:100%;
       height:100%;
       object-fit:cover;
-      background:#000;
     }
-
-    .dim{
-      position:absolute;
-      inset:0;
-      background:linear-gradient(to bottom,rgba(0,0,0,.18),rgba(0,0,0,.04) 35%,rgba(0,0,0,.10));
-      pointer-events:none;
-    }
-
-    .hud{
-      position:absolute;
-      left:14px;
-      right:14px;
-      top:calc(var(--safe-top) + 14px);
-      z-index:20;
-    }
-
-    .topGrid{
-      display:grid;
-      grid-template-columns:1fr 1fr 1.25fr;
-      gap:10px;
-      align-items:stretch;
-    }
-
-    .card,.miniCard{
-      background:linear-gradient(180deg,rgba(17,24,38,.90),rgba(10,16,26,.84));
-      border:1px solid var(--line);
-      border-radius:22px;
-      box-shadow:var(--shadow);
-      backdrop-filter:blur(10px);
-      -webkit-backdrop-filter:blur(10px);
-    }
-
-    .card{
-      padding:14px 16px;
-      min-height:88px;
-    }
-
-    .miniCard{
-      padding:12px 16px;
-      min-height:78px;
-    }
-
-    .stack{
-      display:grid;
-      grid-template-rows:1fr 1fr;
-      gap:10px;
-    }
-
-    .label{
-      font-size:15px;
-      color:var(--muted);
-      line-height:1.1;
-      margin-bottom:4px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .big{
-      font-size:28px;
-      font-weight:800;
-      line-height:1.08;
-      letter-spacing:.2px;
-    }
-
-    .mid{
-      font-size:18px;
-      font-weight:760;
-      line-height:1.2;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .sub{
-      margin-top:4px;
-      font-size:16px;
-      color:var(--muted);
-    }
-
-    .danger{ color:var(--danger); font-weight:800; }
-    .warn{ color:var(--warn); font-weight:800; }
-    .ok{ color:var(--ok); font-weight:800; }
-
-    .statusRow{
-      margin-top:10px;
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-    }
-
-    .hints{
-      position:absolute;
-      left:50%;
-      transform:translateX(-50%);
-      top:47.5%;
-      z-index:14;
-      width:min(92vw,760px);
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      gap:10px;
-      pointer-events:none;
-    }
-
-    .hint{
-      background:rgba(25,25,28,.55);
-      border:1px solid rgba(255,255,255,.08);
-      border-radius:999px;
-      padding:10px 16px;
-      font-size:15px;
-      color:rgba(255,255,255,.94);
-      backdrop-filter:blur(8px);
-      -webkit-backdrop-filter:blur(8px);
-      text-align:center;
-      box-shadow:0 8px 20px rgba(0,0,0,.18);
-    }
-
-    .controls{
-      position:absolute;
-      left:14px;
-      right:14px;
-      bottom:calc(var(--safe-bottom) + 170px);
-      z-index:24;
-      display:grid;
-      grid-template-columns:96px 1fr 1fr;
-      gap:14px;
-      align-items:center;
-    }
-
-    .shutterWrap{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-    }
-
-    .shutter{
-      width:86px;
-      height:86px;
-      border-radius:50%;
-      border:none;
-      background:linear-gradient(180deg,#fbfbfd,#e8ebf0);
-      box-shadow:0 0 0 8px rgba(255,255,255,.20),0 10px 28px rgba(0,0,0,.30);
-      position:relative;
-    }
-
-    .shutter::after{
-      content:"";
-      position:absolute;
-      inset:12px;
-      border-radius:50%;
-      border:3px solid rgba(0,0,0,.05);
-    }
-
-    .btn{
-      min-height:72px;
-      border:none;
-      border-radius:22px;
-      color:#fff;
-      font-size:20px;
-      font-weight:800;
-      box-shadow:var(--shadow);
-      backdrop-filter:blur(10px);
-      -webkit-backdrop-filter:blur(10px);
-    }
-
-    .btn.gray{
-      background:linear-gradient(180deg,rgba(150,150,150,.38),rgba(90,90,90,.40));
-      border:1px solid rgba(255,255,255,.08);
-    }
-
-    .btn.red{
-      background:linear-gradient(180deg,rgba(180,70,70,.58),rgba(120,35,35,.70));
-      border:1px solid rgba(255,255,255,.09);
-    }
-
-    .historyPanel{
-      position:absolute;
-      left:14px;
-      right:14px;
-      bottom:calc(var(--safe-bottom) + 14px);
-      z-index:22;
-      min-height:154px;
-      background:linear-gradient(180deg,rgba(12,18,29,.90),rgba(8,13,22,.90));
-      border:1px solid rgba(255,255,255,.09);
-      border-radius:28px;
-      box-shadow:var(--shadow);
-      backdrop-filter:blur(12px);
-      -webkit-backdrop-filter:blur(12px);
-      padding:14px;
-    }
-
-    .historyHead{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-      margin-bottom:12px;
-    }
-
-    .pill{
-      background:rgba(8,13,22,.78);
-      border:1px solid rgba(255,255,255,.08);
-      color:#fff;
-      border-radius:999px;
-      padding:10px 18px;
-      font-size:16px;
-      font-weight:800;
-      white-space:nowrap;
-    }
-
-    .historyList{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      max-height:156px;
-      overflow:auto;
-      padding-right:2px;
-    }
-
-    .row{
-      display:grid;
-      grid-template-columns:34px 1fr auto;
-      gap:12px;
-      align-items:center;
-      border-radius:16px;
-      padding:14px 16px;
-      font-size:19px;
-      font-weight:800;
-      background:linear-gradient(180deg,rgba(18,47,84,.96),rgba(18,59,104,.91));
-    }
-
-    .row.alt{
-      background:linear-gradient(180deg,rgba(17,23,33,.84),rgba(11,16,24,.84));
-      border:1px solid rgba(255,255,255,.05);
-      font-weight:700;
-    }
-
-    .idx{
-      color:rgba(255,255,255,.86);
-      text-align:center;
-    }
-
-    .inv{
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-
-    .amt{
-      white-space:nowrap;
-    }
-
-    .ocrBadge{
-      position:absolute;
-      right:16px;
-      top:54%;
-      transform:translateY(-50%);
-      z-index:24;
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding:12px 16px;
-      border-radius:999px;
-      background:rgba(25,25,28,.72);
-      border:1px solid rgba(255,255,255,.08);
-      backdrop-filter:blur(10px);
-      -webkit-backdrop-filter:blur(10px);
-      box-shadow:0 8px 24px rgba(0,0,0,.20);
-      font-size:16px;
-      font-weight:800;
-    }
-
-    .dot{
-      width:12px;
-      height:12px;
-      border-radius:50%;
-      background:var(--warn);
-      box-shadow:0 0 10px rgba(255,213,74,.75);
-      flex:0 0 auto;
-    }
-
     .overlay{
       position:absolute;
-      left:0;
-      top:0;
-      width:100%;
-      height:100%;
+      inset:0;
       pointer-events:none;
-      z-index:8;
+      z-index:10;
     }
-
-    .roi{
+    .mask{
       position:absolute;
-      border:3px solid rgba(255,0,0,.96);
-      background:rgba(255,0,0,.12);
-      border-radius:18px;
-      box-shadow:0 0 0 1px rgba(255,255,255,.12) inset;
+      inset:0;
+      background:rgba(0,0,0,.28);
     }
-
-    .roi::after{
-      content:attr(data-label);
+    .guide{
       position:absolute;
-      top:-28px;
-      left:0;
-      background:rgba(255,0,0,.92);
+      border:2px solid var(--yellow);
+      border-radius:14px;
+      box-shadow:0 0 0 9999px rgba(0,0,0,.18) inset, 0 0 18px rgba(255,216,77,.25);
+    }
+    .guideLabel{
+      position:absolute;
+      left:8px;
+      top:-26px;
+      background:rgba(0,0,0,.6);
       color:#fff;
-      font-size:12px;
-      font-weight:800;
-      line-height:1;
-      padding:6px 8px;
-      border-radius:8px;
+      border:1px solid rgba(255,255,255,.15);
+      border-radius:999px;
+      padding:4px 10px;
+      font-size:11px;
       white-space:nowrap;
     }
-
-    /* 上は広め */
-    #roiTop{
-      left:8vw;
-      top:6vh;
-      width:90vw;
-      height:24vh;
+    .scanLine{
+      position:absolute;
+      left:0;
+      right:0;
+      height:2px;
+      background:linear-gradient(90deg, transparent, var(--green), transparent);
+      box-shadow:0 0 10px rgba(45,212,191,.8);
+      animation:sweep 2.2s linear infinite;
+      opacity:.9;
+    }
+    @keyframes sweep{
+      0%{top:4px}
+      50%{top:calc(100% - 6px)}
+      100%{top:4px}
     }
 
-    /* 下は少し下へ延長 */
-    #roiBottom{
-      left:42vw;
-      top:66vh;
-      width:54vw;
-      height:28vh;
+    .bottomBar{
+      flex:0 0 auto;
+      padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+      background:linear-gradient(to top, rgba(0,0,0,.42), rgba(0,0,0,0));
+      z-index:30;
+    }
+    .controls{
+      display:grid;
+      grid-template-columns: 1fr 74px 1fr 1fr;
+      gap:8px;
+      align-items:center;
+    }
+    .btn{
+      appearance:none;
+      border:none;
+      border-radius:16px;
+      background:var(--panel2);
+      color:var(--text);
+      padding:12px 10px;
+      font-size:14px;
+      font-weight:700;
+      border:1px solid var(--line);
+      backdrop-filter:blur(10px);
+    }
+    .btn:active{transform:scale(.98)}
+    .shutter{
+      width:74px;
+      height:74px;
+      border-radius:50%;
+      background:#fff;
+      color:#000;
+      font-size:12px;
+      font-weight:800;
+      border:6px solid rgba(255,255,255,.4);
+      justify-self:center;
     }
 
-    #canvas,#topCanvas,#bottomCanvas{
+    .history{
+      margin-top:8px;
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:8px 10px;
+      max-height:140px;
+      overflow:auto;
+      backdrop-filter:blur(12px);
+    }
+    .historyTitle{
+      font-size:12px;
+      color:var(--sub);
+      margin-bottom:6px;
+    }
+    .historyItem{
+      display:grid;
+      grid-template-columns: 28px 1fr auto;
+      gap:8px;
+      padding:6px 0;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      font-size:13px;
+      align-items:center;
+    }
+    .historyItem:last-child{border-bottom:none}
+    .status{
+      margin-top:8px;
+      font-size:12px;
+      color:var(--sub);
+      min-height:18px;
+    }
+
+    .debugCanvas{
       display:none;
-    }
-
-    @media (max-width:430px){
-      .topGrid{
-        grid-template-columns:.95fr 1fr 1.2fr;
-        gap:8px;
-      }
-
-      .big{ font-size:25px; }
-      .mid{ font-size:17px; }
-      .btn{ font-size:18px; min-height:68px; }
-      .row{ font-size:18px; }
     }
   </style>
 </head>
 <body>
-<div id="app">
-  <video id="video" playsinline autoplay muted></video>
-  <div class="dim"></div>
-
-  <div class="overlay" id="debugOverlay">
-    <div id="roiTop" class="roi" data-label="上OCRエリア"></div>
-    <div id="roiBottom" class="roi" data-label="下OCRエリア"></div>
-  </div>
-
-  <div class="hud">
-    <div class="topGrid">
-      <div class="card">
-        <div class="label">総合計 / 枚数</div>
-        <div id="grandTotal" class="big">0円</div>
-        <div id="grandCount" class="sub">0枚</div>
-      </div>
-
-      <div class="stack">
-        <div class="card">
-          <div class="label">税抜</div>
-          <div id="netTotal" class="big">0円</div>
+  <div class="app">
+    <div class="topbar">
+      <div class="summary">
+        <div class="mainTotal">
+          <div class="label">総合計</div>
+          <div class="value" id="grandTotal">0</div>
+          <div class="subrow">
+            <div>枚数 <b id="count">0</b></div>
+            <div>直近 <b id="lastAmount">-</b></div>
+          </div>
         </div>
-        <div class="card">
-          <div class="label">消費税</div>
-          <div id="taxTotal" class="big">0円</div>
-        </div>
-      </div>
 
-      <div class="stack">
-        <div class="card">
-          <div class="label">直近伝票</div>
-          <div id="latestInvoice" class="mid">-</div>
-        </div>
-        <div class="card">
-          <div class="label">認識状態</div>
-          <div id="recognitionStatus" class="mid danger">待機中</div>
+        <div class="taxPanel">
+          <div class="taxItem">
+            <div class="t">税抜</div>
+            <div class="v" id="taxEx"> </div>
+          </div>
+          <div class="taxItem">
+            <div class="t">消費税</div>
+            <div class="v" id="taxOnly"> </div>
+          </div>
+          <div class="taxItem">
+            <div class="t">税込</div>
+            <div class="v" id="taxIn"> </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="statusRow">
-      <div class="miniCard">
-        <div class="label">スキャン結果</div>
-        <div id="scanResult" class="mid danger">まだスキャンしていません</div>
+    <div class="cameraWrap">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="capture" class="capture"></canvas>
+
+      <div class="overlay">
+        <div id="topGuide" class="guide">
+          <div class="guideLabel">上エリア（合計・伝票番号）</div>
+          <div class="scanLine"></div>
+        </div>
+        <div id="bottomGuide" class="guide">
+          <div class="guideLabel">下エリア（御中まで入るよう左拡張）</div>
+          <div class="scanLine"></div>
+        </div>
       </div>
-      <div class="miniCard">
-        <div class="label">重複チェック</div>
-        <div id="duplicateCheck" class="mid warn">待機中</div>
+
+      <canvas id="workCanvas" class="debugCanvas"></canvas>
+    </div>
+
+    <div class="bottomBar">
+      <div class="controls">
+        <button class="btn" id="toggleAutoBtn">自動認識ON</button>
+        <button class="shutter" id="scanBtn">SCAN</button>
+        <button class="btn" id="releaseBtn">解除</button>
+        <button class="btn" id="resetBtn">リセット</button>
       </div>
-    </div>
-  </div>
 
-  <div class="hints">
-    <div class="hint">帳票全体をざっくり入れるだけ</div>
-    <div class="hint">上：TEL / G伝票番号 / 1頁　下：御中 / 合計 / 合計右の金額</div>
-  </div>
-
-  <div class="ocrBadge">
-    <div class="dot"></div>
-    <div id="ocrBadgeText">自動OCR待機中</div>
-  </div>
-
-  <div class="controls">
-    <div class="shutterWrap">
-      <button id="shutterBtn" class="shutter" aria-label="手動スキャン"></button>
-    </div>
-    <button id="scanBtn" class="btn gray">検索</button>
-    <button id="resetBtn" class="btn red">今日</button>
-  </div>
-
-  <div class="historyPanel">
-    <div class="historyHead">
-      <div class="label" style="margin:0;font-size:16px;">履歴</div>
-      <div id="holdPill" class="pill">ホールドなし</div>
-    </div>
-    <div id="historyList" class="historyList">
-      <div class="row alt">
-        <div class="idx">-</div>
-        <div class="inv">まだ履歴がありません</div>
-        <div class="amt">-</div>
+      <div class="history">
+        <div class="historyTitle">履歴</div>
+        <div id="historyList"></div>
       </div>
+
+      <div class="status" id="status">初期化中…</div>
     </div>
   </div>
 
-  <canvas id="canvas"></canvas>
-  <canvas id="topCanvas"></canvas>
-  <canvas id="bottomCanvas"></canvas>
-</div>
+  <script>
+    const video = document.getElementById('video');
+    const capture = document.getElementById('capture');
+    const capCtx = capture.getContext('2d', { willReadFrequently: true });
+    const workCanvas = document.getElementById('workCanvas');
+    const workCtx = workCanvas.getContext('2d', { willReadFrequently: true });
 
-<script>
-  const DEBUG_OVERLAY = true;
-  const AUTO_SCAN = true;
-  const AUTO_INTERVAL = 900;
-  const SUCCESS_COOLDOWN = 1800;
-  const OCR_MAX_WIDTH = 960;
+    const grandTotalEl = document.getElementById('grandTotal');
+    const countEl = document.getElementById('count');
+    const lastAmountEl = document.getElementById('lastAmount');
+    const historyList = document.getElementById('historyList');
+    const statusEl = document.getElementById('status');
+    const toggleAutoBtn = document.getElementById('toggleAutoBtn');
+    const releaseBtn = document.getElementById('releaseBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const scanBtn = document.getElementById('scanBtn');
 
-  // 上は広め
-  const TOP_REGION = { x: 0.08, y: 0.06, w: 0.90, h: 0.24 };
+    const taxEx = document.getElementById('taxEx');
+    const taxOnly = document.getElementById('taxOnly');
+    const taxIn = document.getElementById('taxIn');
 
-  // 下は下方向に少し延長
-  const BOTTOM_REGION = { x: 0.42, y: 0.66, w: 0.54, h: 0.29 };
+    const topGuide = document.getElementById('topGuide');
+    const bottomGuide = document.getElementById('bottomGuide');
 
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const topCanvas = document.getElementById('topCanvas');
-  const bottomCanvas = document.getElementById('bottomCanvas');
-  const debugOverlay = document.getElementById('debugOverlay');
+    let worker = null;
+    let stream = null;
+    let autoMode = true;
+    let busy = false;
+    let hold = false;
+    let total = 0;
+    let count = 0;
+    let history = [];
+    let lastAcceptedNo = null;
+    let lastSeenNo = null;
+    let cooldownUntil = 0;
 
-  const grandTotalEl = document.getElementById('grandTotal');
-  const grandCountEl = document.getElementById('grandCount');
-  const netTotalEl = document.getElementById('netTotal');
-  const taxTotalEl = document.getElementById('taxTotal');
-  const latestInvoiceEl = document.getElementById('latestInvoice');
-  const recognitionStatusEl = document.getElementById('recognitionStatus');
-  const scanResultEl = document.getElementById('scanResult');
-  const duplicateCheckEl = document.getElementById('duplicateCheck');
-  const historyListEl = document.getElementById('historyList');
-  const holdPillEl = document.getElementById('holdPill');
-  const ocrBadgeText = document.getElementById('ocrBadgeText');
+    const ACCEPT_COOLDOWN_MS = 5000;   // 認識後5秒休止
+    const LOOP_INTERVAL_MS = 900;
 
-  const shutterBtn = document.getElementById('shutterBtn');
-  const scanBtn = document.getElementById('scanBtn');
-  const resetBtn = document.getElementById('resetBtn');
+    // ===== 認識エリア =====
+    // 上: 右半分・上1/4
+    const topArea = {
+      left: 0.50,
+      top: 0.05,
+      width: 0.46,
+      height: 0.24
+    };
 
-  let worker = null;
-  let stream = null;
-  let isReady = false;
-  let isScanning = false;
-  let autoTimer = null;
-  let cooldownUntil = 0;
-  let historyData = loadHistory();
+    // 下: 右寄り下側だけど、御中が収まるよう左へ広げた版
+    const bottomArea = {
+      left: 0.40,   // ← 左拡張
+      top: 0.70,
+      width: 0.54,  // ← 横幅拡張
+      height: 0.22
+    };
 
-  init();
+    function applyGuides() {
+      topGuide.style.left = `${topArea.left * 100}%`;
+      topGuide.style.top = `${topArea.top * 100}%`;
+      topGuide.style.width = `${topArea.width * 100}%`;
+      topGuide.style.height = `${topArea.height * 100}%`;
 
-  async function init() {
-    debugOverlay.style.display = DEBUG_OVERLAY ? 'block' : 'none';
-    renderAll();
-    await startCamera();
-    await initWorker();
-    isReady = true;
-    setRecognition('待機中', 'danger');
-    ocrBadgeText.textContent = '自動OCR待機中';
-    if (AUTO_SCAN) startAutoScan();
-  }
+      bottomGuide.style.left = `${bottomArea.left * 100}%`;
+      bottomGuide.style.top = `${bottomArea.top * 100}%`;
+      bottomGuide.style.width = `${bottomArea.width * 100}%`;
+      bottomGuide.style.height = `${bottomArea.height * 100}%`;
+    }
+    applyGuides();
 
-  async function startCamera() {
-    try {
+    function fmt(num) {
+      return Number(num || 0).toLocaleString('ja-JP');
+    }
+
+    function beep() {
+      try{
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 880;
+        gain.gain.value = 0.02;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.08);
+      }catch(e){}
+    }
+
+    function updateUI() {
+      grandTotalEl.textContent = fmt(total);
+      countEl.textContent = count;
+      lastAmountEl.textContent = history.length ? fmt(history[0].amount) : '-';
+
+      historyList.innerHTML = '';
+      history.forEach((item, idx) => {
+        const div = document.createElement('div');
+        div.className = 'historyItem';
+        div.innerHTML = `
+          <div>${idx + 1}</div>
+          <div>${item.no || '番号なし'}</div>
+          <div>${fmt(item.amount)}</div>
+        `;
+        historyList.appendChild(div);
+      });
+    }
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    function calcTaxFields(amount) {
+      if (!amount || !Number.isFinite(amount)) {
+        taxEx.textContent = '';
+        taxOnly.textContent = '';
+        taxIn.textContent = '';
+        return;
+      }
+      const ex = Math.round(amount / 1.1);
+      const tax = amount - ex;
+      taxEx.textContent = fmt(ex);
+      taxOnly.textContent = fmt(tax);
+      taxIn.textContent = fmt(amount);
+    }
+
+    function normalizeText(text) {
+      return (text || '')
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s =>
+          String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
+        )
+        .replace(/[‐-‒–—―ー]/g, '-')
+        .replace(/[：]/g, ':')
+        .replace(/[，]/g, ',')
+        .replace(/[．]/g, '.')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function extractInvoiceNo(text) {
+      const t = normalizeText(text);
+
+      const patterns = [
+        /(?:伝票番号|伝票No\.?|伝票NO\.?|No\.?|NO\.?)\s*[:：]?\s*([A-Z0-9\-]{4,})/i,
+        /([A-Z]{0,3}\d{4,}(?:-\d+)*)/i
+      ];
+
+      for (const p of patterns) {
+        const m = t.match(p);
+        if (m && m[1]) return m[1];
+      }
+      return null;
+    }
+
+    function extractAmount(text) {
+      const t = normalizeText(text);
+
+      const strongPatterns = [
+        /(?:合計|請求額|ご請求額|今回ご請求額|総合計|金額)\s*[:：]?\s*¥?\s*([0-9][0-9,]{1,})/i,
+        /(?:税込|税込金額)\s*[:：]?\s*¥?\s*([0-9][0-9,]{1,})/i
+      ];
+
+      for (const p of strongPatterns) {
+        const m = t.match(p);
+        if (m && m[1]) return parseInt(m[1].replace(/,/g, ''), 10);
+      }
+
+      const nums = [...t.matchAll(/¥?\s*([0-9]{2,3}(?:,[0-9]{3})+|[0-9]{3,7})/g)]
+        .map(m => parseInt(m[1].replace(/,/g, ''), 10))
+        .filter(n => n >= 50 && n <= 999999);
+
+      if (!nums.length) return null;
+      return Math.max(...nums);
+    }
+
+    function cropFromVideo(area) {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (!vw || !vh) return null;
+
+      capture.width = vw;
+      capture.height = vh;
+      capCtx.drawImage(video, 0, 0, vw, vh);
+
+      const sx = Math.floor(vw * area.left);
+      const sy = Math.floor(vh * area.top);
+      const sw = Math.floor(vw * area.width);
+      const sh = Math.floor(vh * area.height);
+
+      workCanvas.width = sw;
+      workCanvas.height = sh;
+      workCtx.drawImage(capture, sx, sy, sw, sh, 0, 0, sw, sh);
+
+      return { sx, sy, sw, sh };
+    }
+
+    async function recognizeArea(area) {
+      cropFromVideo(area);
+      const result = await worker.recognize(workCanvas);
+      return normalizeText(result.data.text || '');
+    }
+
+    async function scanOnce() {
+      if (busy || hold) return;
+      if (Date.now() < cooldownUntil) return;
+      if (!video.videoWidth) return;
+
+      busy = true;
+      setStatus('認識中…');
+
+      try {
+        const topText = await recognizeArea(topArea);
+        const bottomText = await recognizeArea(bottomArea);
+        const merged = `${topText}\n${bottomText}`;
+
+        const invoiceNo = extractInvoiceNo(merged);
+        const amount = extractAmount(merged);
+
+        lastSeenNo = invoiceNo || lastSeenNo;
+
+        if (!amount) {
+          setStatus('金額が見つからない');
+          return;
+        }
+
+        // 同じ伝票番号が連続なら止める
+        if (invoiceNo && lastAcceptedNo && invoiceNo === lastAcceptedNo) {
+          hold = true;
+          setStatus(`同じ伝票番号を連続検出: ${invoiceNo} → 解除または別伝票を挟んで`);
+          return;
+        }
+
+        total += amount;
+        count += 1;
+        lastAcceptedNo = invoiceNo || `NOLESS-${Date.now()}`;
+
+        history.unshift({
+          no: invoiceNo,
+          amount,
+          at: new Date().toLocaleString('ja-JP')
+        });
+        history = history.slice(0, 50);
+
+        calcTaxFields(amount);
+        updateUI();
+        beep();
+
+        cooldownUntil = Date.now() + ACCEPT_COOLDOWN_MS;
+        setStatus(`登録: ${invoiceNo || '番号なし'} / ${fmt(amount)}円`);
+      } catch (e) {
+        console.error(e);
+        setStatus('OCRエラー');
+      } finally {
+        busy = false;
+      }
+    }
+
+    async function loop() {
+      while (true) {
+        if (autoMode) {
+          await scanOnce();
+        }
+        await new Promise(r => setTimeout(r, LOOP_INTERVAL_MS));
+      }
+    }
+
+    async function initWorker() {
+      worker = await Tesseract.createWorker('jpn+eng', 1, {
+        logger: () => {}
+      });
+    }
+
+    async function initCamera() {
       stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
         video: {
           facingMode: { ideal: 'environment' },
           width: { ideal: 1920 },
           height: { ideal: 1080 }
-        },
-        audio: false
+        }
       });
       video.srcObject = stream;
       await video.play();
-    } catch (err) {
-      console.error(err);
-      setRecognition('カメラ失敗', 'danger');
-      scanResultEl.textContent = 'カメラの起動に失敗しました';
     }
-  }
 
-  async function initWorker() {
-    setRecognition('OCR初期化中', 'warn');
-    ocrBadgeText.textContent = 'OCR初期化中...';
-
-    worker = await Tesseract.createWorker('jpn+eng', 1, {
-      logger: m => {
-        if (m.status === 'recognizing text') {
-          ocrBadgeText.textContent = `OCR中 ${Math.round((m.progress || 0) * 100)}%`;
-        }
-      }
+    toggleAutoBtn.addEventListener('click', () => {
+      autoMode = !autoMode;
+      toggleAutoBtn.textContent = autoMode ? '自動認識ON' : '自動認識OFF';
+      setStatus(autoMode ? '自動認識ON' : '自動認識OFF');
     });
 
-    await worker.setParameters({
-      tessedit_pageseg_mode: Tesseract.PSM.AUTO,
-      preserve_interword_spaces: '1',
-      user_defined_dpi: '220'
+    scanBtn.addEventListener('click', async () => {
+      beep();
+      await scanOnce();
     });
-  }
 
-  shutterBtn.addEventListener('click', () => scanNow(true));
-  scanBtn.addEventListener('click', () => scanNow(true));
-
-  resetBtn.addEventListener('click', () => {
-    if (!confirm('今日の集計と履歴をリセットしますか？')) return;
-    historyData = [];
-    saveHistory();
-    renderAll();
-    setRecognition('リセット完了', 'ok');
-    scanResultEl.textContent = '今日のデータをリセットしました';
-    duplicateCheckEl.textContent = '待機中';
-  });
-
-  function startAutoScan() {
-    if (autoTimer) clearInterval(autoTimer);
-    autoTimer = setInterval(() => {
-      if (!AUTO_SCAN || !isReady || isScanning) return;
-      if (Date.now() < cooldownUntil) return;
-      scanNow(false);
-    }, AUTO_INTERVAL);
-  }
-
-  async function scanNow(manual = false) {
-    if (!isReady || isScanning) return;
-    if (Date.now() < cooldownUntil) return;
-    if (!video.videoWidth || !video.videoHeight) return;
-
-    isScanning = true;
-    setRecognition('認識中', 'warn');
-    ocrBadgeText.textContent = manual ? '手動OCR中...' : '自動OCR中...';
-
-    try {
-      captureFrame(video, canvas, OCR_MAX_WIDTH);
-
-      cropRegion(canvas, topCanvas, TOP_REGION);
-      cropRegion(canvas, bottomCanvas, BOTTOM_REGION);
-
-      preprocessForOCR(topCanvas);
-      preprocessForOCR(bottomCanvas);
-
-      const [topRes, bottomRes] = await Promise.all([
-        worker.recognize(topCanvas),
-        worker.recognize(bottomCanvas)
-      ]);
-
-      const invoiceNo = extractInvoiceNo(topRes.data);
-      const amount = extractTotalAmount(bottomRes.data);
-
-      if (!invoiceNo || !amount) {
-        setRecognition('認識失敗', 'danger');
-        scanResultEl.textContent = '伝票番号または金額を取得できず';
-        duplicateCheckEl.textContent = '位置を少し調整して再スキャン';
-        ocrBadgeText.textContent = '自動OCR待機中';
-        isScanning = false;
-        return;
-      }
-
-      const dup = findDuplicate(invoiceNo);
-      if (dup) {
-        setRecognition('重複候補', 'warn');
-        scanResultEl.textContent = `${invoiceNo} / ${formatYen(amount)}`;
-        duplicateCheckEl.textContent = `${dup.date} ${dup.time} の ${dup.index}件目に同番号あり`;
-        cooldownUntil = Date.now() + SUCCESS_COOLDOWN;
-        beep(660, 0.05);
-        renderAll();
-        ocrBadgeText.textContent = '自動OCR待機中';
-        isScanning = false;
-        return;
-      }
-
-      addHistory(invoiceNo, amount);
-      setRecognition('認識成功', 'ok');
-      scanResultEl.textContent = `${invoiceNo} / ${formatYen(amount)}`;
-      duplicateCheckEl.textContent = '新規登録しました';
-      cooldownUntil = Date.now() + SUCCESS_COOLDOWN;
-      beep(900, 0.06);
-      renderAll();
-    } catch (err) {
-      console.error(err);
-      setRecognition('OCRエラー', 'danger');
-      scanResultEl.textContent = 'OCR処理でエラーが発生しました';
-      duplicateCheckEl.textContent = 'もう一度お試しください';
-    } finally {
-      isScanning = false;
-      ocrBadgeText.textContent = '自動OCR待機中';
-    }
-  }
-
-  function extractInvoiceNo(data) {
-    const text = normalizeText(data.text || '');
-    const words = mapWords(
-      data.words || [],
-      data.imageSize?.width || topCanvas.width,
-      data.imageSize?.height || topCanvas.height
-    );
-
-    const telWords = words.filter(w => /TEL/i.test(w.text));
-    const pageWords = words.filter(w => /(1頁|1页|1P|1p)/i.test(w.text));
-
-    let candidates = [];
-
-    const regexHits = text.match(/[GＧ][0-9O０-９]{6,10}/g) || [];
-    for (const hit of regexHits) {
-      const n = normalizeInvoiceNo(hit);
-      if (/^G\d{6,10}$/.test(n)) {
-        candidates.push({ text:n, score:10, cx:0.7, cy:0.2 });
-      }
-    }
-
-    for (const w of words) {
-      const n = normalizeInvoiceNo(w.text);
-      if (/^G\d{6,10}$/.test(n)) {
-        let score = 0;
-        if (w.cy < 0.75) score += 3;
-        if (w.cx > 0.45) score += 2;
-        if (telWords.some(t => dist(w.cx, w.cy, t.cx, t.cy) < 0.25)) score += 4;
-        if (pageWords.some(p => dist(w.cx, w.cy, p.cx, p.cy) < 0.18)) score += 4;
-        candidates.push({ text:n, score, cx:w.cx, cy:w.cy });
-      }
-    }
-
-    candidates = dedupeByText(candidates);
-    if (!candidates.length) return null;
-
-    candidates.sort((a,b) => b.score - a.score);
-    return candidates[0].text;
-  }
-
-  function extractTotalAmount(data) {
-    const text = normalizeText(data.text || '');
-    const words = mapWords(
-      data.words || [],
-      data.imageSize?.width || bottomCanvas.width,
-      data.imageSize?.height || bottomCanvas.height
-    );
-
-    const totalWords = words.filter(w => /合計/.test(w.text));
-    const onchuWords = words.filter(w => /御中/.test(w.text));
-
-    const amountWords = words
-      .filter(w => isAmountToken(w.text))
-      .map(w => ({
-        raw: w.text,
-        num: parseAmount(w.text),
-        cx: w.cx,
-        cy: w.cy
-      }))
-      .filter(v =>
-        v.num >= 100 &&
-        v.num <= 999999 &&
-        !String(v.num).startsWith('260') &&
-        !String(v.num).startsWith('43')
-      );
-
-    // 1. 合計の右、同ライン最優先
-    for (const total of totalWords) {
-      const sameLine = amountWords
-        .filter(a => Math.abs(a.cy - total.cy) < 0.10 && a.cx > total.cx + 0.06)
-        .sort((a,b) => a.cx - b.cx);
-
-      if (sameLine.length) {
-        return sameLine[sameLine.length - 1].num;
-      }
-    }
-
-    // 2. 御中の近くにある右側数字を補助採用
-    if (onchuWords.length) {
-      const anchor = onchuWords[0];
-      const near = amountWords
-        .filter(a =>
-          a.cx > anchor.cx + 0.08 &&
-          a.cy > anchor.cy - 0.12 &&
-          a.cy < anchor.cy + 0.18
-        )
-        .sort((a,b) => {
-          const sa = a.cx * 2 - Math.abs(a.cy - anchor.cy);
-          const sb = b.cx * 2 - Math.abs(b.cy - anchor.cy);
-          return sb - sa;
-        });
-
-      if (near.length) {
-        return near[0].num;
-      }
-    }
-
-    // 3. 合計を含む行の最後の数字
-    const lines = text.split(/\n+/).map(v => v.trim()).filter(Boolean);
-    for (const line of lines) {
-      if (/合計/.test(line)) {
-        const nums = line.match(/[0-9０-９][0-9０-９,，.]*/g) || [];
-        const parsed = nums
-          .map(parseAmount)
-          .filter(v => v >= 100 && v <= 999999);
-        if (parsed.length) return parsed[parsed.length - 1];
-      }
-    }
-
-    // 4. 右下寄り限定の最後のフォールバック
-    const lowerRight = amountWords
-      .filter(a => a.cx > 0.45 && a.cy > 0.10 && a.cy < 0.95)
-      .sort((a,b) => {
-        const sa = a.cx * 2 + a.cy;
-        const sb = b.cx * 2 + b.cy;
-        return sb - sa;
-      });
-
-    if (lowerRight.length) return lowerRight[0].num;
-
-    return null;
-  }
-
-  function mapWords(words, width, height) {
-    return words
-      .filter(w => w.text && w.text.trim())
-      .map(w => {
-        const b = w.bbox || {};
-        const x0 = (b.x0 ?? 0) / width;
-        const y0 = (b.y0 ?? 0) / height;
-        const x1 = (b.x1 ?? 0) / width;
-        const y1 = (b.y1 ?? 0) / height;
-        return {
-          text: normalizeText(w.text),
-          x0, y0, x1, y1,
-          cx: (x0 + x1) / 2,
-          cy: (y0 + y1) / 2
-        };
-      });
-  }
-
-  function dedupeByText(arr) {
-    const m = new Map();
-    for (const item of arr) {
-      if (!m.has(item.text) || item.score > m.get(item.text).score) {
-        m.set(item.text, item);
-      }
-    }
-    return [...m.values()];
-  }
-
-  function normalizeText(s) {
-    if (!s) return '';
-    return s
-      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
-      .replace(/　/g, ' ')
-      .replace(/[，]/g, ',')
-      .replace(/[．]/g, '.')
-      .replace(/[ー―ｰ]/g, '-')
-      .trim();
-  }
-
-  function normalizeInvoiceNo(s) {
-    return normalizeText(s)
-      .replace(/\s+/g, '')
-      .replace(/^Ｇ/, 'G')
-      .replace(/^g/, 'G')
-      .replace(/^6/, 'G')
-      .replace(/^C/, 'G')
-      .replace(/^O/, 'G')
-      .replace(/^0/, 'G')
-      .replace(/[OＯ]/g, '0');
-  }
-
-  function isAmountToken(s) {
-    const n = normalizeText(s);
-    return /^[¥￥]?[0-9][0-9,，.]*$/.test(n);
-  }
-
-  function parseAmount(s) {
-    const n = normalizeText(s)
-      .replace(/[¥￥円\s]/g, '')
-      .replace(/[，]/g, ',')
-      .replace(/[^0-9,]/g, '')
-      .replace(/,/g, '');
-    return Number(n) || 0;
-  }
-
-  function dist(x1, y1, x2, y2) {
-    return Math.hypot(x1 - x2, y1 - y2);
-  }
-
-  function captureFrame(videoEl, outCanvas, maxWidth) {
-    const vw = videoEl.videoWidth;
-    const vh = videoEl.videoHeight;
-    let tw = vw;
-    let th = vh;
-
-    if (vw > maxWidth) {
-      const ratio = maxWidth / vw;
-      tw = Math.round(vw * ratio);
-      th = Math.round(vh * ratio);
-    }
-
-    outCanvas.width = tw;
-    outCanvas.height = th;
-
-    const ctx = outCanvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(videoEl, 0, 0, tw, th);
-  }
-
-  function cropRegion(srcCanvas, dstCanvas, region) {
-    const sw = srcCanvas.width;
-    const sh = srcCanvas.height;
-    const sx = Math.round(sw * region.x);
-    const sy = Math.round(sh * region.y);
-    const cw = Math.round(sw * region.w);
-    const ch = Math.round(sh * region.h);
-
-    dstCanvas.width = cw;
-    dstCanvas.height = ch;
-
-    const ctx = dstCanvas.getContext('2d', { willReadFrequently: true });
-    ctx.clearRect(0, 0, cw, ch);
-    ctx.drawImage(srcCanvas, sx, sy, cw, ch, 0, 0, cw, ch);
-  }
-
-  function preprocessForOCR(targetCanvas) {
-    const ctx = targetCanvas.getContext('2d', { willReadFrequently: true });
-    const img = ctx.getImageData(0, 0, targetCanvas.width, targetCanvas.height);
-    const data = img.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      let y = 0.299 * r + 0.587 * g + 0.114 * b;
-      y = (y - 128) * 1.22 + 128;
-      y = Math.max(0, Math.min(255, y));
-      if (y > 168) y = 255;
-      else if (y < 82) y = 0;
-      data[i] = data[i + 1] = data[i + 2] = y;
-    }
-
-    ctx.putImageData(img, 0, 0);
-  }
-
-  function loadHistory() {
-    try {
-      return JSON.parse(localStorage.getItem('tax-scan-layout-v2') || '[]');
-    } catch {
-      return [];
-    }
-  }
-
-  function saveHistory() {
-    localStorage.setItem('tax-scan-layout-v2', JSON.stringify(historyData));
-  }
-
-  function addHistory(invoiceNo, amount) {
-    const now = new Date();
-    historyData.unshift({
-      invoiceNo,
-      amount,
-      ts: now.getTime(),
-      date: formatDate(now),
-      time: formatTime(now)
+    releaseBtn.addEventListener('click', () => {
+      hold = false;
+      setStatus('ホールド解除');
     });
-    saveHistory();
-  }
 
-  function findDuplicate(invoiceNo) {
-    const index = historyData.findIndex(v => v.invoiceNo === invoiceNo);
-    if (index === -1) return null;
-    return { ...historyData[index], index: index + 1 };
-  }
+    resetBtn.addEventListener('click', () => {
+      total = 0;
+      count = 0;
+      history = [];
+      lastAcceptedNo = null;
+      lastSeenNo = null;
+      cooldownUntil = 0;
+      hold = false;
+      calcTaxFields(null);
+      updateUI();
+      setStatus('リセット完了');
+    });
 
-  function calcTotals() {
-    const total = historyData.reduce((sum, v) => sum + v.amount, 0);
-    const net = Math.floor(total / 1.1);
-    const tax = total - net;
-    return { total, net, tax, count: historyData.length };
-  }
+    window.addEventListener('resize', applyGuides);
 
-  function renderAll() {
-    const totals = calcTotals();
-    grandTotalEl.textContent = formatYen(totals.total);
-    grandCountEl.textContent = `${totals.count}枚`;
-    netTotalEl.textContent = formatYen(totals.net);
-    taxTotalEl.textContent = formatYen(totals.tax);
-    latestInvoiceEl.textContent = historyData[0]?.invoiceNo || '-';
-    holdPillEl.textContent = historyData[0] ? `直近 ${historyData[0].invoiceNo}` : 'ホールドなし';
-    renderHistory();
-  }
-
-  function renderHistory() {
-    if (!historyData.length) {
-      historyListEl.innerHTML = `
-        <div class="row alt">
-          <div class="idx">-</div>
-          <div class="inv">まだ履歴がありません</div>
-          <div class="amt">-</div>
-        </div>
-      `;
-      return;
-    }
-
-    historyListEl.innerHTML = historyData.slice(0, 8).map((item, idx) => `
-      <div class="row ${idx === 0 ? '' : 'alt'}">
-        <div class="idx">${idx + 1}</div>
-        <div class="inv">${escapeHtml(item.invoiceNo)}</div>
-        <div class="amt">${formatYen(item.amount)}</div>
-      </div>
-    `).join('');
-  }
-
-  function setRecognition(text, kind='danger') {
-    recognitionStatusEl.textContent = text;
-    recognitionStatusEl.className = `mid ${kind}`;
-  }
-
-  function formatYen(n) {
-    return `${Number(n || 0).toLocaleString('ja-JP')}円`;
-  }
-
-  function formatDate(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
-    return `${y}/${m}/${day}`;
-  }
-
-  function formatTime(d) {
-    const hh = String(d.getHours()).padStart(2,'0');
-    const mm = String(d.getMinutes()).padStart(2,'0');
-    return `${hh}:${mm}`;
-  }
-
-  function escapeHtml(str) {
-    return String(str)
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'","&#039;");
-  }
-
-  function beep(freq = 880, duration = 0.05) {
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.value = 0.03;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + duration);
-    } catch (e) {}
-  }
-
-  window.addEventListener('beforeunload', async () => {
-    if (autoTimer) clearInterval(autoTimer);
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    if (worker) {
-      try { await worker.terminate(); } catch {}
-    }
-  });
-</script>
+    (async () => {
+      try {
+        applyGuides();
+        await initCamera();
+        setStatus('OCR初期化中…');
+        await initWorker();
+        updateUI();
+        setStatus('準備完了');
+        loop();
+      } catch (e) {
+        console.error(e);
+        setStatus('カメラまたはOCRの初期化に失敗');
+      }
+    })();
+  </script>
 </body>
 </html>
