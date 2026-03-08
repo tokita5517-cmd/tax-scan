@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <title>請求書スキャン</title>
+  <title>請求書計算アプリ</title>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root{
@@ -346,7 +346,8 @@
     const topGuide = document.getElementById('topGuide');
     const bottomGuide = document.getElementById('bottomGuide');
 
-    let worker = null;
+    let workerJpn = null;
+    let workerNum = null;
     let stream = null;
     let busy = false;
     let total = 0;
@@ -364,7 +365,7 @@
       };
     }
 
-    // 見た目の黄色枠は大きめ
+    // 見た目の枠は大きめ
     const topGuideArea = {
       left: 0.47,
       top: 0.08,
@@ -373,15 +374,15 @@
     };
 
     const bottomGuideArea = {
-      left: 0.54,
-      top: 0.70,
-      width: 0.34,
-      height: 0.18
+      left: 0.53,
+      top: 0.74,
+      width: 0.36,
+      height: 0.13
     };
 
     // OCRは少しだけ内側
     const topOcrArea = insetArea(topGuideArea, 0.08, 0.14);
-    const bottomOcrArea = insetArea(bottomGuideArea, 0.10, 0.14);
+    const bottomOcrArea = insetArea(bottomGuideArea, 0.08, 0.16);
 
     function applyGuides() {
       topGuide.style.left = `${topGuideArea.left * 100}%`;
@@ -459,6 +460,15 @@
         .replace(/[．]/g, '.')
         .replace(/[ＯoＯ]/g, '0')
         .replace(/[ＩIｌl]/g, '1')
+        .replace(/[SＳ]/g, '5')
+        .replace(/[BＢ]/g, '8')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function normalizeNumericText(text) {
+      return normalizeText(text)
+        .replace(/[^0-9,]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
     }
@@ -484,9 +494,10 @@
     function preprocessRegion(area, options = {}) {
       const {
         maxWidth = 1200,
-        threshold = 172,
-        contrast = 1.55,
-        brightness = 0
+        threshold = null,
+        contrast = 1.3,
+        brightness = 0,
+        grayscaleOnly = false
       } = options;
 
       const vw = capture.width;
@@ -517,7 +528,11 @@
 
         let gray = 0.299 * r + 0.587 * g + 0.114 * b;
         gray = (gray - 128) * contrast + 128 + brightness;
-        gray = gray >= threshold ? 255 : 0;
+        gray = Math.max(0, Math.min(255, gray));
+
+        if (!grayscaleOnly && threshold !== null) {
+          gray = gray >= threshold ? 255 : 0;
+        }
 
         data[i] = gray;
         data[i + 1] = gray;
@@ -528,10 +543,10 @@
       return { sx, sy, sw, sh, dw, dh };
     }
 
-    async function recognizePrepared(area, options) {
-      preprocessRegion(area, options);
-      const result = await worker.recognize(workCanvas);
-      return normalizeText(result.data.text || '');
+    async function recognizeWithWorker(worker, area, preprocessOptions, extraParams = {}) {
+      preprocessRegion(area, preprocessOptions);
+      const result = await worker.recognize(workCanvas, {}, extraParams);
+      return result.data.text || '';
     }
 
     function extractInvoiceNo(text) {
@@ -551,42 +566,51 @@
     }
 
     function parseMoneyCandidates(text) {
-      const t = normalizeText(text);
+      const t = normalizeNumericText(text);
       return [...t.matchAll(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{3,7})/g)]
         .map(m => parseInt(m[1].replace(/,/g, ''), 10))
         .filter(n => n >= 50 && n <= 999999);
     }
 
     function extractAmountFromBottom(text) {
-      const t = normalizeText(text);
+      const t = normalizeNumericText(text);
 
-      const strongPatterns = [
-        /(?:合計|税込|請求額|金額)\s*[:：]?\s*([0-9][0-9,]{1,})/i,
-        /^([0-9][0-9,]{2,})$/,
-        /\b([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{3,7})\b/
-      ];
-
-      for (const p of strongPatterns) {
-        const m = t.match(p);
-        if (m && m[1]) {
-          const n = parseInt(m[1].replace(/,/g, ''), 10);
-          if (n >= 50 && n <= 999999) return n;
-        }
+      const exact = t.match(/\b([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{3,7})\b/);
+      if (exact && exact[1]) {
+        const n = parseInt(exact[1].replace(/,/g, ''), 10);
+        if (n >= 50 && n <= 999999) return n;
       }
 
       const nums = parseMoneyCandidates(t);
       if (!nums.length) return null;
+
+      // 合計欄なので候補の最大値優先
       return Math.max(...nums);
     }
 
     async function readTopInvoiceNo() {
       const texts = [];
-      texts.push(await recognizePrepared(topOcrArea, { maxWidth: 1300, threshold: 160, contrast: 1.55 }));
-      texts.push(await recognizePrepared(topOcrArea, { maxWidth: 1300, threshold: 148, contrast: 1.42 }));
-      texts.push(await recognizePrepared(topGuideArea, { maxWidth: 1300, threshold: 156, contrast: 1.50 }));
 
-      for (const t of texts) {
-        const no = extractInvoiceNo(t);
+      texts.push(await recognizeWithWorker(
+        workerJpn,
+        topOcrArea,
+        { maxWidth: 1400, threshold: 160, contrast: 1.45, grayscaleOnly: false }
+      ));
+
+      texts.push(await recognizeWithWorker(
+        workerJpn,
+        topOcrArea,
+        { maxWidth: 1400, threshold: 145, contrast: 1.25, grayscaleOnly: false }
+      ));
+
+      texts.push(await recognizeWithWorker(
+        workerJpn,
+        topGuideArea,
+        { maxWidth: 1400, threshold: null, contrast: 1.15, grayscaleOnly: true }
+      ));
+
+      for (const raw of texts) {
+        const no = extractInvoiceNo(raw);
         if (no) return no;
       }
       return null;
@@ -594,12 +618,37 @@
 
     async function readBottomAmount() {
       const texts = [];
-      texts.push(await recognizePrepared(bottomOcrArea, { maxWidth: 1500, threshold: 170, contrast: 1.60 }));
-      texts.push(await recognizePrepared(bottomOcrArea, { maxWidth: 1500, threshold: 155, contrast: 1.45 }));
-      texts.push(await recognizePrepared(bottomGuideArea, { maxWidth: 1500, threshold: 162, contrast: 1.50 }));
 
-      for (const t of texts) {
-        const amount = extractAmountFromBottom(t);
+      // 数字専用OCR: グレースケールだけ
+      texts.push(await recognizeWithWorker(
+        workerNum,
+        bottomOcrArea,
+        { maxWidth: 1800, threshold: null, contrast: 1.18, grayscaleOnly: true }
+      ));
+
+      // 数字専用OCR: 軽い二値化
+      texts.push(await recognizeWithWorker(
+        workerNum,
+        bottomOcrArea,
+        { maxWidth: 1800, threshold: 182, contrast: 1.18, grayscaleOnly: false }
+      ));
+
+      // 数字専用OCR: 少し濃いめ
+      texts.push(await recognizeWithWorker(
+        workerNum,
+        bottomOcrArea,
+        { maxWidth: 1800, threshold: 168, contrast: 1.28, grayscaleOnly: false }
+      ));
+
+      // ガイド全体も保険で読む
+      texts.push(await recognizeWithWorker(
+        workerNum,
+        bottomGuideArea,
+        { maxWidth: 1800, threshold: null, contrast: 1.10, grayscaleOnly: true }
+      ));
+
+      for (const raw of texts) {
+        const amount = extractAmountFromBottom(raw);
         if (amount) return amount;
       }
       return null;
@@ -647,7 +696,6 @@
 
         calcTaxFields(amount);
         updateUI();
-
         setStatus(`登録: ${invoiceNo || '番号なし'} / ${fmt(amount)}円`);
       } catch (e) {
         console.error(e);
@@ -660,9 +708,18 @@
       }
     }
 
-    async function initWorker() {
-      worker = await Tesseract.createWorker('jpn+eng', 1, {
+    async function initWorkers() {
+      workerJpn = await Tesseract.createWorker('jpn+eng', 1, {
         logger: () => {}
+      });
+
+      workerNum = await Tesseract.createWorker('eng', 1, {
+        logger: () => {}
+      });
+
+      await workerNum.setParameters({
+        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+        tessedit_char_whitelist: '0123456789,'
       });
     }
 
@@ -716,7 +773,7 @@
         applyGuides();
         await initCamera();
         setStatus('OCR初期化中…');
-        await initWorker();
+        await initWorkers();
         updateUI();
         setStatus('準備完了');
       } catch (e) {
