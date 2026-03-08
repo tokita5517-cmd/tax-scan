@@ -124,7 +124,7 @@
     .guide{
       position:absolute;
       border:2px solid var(--yellow);
-      border-radius:12px;
+      border-radius:16px;
       box-shadow:0 0 14px rgba(255,216,77,.20);
     }
     .guideLabel{
@@ -353,25 +353,6 @@
     let count = 0;
     let history = [];
 
-    // 表示用ガイド（少し大きめ）
-    const topGuideArea = {
-      left: 0.54,
-      top: 0.08,
-      width: 0.28,
-      height: 0.10
-    };
-
-    const bottomGuideArea = {
-      left: 0.66,
-      top: 0.77,
-      width: 0.24,
-      height: 0.10
-    };
-
-    // 実際のOCR範囲（少し内側）
-    const topOcrArea = insetArea(topGuideArea, 0.03, 0.10);
-    const bottomOcrArea = insetArea(bottomGuideArea, 0.06, 0.14);
-
     function insetArea(area, insetXRatio, insetYRatio) {
       const dx = area.width * insetXRatio;
       const dy = area.height * insetYRatio;
@@ -382,6 +363,25 @@
         height: area.height - dy * 2
       };
     }
+
+    // 見た目の黄色枠は大きめ
+    const topGuideArea = {
+      left: 0.47,
+      top: 0.08,
+      width: 0.48,
+      height: 0.16
+    };
+
+    const bottomGuideArea = {
+      left: 0.54,
+      top: 0.70,
+      width: 0.34,
+      height: 0.18
+    };
+
+    // OCRは少しだけ内側
+    const topOcrArea = insetArea(topGuideArea, 0.08, 0.14);
+    const bottomOcrArea = insetArea(bottomGuideArea, 0.10, 0.14);
 
     function applyGuides() {
       topGuide.style.left = `${topGuideArea.left * 100}%`;
@@ -484,7 +484,7 @@
     function preprocessRegion(area, options = {}) {
       const {
         maxWidth = 1200,
-        threshold = 175,
+        threshold = 172,
         contrast = 1.55,
         brightness = 0
       } = options;
@@ -525,7 +525,6 @@
       }
 
       workCtx.putImageData(img, 0, 0);
-
       return { sx, sy, sw, sh, dw, dh };
     }
 
@@ -582,9 +581,9 @@
 
     async function readTopInvoiceNo() {
       const texts = [];
-      texts.push(await recognizePrepared(topOcrArea, { maxWidth: 1300, threshold: 165, contrast: 1.65 }));
-      texts.push(await recognizePrepared(topOcrArea, { maxWidth: 1300, threshold: 150, contrast: 1.45 }));
-      texts.push(await recognizePrepared(topGuideArea, { maxWidth: 1300, threshold: 160, contrast: 1.55 }));
+      texts.push(await recognizePrepared(topOcrArea, { maxWidth: 1300, threshold: 160, contrast: 1.55 }));
+      texts.push(await recognizePrepared(topOcrArea, { maxWidth: 1300, threshold: 148, contrast: 1.42 }));
+      texts.push(await recognizePrepared(topGuideArea, { maxWidth: 1300, threshold: 156, contrast: 1.50 }));
 
       for (const t of texts) {
         const no = extractInvoiceNo(t);
@@ -595,9 +594,9 @@
 
     async function readBottomAmount() {
       const texts = [];
-      texts.push(await recognizePrepared(bottomOcrArea, { maxWidth: 1500, threshold: 172, contrast: 1.65 }));
-      texts.push(await recognizePrepared(bottomOcrArea, { maxWidth: 1500, threshold: 155, contrast: 1.50 }));
-      texts.push(await recognizePrepared(bottomGuideArea, { maxWidth: 1500, threshold: 165, contrast: 1.55 }));
+      texts.push(await recognizePrepared(bottomOcrArea, { maxWidth: 1500, threshold: 170, contrast: 1.60 }));
+      texts.push(await recognizePrepared(bottomOcrArea, { maxWidth: 1500, threshold: 155, contrast: 1.45 }));
+      texts.push(await recognizePrepared(bottomGuideArea, { maxWidth: 1500, threshold: 162, contrast: 1.50 }));
 
       for (const t of texts) {
         const amount = extractAmountFromBottom(t);
