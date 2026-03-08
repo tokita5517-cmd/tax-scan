@@ -167,11 +167,6 @@
       gap:10px;
       align-items:center;
     }
-    .rightButtons{
-      display:grid;
-      grid-template-columns:1fr;
-      gap:8px;
-    }
     .btn{
       appearance:none;
       border:none;
@@ -236,22 +231,6 @@
     .debugCanvas{
       display:none;
     }
-
-    .freeze{
-      position:absolute;
-      inset:0;
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:none;
-      z-index:9;
-    }
-    .cameraWrap.processing video{
-      opacity:0;
-    }
-    .cameraWrap.processing .freeze{
-      display:block;
-    }
   </style>
 </head>
 <body>
@@ -284,9 +263,8 @@
       </div>
     </div>
 
-    <div class="cameraWrap" id="cameraWrap">
+    <div class="cameraWrap">
       <video id="video" playsinline autoplay muted></video>
-      <img id="freezeFrame" class="freeze" alt="">
       <canvas id="capture" class="capture"></canvas>
 
       <div class="overlay">
@@ -306,9 +284,7 @@
     <div class="bottomBar">
       <div class="controls">
         <button class="shutter" id="scanBtn">SCAN</button>
-        <div class="rightButtons">
-          <button class="btn" id="undoBtn">1件戻す</button>
-        </div>
+        <button class="btn" id="undoBtn">1件戻す</button>
       </div>
 
       <div class="history">
@@ -328,9 +304,6 @@
     const workCanvas = document.getElementById('workCanvas');
     const workCtx = workCanvas.getContext('2d', { willReadFrequently: true });
 
-    const cameraWrap = document.getElementById('cameraWrap');
-    const freezeFrame = document.getElementById('freezeFrame');
-
     const grandTotalEl = document.getElementById('grandTotal');
     const countEl = document.getElementById('count');
     const lastAmountEl = document.getElementById('lastAmount');
@@ -346,8 +319,7 @@
     const topGuide = document.getElementById('topGuide');
     const bottomGuide = document.getElementById('bottomGuide');
 
-    let workerJpn = null;
-    let workerNum = null;
+    let worker = null;
     let stream = null;
     let busy = false;
     let total = 0;
@@ -365,7 +337,6 @@
       };
     }
 
-    // 見た目の枠は大きめ
     const topGuideArea = {
       left: 0.47,
       top: 0.08,
@@ -374,15 +345,14 @@
     };
 
     const bottomGuideArea = {
-      left: 0.53,
-      top: 0.74,
-      width: 0.36,
-      height: 0.13
+      left: 0.49,
+      top: 0.73,
+      width: 0.42,
+      height: 0.14
     };
 
-    // OCRは少しだけ内側
     const topOcrArea = insetArea(topGuideArea, 0.08, 0.14);
-    const bottomOcrArea = insetArea(bottomGuideArea, 0.08, 0.16);
+    const bottomOcrArea = insetArea(bottomGuideArea, 0.08, 0.18);
 
     function applyGuides() {
       topGuide.style.left = `${topGuideArea.left * 100}%`;
@@ -405,7 +375,7 @@
     }
 
     function beep() {
-      try{
+      try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -466,11 +436,8 @@
         .trim();
     }
 
-    function normalizeNumericText(text) {
-      return normalizeText(text)
-        .replace(/[^0-9,]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+    function onlyNumeric(text) {
+      return normalizeText(text).replace(/[^0-9,]/g, ' ').replace(/\s+/g, ' ').trim();
     }
 
     function captureFrame() {
@@ -481,23 +448,14 @@
       capture.width = vw;
       capture.height = vh;
       capCtx.drawImage(video, 0, 0, vw, vh);
-
-      freezeFrame.src = capture.toDataURL('image/jpeg', 0.92);
-      cameraWrap.classList.add('processing');
       return true;
-    }
-
-    function releaseFrame() {
-      cameraWrap.classList.remove('processing');
     }
 
     function preprocessRegion(area, options = {}) {
       const {
-        maxWidth = 1200,
+        maxWidth = 1400,
         threshold = null,
-        contrast = 1.3,
-        brightness = 0,
-        grayscaleOnly = false
+        contrast = 1.18
       } = options;
 
       const vw = capture.width;
@@ -527,10 +485,10 @@
         const b = data[i + 2];
 
         let gray = 0.299 * r + 0.587 * g + 0.114 * b;
-        gray = (gray - 128) * contrast + 128 + brightness;
+        gray = (gray - 128) * contrast + 128;
         gray = Math.max(0, Math.min(255, gray));
 
-        if (!grayscaleOnly && threshold !== null) {
+        if (threshold !== null) {
           gray = gray >= threshold ? 255 : 0;
         }
 
@@ -540,24 +498,40 @@
       }
 
       workCtx.putImageData(img, 0, 0);
-      return { sx, sy, sw, sh, dw, dh };
     }
 
-    async function recognizeWithWorker(worker, area, preprocessOptions, extraParams = {}) {
+    async function recognizeArea(area, preprocessOptions, params = {}) {
       preprocessRegion(area, preprocessOptions);
-      const result = await worker.recognize(workCanvas, {}, extraParams);
+      const result = await worker.recognize(workCanvas);
       return result.data.text || '';
+    }
+
+    async function setTopMode() {
+      await worker.setParameters({
+        tessedit_pageseg_mode: Tesseract.PSM.AUTO
+      });
+    }
+
+    async function setBottomMode() {
+      await worker.setParameters({
+        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+        tessedit_char_whitelist: '0123456789,'
+      });
+    }
+
+    async function resetWhitelist() {
+      await worker.setParameters({
+        tessedit_char_whitelist: ''
+      });
     }
 
     function extractInvoiceNo(text) {
       const t = normalizeText(text);
-
       const patterns = [
         /(?:伝票番号|伝票No\.?|伝票NO\.?|No\.?|NO\.?)\s*[:：]?\s*([A-Z0-9\-]{4,})/i,
         /\b([A-Z]{0,3}\d{5,}(?:-\d+)*)\b/i,
         /\b(\d{6,})\b/
       ];
-
       for (const p of patterns) {
         const m = t.match(p);
         if (m && m[1]) return m[1];
@@ -565,93 +539,70 @@
       return null;
     }
 
-    function parseMoneyCandidates(text) {
-      const t = normalizeNumericText(text);
-      return [...t.matchAll(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{3,7})/g)]
-        .map(m => parseInt(m[1].replace(/,/g, ''), 10))
-        .filter(n => n >= 50 && n <= 999999);
-    }
+    function extractAmount(text) {
+      const t = onlyNumeric(text);
 
-    function extractAmountFromBottom(text) {
-      const t = normalizeNumericText(text);
-
-      const exact = t.match(/\b([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{3,7})\b/);
-      if (exact && exact[1]) {
-        const n = parseInt(exact[1].replace(/,/g, ''), 10);
+      const direct = t.match(/\b([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{3,7})\b/);
+      if (direct && direct[1]) {
+        const n = parseInt(direct[1].replace(/,/g, ''), 10);
         if (n >= 50 && n <= 999999) return n;
       }
 
-      const nums = parseMoneyCandidates(t);
-      if (!nums.length) return null;
+      const nums = [...t.matchAll(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{3,7})/g)]
+        .map(m => parseInt(m[1].replace(/,/g, ''), 10))
+        .filter(n => n >= 50 && n <= 999999);
 
-      // 合計欄なので候補の最大値優先
+      if (!nums.length) return null;
       return Math.max(...nums);
     }
 
     async function readTopInvoiceNo() {
-      const texts = [];
+      await resetWhitelist();
+      await setTopMode();
 
-      texts.push(await recognizeWithWorker(
-        workerJpn,
-        topOcrArea,
-        { maxWidth: 1400, threshold: 160, contrast: 1.45, grayscaleOnly: false }
-      ));
+      const raw1 = await recognizeArea(topOcrArea, {
+        maxWidth: 1400,
+        threshold: 158,
+        contrast: 1.25
+      });
 
-      texts.push(await recognizeWithWorker(
-        workerJpn,
-        topOcrArea,
-        { maxWidth: 1400, threshold: 145, contrast: 1.25, grayscaleOnly: false }
-      ));
+      const no1 = extractInvoiceNo(raw1);
+      if (no1) return no1;
 
-      texts.push(await recognizeWithWorker(
-        workerJpn,
-        topGuideArea,
-        { maxWidth: 1400, threshold: null, contrast: 1.15, grayscaleOnly: true }
-      ));
+      const raw2 = await recognizeArea(topGuideArea, {
+        maxWidth: 1400,
+        threshold: null,
+        contrast: 1.12
+      });
 
-      for (const raw of texts) {
-        const no = extractInvoiceNo(raw);
-        if (no) return no;
-      }
-      return null;
+      return extractInvoiceNo(raw2);
     }
 
     async function readBottomAmount() {
-      const texts = [];
+      await setBottomMode();
 
-      // 数字専用OCR: グレースケールだけ
-      texts.push(await recognizeWithWorker(
-        workerNum,
-        bottomOcrArea,
-        { maxWidth: 1800, threshold: null, contrast: 1.18, grayscaleOnly: true }
-      ));
+      const raw1 = await recognizeArea(bottomOcrArea, {
+        maxWidth: 1800,
+        threshold: null,
+        contrast: 1.10
+      });
+      const amount1 = extractAmount(raw1);
+      if (amount1) return amount1;
 
-      // 数字専用OCR: 軽い二値化
-      texts.push(await recognizeWithWorker(
-        workerNum,
-        bottomOcrArea,
-        { maxWidth: 1800, threshold: 182, contrast: 1.18, grayscaleOnly: false }
-      ));
+      const raw2 = await recognizeArea(bottomOcrArea, {
+        maxWidth: 1800,
+        threshold: 176,
+        contrast: 1.16
+      });
+      const amount2 = extractAmount(raw2);
+      if (amount2) return amount2;
 
-      // 数字専用OCR: 少し濃いめ
-      texts.push(await recognizeWithWorker(
-        workerNum,
-        bottomOcrArea,
-        { maxWidth: 1800, threshold: 168, contrast: 1.28, grayscaleOnly: false }
-      ));
-
-      // ガイド全体も保険で読む
-      texts.push(await recognizeWithWorker(
-        workerNum,
-        bottomGuideArea,
-        { maxWidth: 1800, threshold: null, contrast: 1.10, grayscaleOnly: true }
-      ));
-
-      for (const raw of texts) {
-        const amount = extractAmountFromBottom(raw);
-        if (amount) return amount;
-      }
-      return null;
+      const raw3 = await recognizeArea(bottomGuideArea, {
+        maxWidth: 1800,
+        threshold: null,
+        contrast: 1.08
+      });
+      return extractAmount(raw3);
     }
 
     async function scanOnce() {
@@ -701,26 +652,18 @@
         console.error(e);
         setStatus('OCRエラー');
       } finally {
-        releaseFrame();
+        await resetWhitelist();
         busy = false;
         scanBtn.disabled = false;
         undoBtn.disabled = false;
       }
     }
 
-    async function initWorkers() {
-      workerJpn = await Tesseract.createWorker('jpn+eng', 1, {
+    async function initWorker() {
+      worker = await Tesseract.createWorker('jpn+eng', 1, {
         logger: () => {}
       });
-
-      workerNum = await Tesseract.createWorker('eng', 1, {
-        logger: () => {}
-      });
-
-      await workerNum.setParameters({
-        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
-        tessedit_char_whitelist: '0123456789,'
-      });
+      await resetWhitelist();
     }
 
     async function initCamera() {
@@ -736,20 +679,16 @@
       await video.play();
     }
 
-    scanBtn.addEventListener('click', async () => {
-      await scanOnce();
-    });
+    scanBtn.addEventListener('click', scanOnce);
 
     undoBtn.addEventListener('click', () => {
       if (busy) return;
-
       if (!history.length) {
         setStatus('戻せる履歴がない');
         return;
       }
 
       const removed = history.shift();
-
       total -= Number(removed.amount || 0);
       if (total < 0) total = 0;
 
@@ -773,7 +712,7 @@
         applyGuides();
         await initCamera();
         setStatus('OCR初期化中…');
-        await initWorkers();
+        await initWorker();
         updateUI();
         setStatus('準備完了');
       } catch (e) {
